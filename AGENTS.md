@@ -4,9 +4,10 @@ Lightweight ERP for car repair shops: job orders, customers, vehicles, stock and
 
 ## Workflow
 
-- Plans live as maps on the issue tracker. Root map: <link>. A new project starts with `/charter`; a map is worked with `/wayfinder <map>`.
+- Plans live as maps on the issue tracker. Root map: [Mapa: Servisník](https://github.com/Kazarr/Servisnik/issues/42). A new project starts with `/charter`; a map is worked with `/wayfinder <map>`.
 - `/run` implements every ready ticket unattended; `/implement <ticket>` does one.
-- After a review, a retro, or a surprise from a real system: the `lesson` skill.
+- Merge every PR with a merge commit as soon as it is mergeable and its required checks are green, without waiting for a human review: run `gh pr merge --auto --merge --delete-branch` right after `gh pr create`. The required check is the ticket tier in CI. This overrides the `run` skill's "the human merges".
+- After a review, a retro, a surprise from a real system, or anything that failed (a command, a tool call, a wrong assumption): fix it, then record it with the `lesson` skill so it does not recur.
 - Every ~10 merged tickets: `/improve-codebase-architecture`, findings filed as tickets.
 - Everything listed in `vendor.txt` is vendored. `tools/vendor.sh update` pulls new upstream versions; local changes go upstream.
 
