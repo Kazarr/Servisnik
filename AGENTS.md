@@ -8,7 +8,7 @@ Lightweight ERP for car repair shops: job orders, customers, vehicles, stock and
 - `/run` implements every ready ticket unattended; `/implement <ticket>` does one.
 - Merge every PR with a merge commit as soon as it is mergeable and its required checks are green, without waiting for a human review: run `gh pr merge --auto --merge --delete-branch` right after `gh pr create`. The required check is the ticket tier in CI. This overrides the `run` skill's "the human merges".
 - After a review, a retro, a surprise from a real system, or anything that failed (a command, a tool call, a wrong assumption): fix it, then record it with the `lesson` skill so it does not recur.
-- Every ~10 merged tickets: `/improve-codebase-architecture`, findings filed as tickets.
+- Every ~10 merged tickets: `/improve-codebase-architecture`, findings filed as tickets. It also lists code that uses no `GLOSSARY.md` term as a candidate for its own package.
 - Everything listed in `vendor.txt` is vendored. `tools/vendor.sh update` pulls new upstream versions; local changes go upstream.
 
 ## Who decides
@@ -25,12 +25,16 @@ Lightweight ERP for car repair shops: job orders, customers, vehicles, stock and
 
 | Tier | Runs | Command | Budget |
 |---|---|---|---|
-| edit | after every file edit (`PostToolUse` hook) | `<fill at stack decision>` | seconds |
-| ticket | before every merge | `<fill>` | under 3 min |
-| batch | once per run, on the integration branch | `<fill>` | once |
-| deploy | after every deploy | `<fill>` | minutes |
+| edit | after every file edit (`PostToolUse` hook) | `pnpm typecheck` | seconds |
+| ticket | before every merge, as the required CI check `ticket` | `pnpm verify` | under 3 min |
+| batch | once per run, on the integration branch | `pnpm e2e` (Playwright, added by the walking skeleton) | once |
+| deploy | after every deploy | `pnpm smoke <url>` (added by the walking skeleton) | minutes |
 
 Business logic is unit-tested without framework, database or network. External systems are tested against their recorded real responses. End-to-end tests cover a few smoke paths and run only in the batch tier.
+
+## Code layout
+
+Stack and architecture: `docs/adr/0001-stack.md`. `packages/domain` holds Servisník's rules, one folder per glossary area; areas call each other only through the area's `index.ts`, and the package has no runtime dependencies. Code that needs no `GLOSSARY.md` term goes into its own package, like `packages/kros`.
 
 ## Agent skills
 
