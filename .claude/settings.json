@@ -4,5 +4,21 @@
       "Bash(gh pr merge *)",
       "Bash(gh issue close *)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "pnpm -s typecheck 1>&2 || exit 2",
+            "timeout": 60,
+            "statusMessage": "Edit tier: pnpm typecheck"
+          }
+        ]
+      }
+    ]
   }
 }
