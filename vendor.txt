@@ -10,6 +10,12 @@ tools/vendor.sh https://github.com/Kazarr/dev-lessons core/vendor.sh 290b463cb0d
 
 # dev-lessons packs: one line per pack picked from packs/catalog.md, e.g.
 # .claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy HEAD
+.claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy 290b463cb0dcdd07f073585c315cc30fbb75e9aa
+.claude/skills/review-standards https://github.com/Kazarr/dev-lessons packs/review-standards 290b463cb0dcdd07f073585c315cc30fbb75e9aa
+.claude/skills/devops https://github.com/Kazarr/dev-lessons packs/devops 290b463cb0dcdd07f073585c315cc30fbb75e9aa
+.claude/skills/integration https://github.com/Kazarr/dev-lessons packs/integration 290b463cb0dcdd07f073585c315cc30fbb75e9aa
+.claude/skills/frontend-design https://github.com/Kazarr/dev-lessons packs/frontend-design 290b463cb0dcdd07f073585c315cc30fbb75e9aa
+.claude/skills/windows-wsl https://github.com/Kazarr/dev-lessons packs/windows-wsl 290b463cb0dcdd07f073585c315cc30fbb75e9aa
 
 # mattpocock/skills (MIT)
 .claude/skills/setup-matt-pocock-skills https://github.com/mattpocock/skills skills/engineering/setup-matt-pocock-skills 5beb35b040e3de97e54fa9e386d7e42d15c295c2
