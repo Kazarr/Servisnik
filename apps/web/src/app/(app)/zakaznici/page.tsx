@@ -1,14 +1,45 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { currentUser } from '../../../dal/current-user.ts';
+import { listCustomers } from '../../../dal/customers.ts';
+import { customerTypeLabels } from './type-labels.ts';
 
 export const metadata: Metadata = { title: 'Zákazníci' };
 
 export default async function CustomersPage() {
-  await currentUser();
+  const customers = await listCustomers(await currentUser());
   return (
     <>
-      <h1>Zákazníci</h1>
-      <p>Zatiaľ tu nič nie je.</p>
+      <div className="page-header">
+        <h1>Zákazníci</h1>
+        <Link href="/zakaznici/novy" className="button">
+          Pridať zákazníka
+        </Link>
+      </div>
+      {customers.length === 0 ? (
+        <p>Zatiaľ tu nič nie je.</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Názov</th>
+                <th scope="col">Typ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((customer) => (
+                <tr key={customer.id}>
+                  <td>
+                    <Link href={`/zakaznici/${customer.id}`}>{customer.name}</Link>
+                  </td>
+                  <td>{customerTypeLabels[customer.type]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }
