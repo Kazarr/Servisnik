@@ -20,7 +20,7 @@ Tunel je Cloudflare quick tunnel bez účtu pre webhook KROS. URL sa mení pri k
 
 ## Spustenie appky
 
-V `.env` (kópia `.env.example`) doplň `BETTER_AUTH_SECRET`, `ADMIN_EMAIL` a `ADMIN_PASSWORD`. Chýbajúca premenná zastaví appku s hláškou, ktorá ju pomenuje. Tajomstvo vygeneruješ takto:
+V `.env` (kópia [`.env.example`](.env.example)) doplň premenné, ktoré sú tam prázdne. Chýbajúca premenná zastaví appku s hláškou, ktorá ju pomenuje. `BETTER_AUTH_SECRET` vygeneruješ takto:
 
 ```powershell
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
@@ -41,11 +41,11 @@ Registrácia v appke nie je, prihlásiť sa dá len admin zo seedu. Zmenu schém
 ```powershell
 pnpm verify                            # ticket tier: typecheck a testy; Testcontainers spustí PostgreSQL 17, Docker musí bežať
 pnpm e2e:install                       # raz, stiahne prehliadač pre e2e
-pnpm e2e                               # batch tier: build appky, čerstvá databáza, cesty prihlásenie, menu, odhlásenie, zákazník a vozidlo s VIN
+pnpm e2e                               # batch tier: build appky, čerstvá databáza, špecifikácie z apps/web/e2e
 pnpm smoke http://localhost:3000       # deploy tier: prihlasovacia stránka a /api/health odpovedia 200, inak nenulový exit
 ```
 
-`pnpm e2e` si spustí vlastný PostgreSQL 17 cez Testcontainers (nie ten z Compose), aplikuje migrácie, založí admina a spustí production build appky na porte 3100. Iný port nastavíš cez `$env:E2E_PORT = 3101`. Test zlyhá pri chybe v konzole, výnimke stránky, odpovedi 5xx aj pri nečakanom výpise servera na stderr.
+`pnpm e2e` si spustí vlastný PostgreSQL 17 cez Testcontainers (nie ten z Compose), aplikuje migrácie, založí admina a spustí production build appky na porte z [`apps/web/playwright.config.ts`](apps/web/playwright.config.ts) (`$env:E2E_PORT` ho prepíše). Test zlyhá pri chybe v konzole, výnimke stránky alebo odpovedi 5xx. Nečakaný výpis servera na stderr nezlyhá test, ale celý beh v teardown ([`apps/web/e2e/global-setup.ts`](apps/web/e2e/global-setup.ts)).
 
 ## Nasadenie
 
