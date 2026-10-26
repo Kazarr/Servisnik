@@ -137,21 +137,27 @@ test('the deploy workflow tags the image with the commit SHA and smokes the URL 
   expect(Object.values(step(isSmoke).env ?? {}).join()).toContain('live_url');
 });
 
-test('the deploy workflow stops with a clear error naming the secret that is missing, before it builds', () => {
+test('the deploy workflow stops with a clear error naming each secret that is missing, before it builds', () => {
   const check = step(isSecretCheck);
   const names = Object.keys(check.env ?? {});
-  const full = Object.fromEntries(names.map((name) => [name, 'value']));
-  const execute = (env: Record<string, string>) => spawnSync('bash', ['-c', check.run!], { env: { PATH: process.env.PATH!, ...env }, encoding: 'utf8' });
+  // The step runs as it is, with the secrets it is given as environment variables.
+  const execute = (present: string[]) => {
+    const env = { ...process.env };
+    for (const name of names) delete env[name];
+    for (const name of present) env[name] = 'value';
+    const { status, stdout, stderr } = spawnSync('bash', ['-c', check.run!], { env, encoding: 'utf8' });
+    return { status, output: stdout + stderr };
+  };
 
   expect(names).toContain('DIGITALOCEAN_ACCESS_TOKEN');
-  expect(execute(full).status).toBe(0);
-
-  const { DIGITALOCEAN_ACCESS_TOKEN: _, ...withoutToken } = full;
-  const refused = execute(withoutToken);
-  expect(refused.status).toBe(1);
-  expect(refused.stdout + refused.stderr).toContain('DIGITALOCEAN_ACCESS_TOKEN');
-  // Only the missing one is named.
-  expect(refused.stdout + refused.stderr).not.toContain('BETTER_AUTH_SECRET');
+  expect(execute(names).status).toBe(0);
+  for (const missing of names) {
+    const refused = execute(names.filter((name) => name !== missing));
+    expect(refused.status, `without ${missing}`).toBe(1);
+    expect(refused.output, `without ${missing}`).toContain(missing);
+    // Only the missing one is named.
+    for (const other of names.filter((name) => name !== missing)) expect(refused.output).not.toContain(other);
+  }
 });
 
 test('the secrets the deploy workflow checks are the ones it passes to the deploy', () => {
