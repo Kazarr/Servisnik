@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./customer": "./src/customer/index.ts",
     "./vehicle": "./src/vehicle/index.ts"
   }
 }
