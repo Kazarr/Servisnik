@@ -5,6 +5,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node"]
