@@ -2,7 +2,9 @@ name: deploy
 run-name: Nasadenie ${{ github.sha }}
 
 # Nasadí testovacie prostredie na DigitalOcean (spec #77, Nasadenie). Spúšťa ho Kazarr rukou:
-# Actions > deploy > Run workflow. Postup a to, čo treba nastaviť raz, je v README, časť Nasadenie.
+# Actions > deploy > Run workflow, z vetvy main. Postup a to, čo treba nastaviť raz, je v README, časť Nasadenie.
+# workflow_dispatch beží na ľubovoľnej vetve a vetva si môže priniesť vlastný ci.yml aj gate, preto secrets
+# sú v environmente `test` obmedzenom na main a job iné vetvy sám odmietne.
 on:
   workflow_dispatch:
 
@@ -16,27 +18,25 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
+    environment: test
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      # Prvé: bez secretov nemá zmysel nič zostavovať.
+      # Prvé: bez secretov nemá zmysel nič zostavovať. KROS_* sa nevyžadujú, kým ich nezačne čítať #81.
       - name: Check that the secrets are set
         env:
           DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          KROS_API_URL: ${{ secrets.KROS_API_URL }}
-          KROS_API_TOKEN: ${{ secrets.KROS_API_TOKEN }}
-          KROS_WEBHOOK_SECRET: ${{ secrets.KROS_WEBHOOK_SECRET }}
-          KROS_VAT_PAYER_TYPE: ${{ secrets.KROS_VAT_PAYER_TYPE }}
         run: |
           missing=""
-          for name in DIGITALOCEAN_ACCESS_TOKEN BETTER_AUTH_SECRET ADMIN_EMAIL ADMIN_PASSWORD KROS_API_URL KROS_API_TOKEN KROS_WEBHOOK_SECRET KROS_VAT_PAYER_TYPE; do
+          for name in DIGITALOCEAN_ACCESS_TOKEN BETTER_AUTH_SECRET ADMIN_EMAIL ADMIN_PASSWORD; do
             if [ -z "${!name}" ]; then missing="$missing $name"; fi
           done
           if [ -n "$missing" ]; then
-            echo "::error title=Chýbajú GitHub secrets::Chýba:$missing. Nastav ich v Settings > Secrets and variables > Actions (README, časť Nasadenie)."
+            echo "::error title=Chýbajú secrets prostredia test::Chýba:$missing. Nastav ich v Settings > Environments > test (README, časť Nasadenie)."
             exit 1
           fi
 
@@ -51,7 +51,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?check_name=ticket&per_page=100" --paginate --jq '.check_runs[]' | node tools/deploy-gate.ts
 
-      - uses: digitalocean/action-doctl@v2
+      - uses: digitalocean/action-doctl@3cb3953159719656269e044e0e24ca16dd2a690f # v2.5.2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
@@ -66,7 +66,7 @@ jobs:
       # Vytvorí appku zo .do/app.yaml, ak ešte nie je, inak ju aktualizuje, a počká na dokončenie nasadenia.
       - name: Deploy the App Spec
         id: deploy
-        uses: digitalocean/app_action/deploy@v2
+        uses: digitalocean/app_action/deploy@cc55bc9b848d25f9c1c9f831cf843fbab3fbfb15 # v2.0.11
         env:
           IMAGE_TAG: ${{ github.sha }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
@@ -80,7 +80,7 @@ jobs:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
           app_spec_location: .do/app.yaml
           print_build_logs: true
-          print_deploy_logs: true
+          print_deploy_logs: false # repo je verejný
 
       - name: Smoke the deployed app
         env:
