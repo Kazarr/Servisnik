@@ -15,7 +15,10 @@ export class UnauthenticatedError extends Error {
 
 const isRole = (value: unknown): value is Role => role.enumValues.some((known) => known === value);
 
-/** The Používateľ behind the request's session cookie; rejects with UnauthenticatedError when there is none. */
+/**
+ * The Používateľ behind the request's session cookie. Rejects with UnauthenticatedError when there
+ * is no valid session, and also when the user's Rola is one this version of the code does not know.
+ */
 export async function requireUser(requestHeaders: Headers, auth: Auth = getAuth()): Promise<User> {
   const session = await auth.api.getSession({ headers: requestHeaders });
   if (!session) throw new UnauthenticatedError();

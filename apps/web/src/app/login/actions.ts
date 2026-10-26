@@ -7,7 +7,7 @@ import { getAuth } from '../../auth.ts';
 
 export type LoginState = { error: string; email: string } | null;
 
-/** Server Action of the login form; the only page that needs no session. */
+/** Server Action of the login form. It is public by nature: it is how a session starts. */
 export async function signIn(_state: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');

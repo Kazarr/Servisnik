@@ -1,5 +1,3 @@
-// Relative imports carry the .ts extension so that Node runs the scripts (migrate, seed) without a build step.
-
 type Source = Record<string, string | undefined>;
 
 /** Reads the named variables; throws one error naming every missing or empty one, never a value. */
