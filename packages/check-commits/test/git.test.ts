@@ -41,6 +41,7 @@ beforeAll(() => {
   git('config', 'user.name', 'test');
   git('config', 'user.email', 'test@example.com');
   git('config', 'commit.gpgsign', 'false');
+  git('config', 'core.autocrlf', 'false');
   git('config', 'core.hooksPath', join(dir, 'no-hooks'));
   commit('chore: base', 'README.md');
 });
