@@ -25,7 +25,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             ))}
           </ul>
         </nav>
-        <div className="account">
+        <div className="user">
           <p>{user.email}</p>
           <form action={signOut}>
             <button type="submit">Odhlásiť sa</button>
