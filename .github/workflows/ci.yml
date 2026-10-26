@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # a shallow clone lacks origin/<base_ref>, which the commit check reads up to HEAD
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -22,3 +24,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
+        env:
+          # The commit check reads origin/<base_ref>..HEAD. A push to main has no base_ref, so it falls
+          # back to origin/main, which is HEAD itself: an empty range, nothing is checked there.
+          CHECK_COMMITS_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) }}
