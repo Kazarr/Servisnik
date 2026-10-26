@@ -13,7 +13,12 @@ export class UnauthenticatedError extends Error {
   }
 }
 
-const isRole = (value: unknown): value is Role => role.enumValues.some((known) => known === value);
+/** First line of every DAL function that reads or writes data: no user, nothing happens. */
+export function assertUser(user: User | null): asserts user is User {
+  if (!user) throw new UnauthenticatedError();
+}
+
+const isRole =(value: unknown): value is Role => role.enumValues.some((known) => known === value);
 
 /**
  * The Používateľ behind the request's session cookie. Rejects with UnauthenticatedError when there

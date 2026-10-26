@@ -1,4 +1,5 @@
-import { boolean, index, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { customerTypes } from '@servisnik/domain/customer';
+import { boolean, index, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 // Better Auth owns user, session, account and verification (docs/adr/0001-stack.md). Keys and
 // column types follow what its Drizzle adapter expects; `role` is Servisník's own column.
@@ -73,4 +74,39 @@ export const verification = pgTable(
     ...timestamps,
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
+);
+
+/** Osoba or Firma. */
+export const customerType = pgEnum('customer_type', customerTypes);
+
+/** Zákazník. The company fields stay empty for an osoba (packages/domain/src/customer). */
+export const customer = pgTable('customer', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  type: customerType('type').notNull(),
+  name: text('name').notNull(),
+  ico: text('ico'),
+  dic: text('dic'),
+  icDph: text('ic_dph'),
+  street: text('street'),
+  city: text('city'),
+  postalCode: text('postal_code'),
+  email: text('email'),
+  ...timestamps,
+});
+
+/** Vozidlo, identified by its VIN; `ownerId` is its Majiteľ. */
+export const vehicle = pgTable(
+  'vehicle',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vin: text('vin').notNull(),
+    ownerId: uuid('owner_id')
+      .notNull()
+      .references(() => customer.id, { onDelete: 'restrict' }),
+    licensePlate: text('license_plate'),
+    make: text('make').notNull(),
+    model: text('model').notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex('vehicle_vin_idx').on(table.vin), index('vehicle_owner_id_idx').on(table.ownerId)],
 );
