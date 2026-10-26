@@ -49,6 +49,15 @@ test('the image is Debian-based node:24-slim and runs as a non-root user', () =>
   expect(dockerfile.lastIndexOf('USER node')).toBeLessThan(dockerfile.lastIndexOf('CMD'));
 });
 
+test('the migration tooling is a workspace install, not `pnpm deploy`, whose copy of @servisnik/domain lands in node_modules', () => {
+  // Found by running the image after #79: Node refuses to strip the types of a file under node_modules,
+  // so migrate.ts failed on the import of @servisnik/domain. A workspace install links the real package.
+  const dockerfile = read('Dockerfile');
+
+  expect(dockerfile).not.toMatch(/pnpm[^\n]*\bdeploy\b/);
+  expect(dockerfile).toMatch(/pnpm install[^\n]*--prod/);
+});
+
 test('.dockerignore lists .env files at any depth', () => {
   const ignored = read('.dockerignore').split('\n');
 
@@ -72,9 +81,11 @@ const keys = ({ envs }: { envs: Env[] }) => envs.map(({ key }) => key).sort();
 test('the App Spec migrates before every deploy and seeds the admin after it, both from the image of the service', () => {
   const { jobs, services } = spec();
 
+  // The scripts run from a workspace install (/migrate, see the Dockerfile): the apps/web scripts import
+  // @servisnik/domain, a TypeScript package that Node strips types from only outside node_modules.
   expect(jobs.map(({ name, kind, run_command }) => ({ name, kind, run_command }))).toEqual([
-    { name: 'migrate', kind: 'PRE_DEPLOY', run_command: 'node /migrate/scripts/migrate.ts' },
-    { name: 'seed', kind: 'POST_DEPLOY', run_command: 'node /migrate/scripts/seed.ts' },
+    { name: 'migrate', kind: 'PRE_DEPLOY', run_command: 'node /migrate/apps/web/scripts/migrate.ts' },
+    { name: 'seed', kind: 'POST_DEPLOY', run_command: 'node /migrate/apps/web/scripts/seed.ts' },
   ]);
   for (const job of jobs) expect(job.image).toEqual(services[0]!.image);
   expect(keys(jobs[0]!)).toEqual(['DATABASE_CA_CERT', 'DATABASE_URL']);
