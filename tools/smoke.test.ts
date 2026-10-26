@@ -34,7 +34,7 @@ test('smoke fails on /api/health 503 and names it, the login page is still check
 test('smoke does not follow a redirect: a login page that redirects is not a login page', async () => {
   const url = await app({ '/login': 307, '/api/health': 200 }, { location: '/somewhere-else' });
 
-  expect(await smoke(url)).toEqual(['/login: HTTP 307, čakalo sa 200', '/api/health: HTTP 307, čakalo sa 200']);
+  expect(await smoke(url)).toEqual(['/login: HTTP 307, čakalo sa 200']);
 });
 
 test('smoke reports every unreachable page with the reason', async () => {
