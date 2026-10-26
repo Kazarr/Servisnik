@@ -46,3 +46,26 @@ export function localDate(instant: Date): string {
 
 /** The year at this moment in Europe/Bratislava, which is the year of a new Zákazka's number. */
 export const localYear = (instant: Date): number => Number(localDate(instant).slice(0, 4));
+
+/** Money is whole cents and a quantity is in hundredths, so no amount here is ever a float. */
+export type Amounts = { net: number; vat: number; gross: number };
+export type Priced = { quantityHundredths: number; unitPriceCents: number; vatRate: number };
+
+/** `numerator / denominator` rounded half up; both are non-negative. */
+const roundedDivide = (numerator: number, denominator: number) => Math.floor((2 * numerator + denominator) / (2 * denominator));
+
+/**
+ * What one item costs, rounded to cents once per item: first the amount without VAT, then the VAT
+ * taken from that rounded amount. `vatRate` is a whole percentage.
+ */
+export function amountsOf({ quantityHundredths, unitPriceCents, vatRate }: Priced): Amounts {
+  const net = roundedDivide(quantityHundredths * unitPriceCents, 100);
+  const vat = roundedDivide(net * vatRate, 100);
+  return { net, vat, gross: net + vat };
+}
+
+/** What a Zákazka costs: the sum of its rounded items, never a rounding of the sums. */
+export function totalsOf(items: readonly Priced[]): Amounts {
+  const sum = (key: keyof Amounts) => items.reduce((total, item) => total + amountsOf(item)[key], 0);
+  return { net: sum('net'), vat: sum('vat'), gross: sum('gross') };
+}
