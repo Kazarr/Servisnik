@@ -1,5 +1,4 @@
 import type { FullConfig } from '@playwright/test';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { cpSync } from 'node:fs';
@@ -8,6 +7,7 @@ import { join } from 'node:path';
 import { createDb } from '../src/db/index.ts';
 import { migrateDatabase } from '../src/db/migrate.ts';
 import { seedAdmin } from '../src/seed.ts';
+import { startPostgres } from '../test/support/postgres.ts';
 import { unexpectedStderr } from './server-stderr.ts';
 
 const appDir = join(import.meta.dirname, '..');
@@ -20,7 +20,7 @@ const appDir = join(import.meta.dirname, '..');
 export default async function globalSetup(config: FullConfig) {
   const baseURL = new URL(config.projects[0]!.use.baseURL!);
 
-  const container = await new PostgreSqlContainer('postgres:17').withTmpFs({ '/var/lib/postgresql/data': 'rw' }).start();
+  const container = await startPostgres();
   const databaseUrl = container.getConnectionUri();
   const db = createDb(databaseUrl);
   await migrateDatabase(db);
