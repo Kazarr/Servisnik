@@ -60,8 +60,8 @@ Treba Docker Desktop a PostgreSQL z Compose (`pnpm services:up`, port z `POSTGRE
 ```powershell
 docker build -t servisnik .
 $db = 'postgres://servisnik:servisnik@host.docker.internal:5432/servisnik'   # Compose PostgreSQL zvnútra kontajnera
-docker run --rm -e DATABASE_URL=$db servisnik node /migrate/scripts/migrate.ts   # príkaz pre-deploy jobu
-docker run --rm --env-file .env -e DATABASE_URL=$db servisnik node /migrate/scripts/seed.ts   # admin z ADMIN_EMAIL a ADMIN_PASSWORD
+docker run --rm -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/migrate.ts   # príkaz pre-deploy jobu
+docker run --rm --env-file .env -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/seed.ts   # príkaz post-deploy jobu: admin z ADMIN_EMAIL a ADMIN_PASSWORD
 docker run -d --name servisnik-app -p 3000:3000 --env-file .env -e DATABASE_URL=$db servisnik
 pnpm smoke http://localhost:3000
 docker rm -f servisnik-app
