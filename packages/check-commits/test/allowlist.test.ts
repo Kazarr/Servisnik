@@ -50,4 +50,6 @@ test('rejects a line that is not a full sha followed by a reason', () => {
   );
   expect(() => parseAllowlist(`# ok\n${A}`)).toThrow('allowlist line 2: expected "<40-hex sha> <reason>"');
   expect(() => parseAllowlist(`${A.toUpperCase()} upper case sha`)).toThrow('allowlist line 1');
+  expect(() => parseAllowlist(`${A} `)).toThrow('allowlist line 1');
+  expect(() => parseAllowlist(`junk ${A} the sha is not at the start`)).toThrow('allowlist line 1');
 });
