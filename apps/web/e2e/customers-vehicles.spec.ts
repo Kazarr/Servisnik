@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { addCustomer, endSessionBehindThePage, expect, signIn, test } from './fixtures.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
@@ -77,17 +78,20 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
 });
 
 test('the admin adds a person without company fields, and the list starts with the newest customer', async ({ page }) => {
+  // All specs share one database, and this one also runs repeated: its two customers carry a tag, so the list is read by identity.
+  const tag = randomBytes(3).toString('hex');
+  const [first, second] = [`Prvá Osobová ${tag}`, `Druhá Osobová ${tag}`];
   await signIn(page);
-  await addCustomer(page, 'Prvá Osobová');
+  await addCustomer(page, first);
   await expect(page.locator('main')).not.toContainText('IČO');
-  await addCustomer(page, 'Druhá Osobová');
+  await addCustomer(page, second);
 
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
-  const names = await page.locator('main').getByRole('link', { name: /Osobová/ }).allTextContents();
-  expect(names).toEqual(['Druhá Osobová', 'Prvá Osobová']);
+  // Retries until the list has rendered: the navigation from the detail page is client-side, and a plain read of the links would see the detail page.
+  await expect(page.locator('main').getByRole('link', { name: tag })).toHaveText([second, first]);
 
-  await page.locator('main').getByRole('link', { name: 'Prvá Osobová' }).click();
-  await expect(page.locator('main h1')).toHaveText('Prvá Osobová');
+  await page.locator('main').getByRole('link', { name: first }).click();
+  await expect(page.locator('main h1')).toHaveText(first);
 });
 
 test('a customer form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
