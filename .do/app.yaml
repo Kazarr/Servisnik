@@ -1,0 +1,76 @@
+# App Spec testovacieho prostredia na DigitalOcean (spec #77, Nasadenie; docs/adr/0001-stack.md).
+# Hodnoty tu nie sú. ${PREMENNA} doplní workflow `deploy` z GitHub secrets, ${db.*} a ${APP_URL}
+# doplní DigitalOcean. Appku z tohto súboru zakladá prvý beh workflow, postup je v README.
+name: servisnik-test
+region: fra
+
+services:
+  - name: web
+    image:
+      registry_type: DOCR # register vytvára Kazarr, názov registra pozná workflow
+      repository: servisnik
+      tag: ${IMAGE_TAG} # SHA commitu, ktorý workflow zostavil
+    http_port: 3000
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    instance_count: 1
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 10
+      timeout_seconds: 5 # /api/health čaká na databázu najviac 2 s
+    envs:
+      # DigitalOcean podpisuje svoje databázy vlastnou CA, ktorú Node nepozná, a pg pri `sslmode=require`
+      # overuje reťaz. `uselibpqcompat` urobí z `require` šifrované spojenie bez overenia reťaze.
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}&uselibpqcompat=true
+      - key: BETTER_AUTH_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${BETTER_AUTH_SECRET}
+      - key: BETTER_AUTH_URL
+        scope: RUN_TIME
+        value: ${APP_URL}
+      - key: KROS_API_URL
+        scope: RUN_TIME
+        value: ${KROS_API_URL}
+      - key: KROS_API_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        value: ${KROS_API_TOKEN}
+      - key: KROS_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${KROS_WEBHOOK_SECRET}
+      - key: KROS_VAT_PAYER_TYPE
+        scope: RUN_TIME
+        value: ${KROS_VAT_PAYER_TYPE}
+      # Pre seed admina (`node /migrate/scripts/seed.ts` v konzole služby, README), nie pre beh appky.
+      - key: ADMIN_EMAIL
+        scope: RUN_TIME
+        type: SECRET
+        value: ${ADMIN_EMAIL}
+      - key: ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+        value: ${ADMIN_PASSWORD}
+
+jobs:
+  # Pred každým nasadením aplikuje migrácie; zlyhanie zastaví nasadenie a stará verzia beží ďalej.
+  - name: migrate
+    kind: PRE_DEPLOY
+    image:
+      registry_type: DOCR
+      repository: servisnik
+      tag: ${IMAGE_TAG}
+    run_command: node /migrate/scripts/migrate.ts
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}&uselibpqcompat=true
+
+databases:
+  # Vývojová databáza v rámci appky ($7/mes., research Hosting); produkcia dostane spravovaný cluster.
+  - name: db
+    engine: PG
+    version: "17"
+    production: false
