@@ -1,6 +1,8 @@
 # App Spec testovacieho prostredia na DigitalOcean (spec #77, Nasadenie; docs/adr/0001-stack.md).
-# Hodnoty tu nie sú. ${PREMENNA} doplní workflow `deploy` z GitHub secrets, ${db.*} a ${APP_URL}
-# doplní DigitalOcean. Appku z tohto súboru zakladá prvý beh workflow, postup je v README.
+# Hodnoty tu nie sú, len zástupky v tvare dolár a zložené zátvorky. Zástupky bez bodky (IMAGE_TAG, tajomstvá)
+# doplní workflow `deploy` z GitHub secrets, APP_URL a zástupky s bodkou (db.DATABASE_URL) doplní DigitalOcean.
+# Komentáre zástupky nepíšu: test v tools/deploy-config.test.ts ich počíta aj tam.
+# Appku z tohto súboru zakladá prvý beh workflow, postup je v README.
 name: servisnik-test
 region: fra
 
