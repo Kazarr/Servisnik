@@ -15,12 +15,12 @@ type Spec = {
   region: string;
   services: { name: string; image: Image; http_port: number; health_check: { http_path: string }; envs: Env[] }[];
   jobs: { name: string; kind: string; image: Image; run_command: string; envs: Env[] }[];
-  databases: { name: string; engine: string; version: string }[];
+  databases: { name: string; engine: string; version: string; production: boolean; cluster_name: string }[];
 };
 const spec = () => parse(read('.do/app.yaml')) as Spec;
 
-type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, string> };
-type Workflow = { on: Record<string, unknown>; jobs: Record<string, { steps: Step[] }> };
+type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
+type Workflow = { on: Record<string, unknown>; jobs: Record<string, { if?: string; environment?: string; steps: Step[] }> };
 const workflow = () => parse(read('.github/workflows/deploy.yml')) as Workflow;
 const steps = () => workflow().jobs.deploy!.steps;
 const stepIndex = (match: (step: Step) => boolean) => {
@@ -49,40 +49,48 @@ test('the image is Debian-based node:24-slim and runs as a non-root user', () =>
   expect(dockerfile.lastIndexOf('USER node')).toBeLessThan(dockerfile.lastIndexOf('CMD'));
 });
 
-test('the build context never carries .env files into the image', () => {
+test('.dockerignore lists .env files at any depth', () => {
   const ignored = read('.dockerignore').split('\n');
 
-  expect(ignored).toContain('.env*');
+  expect(ignored).toContain('**/.env*');
 });
 
-test('the App Spec has the service from the image, PostgreSQL 17 in Frankfurt and the health check', () => {
+test('the App Spec has the service from the image, a managed PostgreSQL 17 cluster in Frankfurt and the health check', () => {
   const { region, services, databases } = spec();
 
   expect(region).toBe('fra');
-  expect(databases.map(({ engine, version }) => ({ engine, version }))).toEqual([{ engine: 'PG', version: '17' }]);
+  // The cluster is made by hand (README, "Nasadenie"): a managed one, not the dev database of the app.
+  expect(databases).toEqual([{ name: 'db', engine: 'PG', version: '17', production: true, cluster_name: 'servisnik-test-db' }]);
   expect(services).toHaveLength(1);
   expect(services[0]!.image).toEqual({ registry_type: 'DOCR', repository: 'servisnik', tag: '${IMAGE_TAG}' });
   expect(services[0]!.health_check.http_path).toBe('/api/health');
   expect(String(services[0]!.http_port)).toBe(/^ENV .*\bPORT=(\d+)/m.exec(read('Dockerfile'))![1]);
 });
 
-test('the App Spec runs the migration as a pre-deploy job from the same image', () => {
+const keys = ({ envs }: { envs: Env[] }) => envs.map(({ key }) => key).sort();
+
+test('the App Spec migrates before every deploy and seeds the admin after it, both from the image of the service', () => {
   const { jobs, services } = spec();
 
-  expect(jobs).toHaveLength(1);
-  expect(jobs[0]).toMatchObject({ kind: 'PRE_DEPLOY', image: services[0]!.image, run_command: 'node /migrate/scripts/migrate.ts' });
-  expect(jobs[0]!.envs.map(({ key }) => key)).toEqual(['DATABASE_URL']);
+  expect(jobs.map(({ name, kind, run_command }) => ({ name, kind, run_command }))).toEqual([
+    { name: 'migrate', kind: 'PRE_DEPLOY', run_command: 'node /migrate/scripts/migrate.ts' },
+    { name: 'seed', kind: 'POST_DEPLOY', run_command: 'node /migrate/scripts/seed.ts' },
+  ]);
+  for (const job of jobs) expect(job.image).toEqual(services[0]!.image);
+  expect(keys(jobs[0]!)).toEqual(['DATABASE_CA_CERT', 'DATABASE_URL']);
+  expect(keys(jobs[1]!)).toEqual(['ADMIN_EMAIL', 'ADMIN_PASSWORD', 'DATABASE_CA_CERT', 'DATABASE_URL']);
 });
 
 test('the App Spec names the environment variables of spec #77 and keeps the secrets secret', () => {
-  const envs = spec().services[0]!.envs;
+  const { services, jobs } = spec();
+  const secrets = ({ envs }: { envs: Env[] }) => envs.filter(({ type }) => type === 'SECRET').map(({ key }) => key).sort();
 
-  expect(envs.map(({ key }) => key).sort()).toEqual(
+  // The admin credentials belong to the seed job only: the running service never sees them.
+  expect(keys(services[0]!)).toEqual(
     [
-      'ADMIN_EMAIL',
-      'ADMIN_PASSWORD',
       'BETTER_AUTH_SECRET',
       'BETTER_AUTH_URL',
+      'DATABASE_CA_CERT',
       'DATABASE_URL',
       'KROS_API_TOKEN',
       'KROS_API_URL',
@@ -90,9 +98,8 @@ test('the App Spec names the environment variables of spec #77 and keeps the sec
       'KROS_WEBHOOK_SECRET',
     ].sort(),
   );
-  expect(envs.filter(({ type }) => type === 'SECRET').map(({ key }) => key).sort()).toEqual(
-    ['ADMIN_EMAIL', 'ADMIN_PASSWORD', 'BETTER_AUTH_SECRET', 'KROS_API_TOKEN', 'KROS_WEBHOOK_SECRET'].sort(),
-  );
+  expect(secrets(services[0]!)).toEqual(['BETTER_AUTH_SECRET', 'KROS_API_TOKEN', 'KROS_WEBHOOK_SECRET']);
+  expect(secrets(jobs[1]!)).toEqual(['ADMIN_EMAIL', 'ADMIN_PASSWORD']);
 });
 
 test('the App Spec holds no value, only placeholders', () => {
@@ -102,15 +109,16 @@ test('the App Spec holds no value, only placeholders', () => {
   expect(literals).toEqual([]);
 });
 
-test('the App Spec connects to DigitalOcean PostgreSQL with libpq-style TLS, because pg cannot verify its CA', () => {
-  // DigitalOcean signs its databases with its own CA, which Node does not trust: with the URL as given
-  // (`sslmode=require`) pg verifies the chain and the connection fails. `uselibpqcompat` makes
-  // `require` mean what libpq means, an encrypted connection without chain verification.
+test('every component that connects to the database takes the URL and the CA as DigitalOcean binds them', () => {
+  // The app verifies the server against `DATABASE_CA_CERT` (apps/web/test/db-tls.test.ts). The URL is
+  // taken as it is: nothing is appended to it, so no sslmode of ours can fight the one in it.
   const { services, jobs } = spec();
 
-  for (const { envs } of [services[0]!, jobs[0]!]) {
-    expect(envs.find(({ key }) => key === 'DATABASE_URL')!.value).toBe('${db.DATABASE_URL}&uselibpqcompat=true');
+  for (const { envs } of [...services, ...jobs]) {
+    expect(envs.find(({ key }) => key === 'DATABASE_URL')!.value).toBe('${db.DATABASE_URL}');
+    expect(envs.find(({ key }) => key === 'DATABASE_CA_CERT')!.value).toBe('${db.CA_CERT}');
   }
+  expect(read('.do/app.yaml')).not.toMatch(/sslmode|libpq/i);
 });
 
 test('every placeholder of the App Spec that DigitalOcean does not bind is exported by the deploy step', () => {
@@ -123,6 +131,26 @@ test('every placeholder of the App Spec that DigitalOcean does not bind is expor
 
 test('the deploy workflow runs only on workflow_dispatch', () => {
   expect(Object.keys(workflow().on)).toEqual(['workflow_dispatch']);
+});
+
+test('the deploy job runs only from main, in the environment test that holds the secrets', () => {
+  // workflow_dispatch runs on any branch, and a branch can carry its own ci.yml and gate: the secrets
+  // live in an environment limited to main (README) and the job refuses every other ref itself.
+  const job = workflow().jobs.deploy!;
+
+  expect(job.if).toBe("github.ref == 'refs/heads/main'");
+  expect(job.environment).toBe('test');
+});
+
+test('the actions that receive the DigitalOcean token are pinned to a full commit SHA', () => {
+  const receiving = steps().filter((step) => step.uses && JSON.stringify(step).includes('DIGITALOCEAN_ACCESS_TOKEN'));
+
+  expect(receiving.map(({ uses }) => uses!.split('@')[0])).toEqual(['digitalocean/action-doctl', 'digitalocean/app_action/deploy']);
+  for (const { uses } of receiving) expect(uses).toMatch(/@[0-9a-f]{40}$/);
+});
+
+test('the deploy does not print the deployment logs of a public repository', () => {
+  expect(step(isDeploy).with?.print_deploy_logs).toBe(false);
 });
 
 test('the deploy workflow checks secrets, then the ticket check, then builds, deploys and runs the smoke, in that order', () => {
@@ -160,10 +188,16 @@ test('the deploy workflow stops with a clear error naming each secret that is mi
   }
 });
 
-test('the secrets the deploy workflow checks are the ones it passes to the deploy', () => {
+test('the deploy requires the secrets the skeleton needs, and KROS_* stay optional until the KROS tickets', () => {
   const check = step(isSecretCheck);
-  const deploy = step(isDeploy);
-  const secrets = Object.keys(deploy.env ?? {}).filter((name) => name !== 'IMAGE_TAG');
+  const deploy = Object.keys(step(isDeploy).env ?? {});
 
-  expect(Object.keys(check.env ?? {}).sort()).toEqual(['DIGITALOCEAN_ACCESS_TOKEN', ...secrets].sort());
+  expect(Object.keys(check.env ?? {}).sort()).toEqual(['ADMIN_EMAIL', 'ADMIN_PASSWORD', 'BETTER_AUTH_SECRET', 'DIGITALOCEAN_ACCESS_TOKEN']);
+  // Every secret of the spec reaches the deploy; what the check does not require is KROS_* only.
+  expect(deploy.filter((name) => name !== 'IMAGE_TAG' && !(name in (check.env ?? {}))).sort()).toEqual([
+    'KROS_API_TOKEN',
+    'KROS_API_URL',
+    'KROS_VAT_PAYER_TYPE',
+    'KROS_WEBHOOK_SECRET',
+  ]);
 });
