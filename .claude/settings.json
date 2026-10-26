@@ -13,7 +13,7 @@
           {
             "type": "command",
             "shell": "bash",
-            "command": "pnpm -s typecheck 1>&2 || exit 2",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/tools/edit-tier.sh\"",
             "timeout": 60,
             "statusMessage": "Edit tier: pnpm typecheck"
           }
