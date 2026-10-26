@@ -1,4 +1,4 @@
-import { expect, test as base, type Page } from '@playwright/test';
+import { expect, test as base, type Browser, type Page } from '@playwright/test';
 
 export { expect };
 
@@ -31,4 +31,24 @@ export async function signIn(page: Page) {
   await page.getByLabel('Heslo').fill(process.env.E2E_ADMIN_PASSWORD!);
   await page.getByRole('button', { name: 'Prihlásiť sa' }).click();
   await expect(page).toHaveURL(/\/zakazky$/);
+}
+
+/** Adds a customer through the form and waits for its detail page. */
+export async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba') {
+  await page.goto('/zakaznici/novy');
+  await page.getByLabel(type, { exact: true }).check();
+  await page.getByLabel('Názov', { exact: false }).fill(name);
+  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
+  await expect(page.locator('main h1')).toHaveText(name);
+}
+
+/** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
+export async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {
+  const elsewhere = await browser.newContext({ baseURL });
+  await elsewhere.addCookies(await page.context().cookies());
+  const otherTab = await elsewhere.newPage();
+  await otherTab.goto('/zakazky');
+  await otherTab.getByRole('button', { name: 'Odhlásiť sa' }).click();
+  await expect(otherTab).toHaveURL(/\/login$/);
+  await elsewhere.close();
 }

@@ -3,12 +3,16 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { currentUser } from '../../../../dal/current-user.ts';
 import { getVehicle } from '../../../../dal/vehicles.ts';
+import { listOpenWorkOrdersOfVehicle } from '../../../../dal/work-orders.ts';
+import { workOrderStatusLabels } from '../../zakazky/status-labels.ts';
 
 export const metadata: Metadata = { title: 'Vozidlo' };
 
 export default async function VehiclePage({ params }: { params: Promise<{ id: string }> }) {
-  const vehicle = await getVehicle(await currentUser(), (await params).id);
+  const user = await currentUser();
+  const vehicle = await getVehicle(user, (await params).id);
   if (!vehicle) notFound();
+  const openOrders = await listOpenWorkOrdersOfVehicle(user, vehicle.id);
 
   return (
     <>
@@ -33,6 +37,25 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
           </dd>
         </div>
       </dl>
+
+      <div className="page-header">
+        <h2>Zákazky</h2>
+        <Link href={`/zakazky/nova?vozidlo=${vehicle.id}`} className="button">
+          Nová zákazka
+        </Link>
+      </div>
+      {openOrders.length > 0 && (
+        <>
+          <h3>Otvorené zákazky</h3>
+          <ul>
+            {openOrders.map((order) => (
+              <li key={order.id}>
+                <Link href={`/zakazky/${order.id}`}>{order.number}</Link> ({workOrderStatusLabels[order.status]})
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </>
   );
 }

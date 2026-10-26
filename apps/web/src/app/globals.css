@@ -49,7 +49,9 @@ h1 {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
 }
 
@@ -221,13 +223,17 @@ button:disabled {
   gap: var(--space-1);
 }
 
-.field input {
+.field input,
+.field textarea,
+.field select {
   padding: var(--space-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
 }
 
-.field input[aria-invalid='true'] {
+.field input[aria-invalid='true'],
+.field textarea[aria-invalid='true'],
+.field select[aria-invalid='true'] {
   border-color: var(--color-danger);
 }
 
@@ -276,4 +282,29 @@ th {
 .details dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* A work order: sections under the details, amounts aligned to the right, the totals row. */
+.content > h2 {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+tfoot th,
+tfoot td {
+  border-top: calc(2 * var(--border-width)) solid var(--color-border);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.actions {
+  margin-top: var(--space-4);
+}
+
+.multiline {
+  white-space: pre-line;
 }

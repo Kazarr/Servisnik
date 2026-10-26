@@ -1,26 +1,6 @@
-import type { Browser, Page } from '@playwright/test';
-import { expect, signIn, test } from './fixtures.ts';
+import { addCustomer, endSessionBehindThePage, expect, signIn, test } from './fixtures.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
-
-async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba') {
-  await page.goto('/zakaznici/novy');
-  await page.getByLabel(type, { exact: true }).check();
-  await page.getByLabel('Názov', { exact: false }).fill(name);
-  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
-  await expect(page.locator('main h1')).toHaveText(name);
-}
-
-/** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
-async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {
-  const elsewhere = await browser.newContext({ baseURL });
-  await elsewhere.addCookies(await page.context().cookies());
-  const otherTab = await elsewhere.newPage();
-  await otherTab.goto('/zakazky');
-  await otherTab.getByRole('button', { name: 'Odhlásiť sa' }).click();
-  await expect(otherTab).toHaveURL(/\/login$/);
-  await elsewhere.close();
-}
 
 test('the admin adds a company and its vehicle, and a second vehicle with the same VIN is refused', async ({ page }) => {
   await signIn(page);
