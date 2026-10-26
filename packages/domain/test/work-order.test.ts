@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import {
+  amountsOf,
   canAddItems,
   formatWorkOrderNumber,
   isOpen,
   localDate,
   localYear,
+  totalsOf,
   transition,
   workOrderStatuses,
   type TransitionTrigger,
@@ -98,5 +100,60 @@ describe('what a status allows', () => {
     ['invoiced', false],
   ] as const)('items can be added in %s: %s', (status, allowed) => {
     expect(canAddItems(status)).toBe(allowed);
+  });
+});
+
+// Money is whole cents and the quantity is in hundredths (150 = 1,5 h). Every expected value below
+// is worked out by hand: the exact amount, then rounded half up to the cent.
+describe('amounts of an item', () => {
+  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
+
+  test('1,5 h at 40 € without VAT, VAT 23 %', () => {
+    expect(amountsOf(labour(150, 4000))).toEqual({ net: 6000, vat: 1380, gross: 7380 });
+  });
+
+  test('a fractional quantity: 0,25 h at 33,33 € is 8,3325 €, so 8,33 €, and its VAT 1,9159 € is 1,92 €', () => {
+    expect(amountsOf(labour(25, 3333))).toEqual({ net: 833, vat: 192, gross: 1025 });
+  });
+
+  test('the net amount rounds half up: 0,5 h at 0,01 € is half a cent, so one cent', () => {
+    expect(amountsOf(labour(50, 1))).toEqual({ net: 1, vat: 0, gross: 1 });
+  });
+
+  test('the VAT is taken from the rounded net, once: 0,99 h at 0,50 € is 0,495 €, so 0,50 €, and VAT is 0,115 €, so 0,12 €', () => {
+    // VAT taken from the unrounded 0,495 € would be 0,11385 €, so 0,11 €.
+    expect(amountsOf(labour(99, 50))).toEqual({ net: 50, vat: 12, gross: 62 });
+  });
+
+  test.each([
+    [0, 0, 6000],
+    [5, 300, 6300],
+    [19, 1140, 7140],
+  ])('VAT rate %i %% on 60 € is %i cents, so %i cents with VAT', (vatRate, vat, gross) => {
+    expect(amountsOf(labour(100, 6000, vatRate))).toEqual({ net: 6000, vat, gross });
+  });
+});
+
+describe('totals of a Zákazka', () => {
+  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
+
+  test('a Zákazka with no item is worth nothing', () => {
+    expect(totalsOf([])).toEqual({ net: 0, vat: 0, gross: 0 });
+  });
+
+  test('totals are the sum of the rounded items', () => {
+    expect(totalsOf([labour(150, 4000), labour(25, 3333)])).toEqual({ net: 6833, vat: 1572, gross: 8405 });
+  });
+
+  test('the VAT is not taken again from the total: two items of 0,50 € have VAT 0,24 €, not 0,23 €', () => {
+    expect(totalsOf([labour(99, 50), labour(99, 50)])).toEqual({ net: 100, vat: 24, gross: 124 });
+  });
+
+  test('items with different rates each keep their own', () => {
+    expect(totalsOf([labour(100, 6000, 23), labour(100, 6000, 0), labour(100, 6000, 5)])).toEqual({
+      net: 18000,
+      vat: 1680,
+      gross: 19680,
+    });
   });
 });
