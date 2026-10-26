@@ -1,0 +1,32 @@
+{
+  "name": "@servisnik/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "typecheck": "tsc",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=../../.env scripts/migrate.ts",
+    "db:seed": "node --env-file-if-exists=../../.env scripts/seed.ts",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@next/env": "~16.4.3",
+    "better-auth": "~1.7.13",
+    "drizzle-orm": "~0.45.4",
+    "next": "~16.4.3",
+    "pg": "^8.23.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "drizzle-kit": "~0.31.9",
+    "testcontainers": "^12.2.1"
+  }
+}

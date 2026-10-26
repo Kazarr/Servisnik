@@ -7,9 +7,13 @@
     "node": "24.x"
   },
   "scripts": {
-    "typecheck": "tsc",
+    "typecheck": "tsc && pnpm --filter @servisnik/web typecheck",
     "test": "vitest run",
     "verify": "pnpm typecheck && pnpm test",
+    "dev": "pnpm --filter @servisnik/web dev",
+    "db:migrate": "pnpm --filter @servisnik/web db:migrate",
+    "db:seed": "pnpm --filter @servisnik/web db:seed",
+    "e2e": "pnpm --filter @servisnik/web e2e",
     "services:up": "docker compose up -d --wait",
     "services:down": "docker compose --profile tunnel down",
     "tunnel": "docker compose --profile tunnel up tunnel"
