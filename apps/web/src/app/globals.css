@@ -1,0 +1,321 @@
+:root {
+  --color-background: #ffffff;
+  --color-surface: #f3f5f8;
+  --color-text: #1c2430;
+  --color-text-muted: #5a6677;
+  --color-border: #d3d9e2;
+  --color-accent: #1d5fc4;
+  --color-accent-text: #ffffff;
+  --color-danger: #b3261e;
+
+  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-size-base: 1rem;
+  --font-size-title: 1.5rem;
+  --font-size-heading: 1.25rem;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+  --line-height-base: 1.5;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2rem;
+
+  --radius: 0.375rem;
+  --border-width: 1px;
+  --border-width-strong: 2px;
+  --sidebar-width: 14rem;
+  --form-width: 22rem;
+  --viewport-height: 100vh;
+
+  --opacity-disabled: 0.6;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+}
+
+h1 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-title);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+h2 {
+  margin: 0;
+  font-size: var(--font-size-heading);
+}
+
+/* A link that looks like the button next to it. */
+button,
+.button {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: progress;
+}
+
+/* Layout: menu on the left, content on the right. */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: var(--viewport-height);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  border-right: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.brand {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.menu a {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+}
+
+.menu a:hover,
+.menu a:focus-visible {
+  text-decoration: underline;
+}
+
+.menu a[aria-current='page'] {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Forced colors drop the background that marks the current item; an outline in a system colour stays. */
+@media (forced-colors: active) {
+  .menu a[aria-current='page'] {
+    outline: var(--border-width-strong) solid CanvasText;
+  }
+}
+
+.user {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: auto;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.user p {
+  margin: 0;
+}
+
+.content {
+  padding: var(--space-4);
+}
+
+/* Login */
+.login {
+  max-width: var(--form-width);
+  margin: var(--space-5) auto;
+  padding: 0 var(--space-3);
+}
+
+.login form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.login label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.login input {
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+}
+
+/* Title row with an action on the right: lists, and the vehicles on a customer. */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+/* Forms */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--form-width);
+}
+
+.form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.form legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field input,
+.field textarea,
+.field select {
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.field input[aria-invalid='true'],
+.field textarea[aria-invalid='true'],
+.field select[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.form button {
+  align-self: flex-start;
+}
+
+/* Lists and details */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: left;
+}
+
+th {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+/* Each term/description pair sits in a div; the div adds no box of its own. */
+.details div {
+  display: contents;
+}
+
+.details dt {
+  color: var(--color-text-muted);
+}
+
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A work order: sections under the details, amounts aligned to the right, the totals row. */
+.content > h2 {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+tfoot th,
+tfoot td {
+  border-top: var(--border-width-strong) solid var(--color-border);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.actions {
+  margin-top: var(--space-4);
+}
+
+.multiline {
+  white-space: pre-line;
+}

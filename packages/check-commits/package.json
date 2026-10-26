@@ -1,0 +1,5 @@
+{
+  "name": "@servisnik/check-commits",
+  "private": true,
+  "type": "module"
+}

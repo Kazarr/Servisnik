@@ -1,0 +1,115 @@
+import { canAddItems } from '@servisnik/domain/work-order';
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { currentUser } from '../../../../dal/current-user.ts';
+import { getWorkOrder } from '../../../../dal/work-orders.ts';
+import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
+import { markDone } from '../actions.ts';
+import { workOrderStatusLabels } from '../status-labels.ts';
+import { LabourForm } from './labour-form.tsx';
+
+export const metadata: Metadata = { title: 'Zákazka' };
+
+export default async function WorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const order = await getWorkOrder(await currentUser(), (await params).id);
+  if (!order) notFound();
+
+  return (
+    <>
+      <h1>{order.number}</h1>
+      <dl className="details">
+        <div>
+          <dt>Stav</dt>
+          <dd>{workOrderStatusLabels[order.status]}</dd>
+        </div>
+        {order.completedOn && (
+          <div>
+            <dt>Dátum dokončenia</dt>
+            <dd>{formatDate(order.completedOn)}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Zákazník</dt>
+          <dd>
+            <Link href={`/zakaznici/${order.customer.id}`}>{order.customer.name}</Link>
+          </dd>
+        </div>
+        <div>
+          <dt>Vozidlo</dt>
+          <dd>
+            <Link href={`/vozidla/${order.vehicle.id}`}>
+              {order.vehicle.make} {order.vehicle.model}
+            </Link>{' '}
+            ({order.vehicle.vin})
+          </dd>
+        </div>
+        <div>
+          <dt>Kilometre pri príjme</dt>
+          <dd>{formatWhole(order.mileageKm)} km</dd>
+        </div>
+        <div>
+          <dt>Požiadavka zákazníka</dt>
+          <dd className="multiline">{order.customerRequest}</dd>
+        </div>
+      </dl>
+
+      <h2>Položky</h2>
+      {order.items.length === 0 ? (
+        <p>Zatiaľ žiadna práca.</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Názov</th>
+                <th scope="col" className="amount">Množstvo</th>
+                <th scope="col" className="amount">Cena za jednotku bez DPH</th>
+                <th scope="col" className="amount">Sadzba DPH</th>
+                <th scope="col" className="amount">Bez DPH</th>
+                <th scope="col" className="amount">DPH</th>
+                <th scope="col" className="amount">S DPH</th>
+              </tr>
+            </thead>
+            <tbody>
+              {order.items.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.name}</td>
+                  <td className="amount">
+                    {formatQuantity(item.quantityHundredths)} {item.unit}
+                  </td>
+                  <td className="amount">{formatEuro(item.unitPriceCents)}</td>
+                  <td className="amount">{item.vatRate} %</td>
+                  <td className="amount">{formatEuro(item.amounts.net)}</td>
+                  <td className="amount">{formatEuro(item.amounts.vat)}</td>
+                  <td className="amount">{formatEuro(item.amounts.gross)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row" colSpan={4}>
+                  Spolu
+                </th>
+                <td className="amount">{formatEuro(order.totals.net)}</td>
+                <td className="amount">{formatEuro(order.totals.vat)}</td>
+                <td className="amount">{formatEuro(order.totals.gross)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {canAddItems(order.status) && (
+        <>
+          <h2>Pridať prácu</h2>
+          <LabourForm workOrderId={order.id} />
+          <form action={markDone} className="actions">
+            <input type="hidden" name="workOrderId" value={order.id} />
+            <button type="submit">Označiť ako hotovú</button>
+          </form>
+        </>
+      )}
+    </>
+  );
+}
