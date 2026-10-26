@@ -30,7 +30,7 @@ Lightweight ERP for car repair shops: job orders, customers, vehicles, stock and
 | batch | once per run, on the integration branch | `pnpm e2e` (Playwright, added by the walking skeleton) | once |
 | deploy | after every deploy | `pnpm smoke <url>` (added by the walking skeleton) | minutes |
 
-The commit check of the ticket tier (`packages/check-commits`) fails a `feat` or `fix` commit that changes test files (`*.test.*`, `*.spec.*`, `e2e/**`, `test/**`) and a `feat` with no `test` commit since the previous `feat` on the branch; merge commits are skipped. It reads only the commits in `$CHECK_COMMITS_BASE..HEAD`: in CI the base of the PR, locally `origin/main` unless you set the variable (on a ticket branch cut from an integration branch, set it to that branch).
+The commit check of the ticket tier (`packages/check-commits`) fails a `feat` or `fix` commit that changes test files (`*.test.*`, `*.spec.*`, `e2e/**`, `test/**`) and a `feat` with no `test` commit since the previous `feat` on the branch; merge commits and the full SHAs in `packages/check-commits/allowlist.txt` (merged commits that predate the check, one reason each) are skipped. It reads only the commits in `$CHECK_COMMITS_BASE..HEAD`: in CI the base of the PR, locally `origin/main` unless you set the variable (on a ticket branch cut from an integration branch, set it to that branch).
 
 Business logic is unit-tested without framework, database or network. External systems are tested against their recorded real responses. End-to-end tests cover a few smoke paths and run only in the batch tier.
 
