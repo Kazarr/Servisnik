@@ -1,0 +1,88 @@
+name: deploy
+run-name: Nasadenie ${{ github.sha }}
+
+# Nasadí testovacie prostredie na DigitalOcean (spec #77, Nasadenie). Spúšťa ho Kazarr rukou:
+# Actions > deploy > Run workflow. Postup a to, čo treba nastaviť raz, je v README, časť Nasadenie.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      # Prvé: bez secretov nemá zmysel nič zostavovať.
+      - name: Check that the secrets are set
+        env:
+          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          KROS_API_URL: ${{ secrets.KROS_API_URL }}
+          KROS_API_TOKEN: ${{ secrets.KROS_API_TOKEN }}
+          KROS_WEBHOOK_SECRET: ${{ secrets.KROS_WEBHOOK_SECRET }}
+          KROS_VAT_PAYER_TYPE: ${{ secrets.KROS_VAT_PAYER_TYPE }}
+        run: |
+          missing=""
+          for name in DIGITALOCEAN_ACCESS_TOKEN BETTER_AUTH_SECRET ADMIN_EMAIL ADMIN_PASSWORD KROS_API_URL KROS_API_TOKEN KROS_WEBHOOK_SECRET KROS_VAT_PAYER_TYPE; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Chýbajú GitHub secrets::Chýba:$missing. Nastav ich v Settings > Secrets and variables > Actions (README, časť Nasadenie)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: Only a commit with a green ticket check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?check_name=ticket&per_page=100" --paginate --jq '.check_runs[]' | node tools/deploy-gate.ts
+
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Build the image and push it to the DigitalOcean registry
+        run: |
+          doctl registry login --expiry-seconds 3600
+          registry=$(doctl registry get --format Name --no-header) || { echo "::error title=Chýba register::V DigitalOcean nie je container registry (README, časť Nasadenie)."; exit 1; }
+          image="registry.digitalocean.com/${registry}/servisnik:$GITHUB_SHA"
+          docker build --tag "$image" .
+          docker push "$image"
+
+      # Vytvorí appku zo .do/app.yaml, ak ešte nie je, inak ju aktualizuje, a počká na dokončenie nasadenia.
+      - name: Deploy the App Spec
+        id: deploy
+        uses: digitalocean/app_action/deploy@v2
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          KROS_API_URL: ${{ secrets.KROS_API_URL }}
+          KROS_API_TOKEN: ${{ secrets.KROS_API_TOKEN }}
+          KROS_WEBHOOK_SECRET: ${{ secrets.KROS_WEBHOOK_SECRET }}
+          KROS_VAT_PAYER_TYPE: ${{ secrets.KROS_VAT_PAYER_TYPE }}
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          app_spec_location: .do/app.yaml
+          print_build_logs: true
+          print_deploy_logs: true
+
+      - name: Smoke the deployed app
+        env:
+          LIVE_URL: ${{ fromJSON(steps.deploy.outputs.app).live_url }}
+        run: pnpm smoke "$LIVE_URL"
