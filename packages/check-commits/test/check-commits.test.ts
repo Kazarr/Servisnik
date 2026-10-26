@@ -63,6 +63,60 @@ test('merge commits are skipped: no violation, not a test, and they do not reset
   ).toEqual([`e5 feat: second: ${NO_TEST}`]);
 });
 
+// Rule 2 follows first parents: a commit starts from the state of its first parent, not from
+// whatever `git log --topo-order --reverse` happened to list just before it. `parent` is the
+// first parent's sha; a parent that is not in the list is the base (nothing tested yet).
+const on = (parent: string, c: Commit): Commit => ({ ...c, parent });
+
+test('a ticket branch that merges its base mid-branch keeps its own test (run -> main shape)', () => {
+  // main..run lists, oldest first: test b1, then A (merged into run), then B merging run back in.
+  expect(
+    checkCommits([
+      on('base', commit('b1', 'test: b1', ['test/b1.test.ts'])),
+      on('base', commit('a1', 'test: a', ['test/a.test.ts'])),
+      on('a1', commit('a2', 'feat: a', ['src/a.ts'])),
+      on('base', commit('mA', 'Merge A', [], true)),
+      on('b1', commit('mB', 'Merge run into B', [], true)),
+      on('mB', commit('b2', 'feat: b1', ['src/b1.ts'])),
+    ]),
+  ).toEqual([]);
+});
+
+test('a test that reaches a branch only through a merge does not satisfy the branch feat', () => {
+  expect(
+    checkCommits([
+      on('base', commit('b1', 'docs: b', ['README.md'])),
+      on('base', commit('a1', 'test: a', ['test/a.test.ts'])),
+      on('b1', commit('mB', 'Merge run into B', [], true)),
+      on('mB', commit('b2', 'feat: b', ['src/b.ts'])),
+    ]),
+  ).toEqual([`b2 feat: b: ${NO_TEST}`]);
+});
+
+test('a feat on one line neither spends nor borrows the test of another line', () => {
+  // x: test, feat. y: feat with no test of its own, listed between the two x commits.
+  expect(
+    checkCommits([
+      on('base', commit('x1', 'test: x', ['test/x.test.ts'])),
+      on('base', commit('y1', 'feat: y', ['src/y.ts'])),
+      on('x1', commit('x2', 'feat: x', ['src/x.ts'])),
+    ]),
+  ).toEqual([`y1 feat: y: ${NO_TEST}`]);
+});
+
+test('an allowlisted commit passes the state of its line on unchanged', () => {
+  expect(
+    checkCommits(
+      [
+        on('base', commit('t1', 'test: x', ['test/x.test.ts'])),
+        on('t1', commit('old', 'feat: predates the check', ['src/old.ts'])),
+        on('old', commit('f1', 'feat: x', ['src/x.ts'])),
+      ],
+      new Set(['old']),
+    ),
+  ).toEqual([]);
+});
+
 test('only feat and fix are held to the test file rule, only feat to the order rule', () => {
   expect(
     checkCommits([
