@@ -24,3 +24,20 @@ export function checkCommits(commits: Commit[]): string[] {
   }
   return violations;
 }
+
+// Parses `git log --name-only --format='%x1e%h%x1f%p%x1f%s'`: one \x1e record per commit.
+export function parseGitLog(output: string): Commit[] {
+  return output
+    .split('\x1e')
+    .slice(1)
+    .map((record) => {
+      const [header = '', ...rest] = record.split('\n');
+      const [sha = '', parents = '', subject = ''] = header.split('\x1f');
+      return {
+        sha,
+        subject,
+        files: rest.filter(Boolean),
+        ...(parents.includes(' ') && { merge: true as const }),
+      };
+    });
+}
