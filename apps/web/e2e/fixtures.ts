@@ -1,22 +1,12 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
+import { watchPage } from './page-problems.ts';
 
 export { expect };
 
-/**
- * `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx.
- * Chromium also logs every failed response as a console error, so the 5xx rule overlaps with the
- * first one; it stays because it names the status and URL.
- */
+/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see page-problems.ts). */
 export const test = base.extend({
   page: async ({ page }, use) => {
-    const problems: string[] = [];
-    page.on('console', (message) => {
-      if (message.type() === 'error') problems.push(`console.error: ${message.text()}`);
-    });
-    page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
-    page.on('response', (response) => {
-      if (response.status() >= 500) problems.push(`HTTP ${response.status()}: ${response.url()}`);
-    });
+    const problems = watchPage(page);
 
     await use(page);
 
@@ -24,12 +14,17 @@ export const test = base.extend({
   },
 });
 
-/** Signs in as the admin the global setup seeded and waits for the first page after the login. */
-export async function signIn(page: Page) {
+/** Submits the login form with the e-mail of the admin the global setup seeded; `password` is the admin's own unless a test wants a wrong one. */
+export async function submitLogin(page: Page, password = process.env.E2E_ADMIN_PASSWORD!) {
   await page.goto('/login');
   await page.getByLabel('E-mail').fill(process.env.E2E_ADMIN_EMAIL!);
-  await page.getByLabel('Heslo').fill(process.env.E2E_ADMIN_PASSWORD!);
+  await page.getByLabel('Heslo').fill(password);
   await page.getByRole('button', { name: 'Prihlásiť sa' }).click();
+}
+
+/** Signs in as the admin the global setup seeded and waits for the first page after the login. */
+export async function signIn(page: Page) {
+  await submitLogin(page);
   await expect(page).toHaveURL(/\/zakazky$/);
 }
 

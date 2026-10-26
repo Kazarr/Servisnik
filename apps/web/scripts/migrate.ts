@@ -1,6 +1,7 @@
 import { createDb } from '../src/db/index.ts';
 import { migrateDatabase } from '../src/db/migrate.ts';
 import { readEnv } from '../src/env.ts';
+import { printError } from '../src/print-error.ts';
 
 // `pnpm db:migrate`: applies the SQL migrations in apps/web/drizzle to DATABASE_URL.
 // Node runs this file as it is, without a build step, which is why relative imports of
@@ -12,6 +13,6 @@ try {
   await db.$client.end();
   console.log('Migrácie sú aplikované.');
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error);
+  printError(error);
   process.exitCode = 1;
 }

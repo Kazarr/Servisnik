@@ -1,7 +1,7 @@
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import type { TestProject } from 'vitest/node';
 import { createDb } from '../../src/db/index.ts';
 import { migrateDatabase } from '../../src/db/migrate.ts';
+import { startPostgres, withDatabase } from './postgres.ts';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -12,9 +12,7 @@ declare module 'vitest' {
 
 /** One PostgreSQL 17 container per run, with a template database that has every migration applied. */
 export default async function setup(project: TestProject) {
-  const container = await new PostgreSqlContainer('postgres:17')
-    .withTmpFs({ '/var/lib/postgresql/data': 'rw' })
-    .start();
+  const container = await startPostgres();
   const uri = container.getConnectionUri();
 
   const maintenance = createDb(uri);
@@ -27,10 +25,4 @@ export default async function setup(project: TestProject) {
 
   project.provide('pgUri', uri);
   return () => container.stop();
-}
-
-function withDatabase(uri: string, name: string) {
-  const url = new URL(uri);
-  url.pathname = `/${name}`;
-  return url.href;
 }

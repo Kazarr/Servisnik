@@ -24,8 +24,12 @@
 
   --radius: 0.375rem;
   --border-width: 1px;
+  --border-width-strong: 2px;
   --sidebar-width: 14rem;
   --form-width: 22rem;
+  --viewport-height: 100vh;
+
+  --opacity-disabled: 0.6;
 }
 
 *,
@@ -74,7 +78,7 @@ button,
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: var(--opacity-disabled);
   cursor: progress;
 }
 
@@ -82,7 +86,7 @@ button:disabled {
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: var(--viewport-height);
 }
 
 .sidebar {
@@ -126,6 +130,13 @@ button:disabled {
   background: var(--color-accent);
   color: var(--color-accent-text);
   font-weight: var(--font-weight-medium);
+}
+
+/* Forced colors drop the background that marks the current item; an outline in a system colour stays. */
+@media (forced-colors: active) {
+  .menu a[aria-current='page'] {
+    outline: var(--border-width-strong) solid CanvasText;
+  }
 }
 
 .user {
@@ -296,7 +307,7 @@ th {
 
 tfoot th,
 tfoot td {
-  border-top: calc(2 * var(--border-width)) solid var(--color-border);
+  border-top: var(--border-width-strong) solid var(--color-border);
   font-weight: var(--font-weight-bold);
   color: var(--color-text);
 }

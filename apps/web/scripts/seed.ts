@@ -1,5 +1,6 @@
 import { createDb } from '../src/db/index.ts';
 import { readEnv } from '../src/env.ts';
+import { printError } from '../src/print-error.ts';
 import { seedAdmin } from '../src/seed.ts';
 
 // `pnpm db:seed`: creates the admin from ADMIN_EMAIL and ADMIN_PASSWORD, or updates the existing one.
@@ -10,6 +11,6 @@ try {
   await db.$client.end();
   console.log(`Admin ${ADMIN_EMAIL} je pripravený.`);
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error);
+  printError(error);
   process.exitCode = 1;
 }
