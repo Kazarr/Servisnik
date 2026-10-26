@@ -4,12 +4,13 @@ export type Commit = { sha: string; subject: string; files: string[]; merge?: tr
 const TEST_FILE = /(^|\/)([^/]*\.(test|spec)\.[^/]*|(e2e|test)\/.*)$/;
 const TYPE = /^(\w+)(\([^)]*\))?!?:/;
 
-// `commits` is oldest first. Returns one "<sha> <subject>: <rule>" line per violation.
-export function checkCommits(commits: Commit[]): string[] {
+// `commits` is oldest first; `allowed` shas (commits that predate the check) are skipped like merges.
+// Returns one "<sha> <subject>: <rule>" line per violation.
+export function checkCommits(commits: Commit[], allowed: ReadonlySet<string> = new Set()): string[] {
   const violations: string[] = [];
   let testSinceFeat = false;
   for (const { sha, subject, files, merge } of commits) {
-    if (merge) continue;
+    if (merge || allowed.has(sha)) continue;
     const type = TYPE.exec(subject)?.[1];
     const fail = (rule: string) => violations.push(`${sha} ${subject}: ${rule}`);
     if (type === 'feat' || type === 'fix') {
@@ -25,7 +26,20 @@ export function checkCommits(commits: Commit[]): string[] {
   return violations;
 }
 
-// Parses `git log --name-only --format='%x1e%h%x1f%p%x1f%s'`: one \x1e record per commit.
+// One "<40-hex sha> <reason>" per line; blank lines and # comments are ignored. A short sha or a
+// missing reason throws, because a line that can never match would silently allow nothing.
+export function parseAllowlist(text: string): Set<string> {
+  const shas = new Set<string>();
+  text.split('\n').forEach((line, i) => {
+    if (!line.trim() || line.startsWith('#')) return;
+    const match = /^([0-9a-f]{40}) \S/.exec(line);
+    if (!match) throw new Error(`allowlist line ${i + 1}: expected "<40-hex sha> <reason>"`);
+    shas.add(match[1]!);
+  });
+  return shas;
+}
+
+// Parses `git log --name-only --format='%x1e%H%x1f%P%x1f%s'`: one \x1e record per commit.
 export function parseGitLog(output: string): Commit[] {
   return output
     .split('\x1e')
