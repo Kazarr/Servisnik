@@ -13,6 +13,7 @@ const config: NextConfig = {
   output: 'standalone',
   cacheComponents: false,
   images: { unoptimized: true },
+  transpilePackages: ['@servisnik/domain'], // the domain ships as TypeScript source
   outputFileTracingRoot: repoRoot, // the standalone build must trace workspace packages
 };
 

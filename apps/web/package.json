@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@next/env": "~16.4.3",
+    "@servisnik/domain": "workspace:*",
     "better-auth": "~1.7.13",
     "drizzle-orm": "~0.45.4",
     "next": "~16.4.3",

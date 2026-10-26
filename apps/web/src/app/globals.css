@@ -11,6 +11,7 @@
   --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-size-base: 1rem;
   --font-size-title: 1.5rem;
+  --font-size-heading: 1.25rem;
   --font-weight-medium: 500;
   --font-weight-bold: 700;
   --line-height-base: 1.5;
@@ -52,12 +53,21 @@ input {
   font: inherit;
 }
 
-button {
+h2 {
+  margin: 0;
+  font-size: var(--font-size-heading);
+}
+
+/* A link that looks like the button next to it. */
+button,
+.button {
+  display: inline-block;
   padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--color-accent);
   border-radius: var(--radius);
   background: var(--color-accent);
   color: var(--color-accent-text);
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -161,4 +171,109 @@ button:disabled {
 .error {
   margin: 0;
   color: var(--color-danger);
+}
+
+/* Title row with an action on the right: lists, and the vehicles on a customer. */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+/* Forms */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--form-width);
+}
+
+.form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.form legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field input {
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.form button {
+  align-self: flex-start;
+}
+
+/* Lists and details */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: left;
+}
+
+th {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+/* Each term/description pair sits in a div; the div adds no box of its own. */
+.details div {
+  display: contents;
+}
+
+.details dt {
+  color: var(--color-text-muted);
+}
+
+.details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
