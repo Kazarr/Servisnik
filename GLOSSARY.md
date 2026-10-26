@@ -5,7 +5,7 @@ Odľahčený ERP pre autoservisy: zákazky, zákazníci, vozidlá, sklad a fakt�
 ## Language
 
 **Zákazka** (`WorkOrder`):
-Práca, ktorú si zákazník objednal na konkrétnom vozidle, od príjmu vozidla po uzavretie.
+Oprava alebo údržba, ktorú si zákazník objednal na konkrétnom vozidle, od príjmu vozidla po uzavretie.
 _Avoid_: objednávka (zákazníka), job
 
 **Objednávka** (`PurchaseOrder`):
@@ -53,3 +53,25 @@ _Avoid_: vlastník, držiteľ, prevádzkovateľ
 **Prepis** (`transferOwnership`):
 Zmena majiteľa vozidla, napríklad pri predaji auta. Zákazky vozidla ostávajú pri ňom.
 _Avoid_: predaj, prevod
+
+### Zákazka a faktúra
+
+**Autoservis** (`Workshop`):
+Firma, ktorá Servisník používa: opravuje vozidlá a vystavuje faktúry. Jeden Servisník slúži jednému autoservisu.
+_Avoid_: firma (to je typ zákazníka), servis
+
+**Položka zákazky** (`WorkOrderItem`):
+Jedna práca alebo jeden diel na zákazke, s množstvom, cenou a sadzbou DPH.
+_Avoid_: riadok, služba
+
+**Práca** (`Labour`):
+Položka zákazky za prácu mechanika, napríklad výmena oleja.
+_Avoid_: úkon, výkon, služba
+
+**Diel** (`Part`):
+Položka zákazky za súčiastku alebo materiál, ktorý autoservis pri oprave použil.
+_Avoid_: materiál, tovar, súčiastka
+
+**Faktúra** (`Invoice`):
+Doklad k zákazke, ktorý na pokyn Servisníka vystaví KROS Fakturácia. Číslo, PDF aj úhrady vedie KROS, Servisník faktúru sám nevystavuje.
+_Avoid_: účet, doklad
