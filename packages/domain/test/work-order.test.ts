@@ -2,10 +2,13 @@ import { describe, expect, test } from 'vitest';
 import {
   amountsOf,
   canAddItems,
+  defaultVatRate,
   formatWorkOrderNumber,
   isOpen,
   localDate,
   localYear,
+  parseLabour,
+  parseWorkOrder,
   totalsOf,
   transition,
   workOrderStatuses,
@@ -154,6 +157,97 @@ describe('totals of a Zákazka', () => {
       net: 18000,
       vat: 1680,
       gross: 19680,
+    });
+  });
+});
+
+describe('a Zákazka as the admin types it', () => {
+  test('kilometres and the request are kept, trimmed', () => {
+    expect(parseWorkOrder({ mileageKm: '123456', customerRequest: ' Výmena oleja a filtrov ' })).toEqual({
+      ok: true,
+      workOrder: { mileageKm: 123456, customerRequest: 'Výmena oleja a filtrov' },
+    });
+  });
+
+  test.each([
+    ['0', 0],
+    ['123 456', 123456],
+    [' 9999999 ', 9999999],
+  ])('kilometres "%s" are %i', (typed, km) => {
+    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toMatchObject({ ok: true, workOrder: { mileageKm: km } });
+  });
+
+  test.each(['', '-1', '1,5', '12a', '10000000', 'veľa'])('kilometres "%s" are refused', (typed) => {
+    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toEqual({ ok: false, errors: { mileageKm: 'invalid' } });
+  });
+
+  test('a request is required, and every reason comes back at once', () => {
+    expect(parseWorkOrder({ mileageKm: '1000', customerRequest: ' ' })).toEqual({ ok: false, errors: { customerRequest: 'required' } });
+    expect(parseWorkOrder({ mileageKm: '', customerRequest: '' })).toEqual({
+      ok: false,
+      errors: { mileageKm: 'invalid', customerRequest: 'required' },
+    });
+  });
+});
+
+describe('a work item (Práca) as the admin types it', () => {
+  const typed = { name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' };
+  const refused = (overrides: Partial<typeof typed>) => parseLabour({ ...typed, ...overrides });
+
+  test('is a labour item in hours, with the quantity in hundredths and the price in cents', () => {
+    expect(parseLabour(typed)).toEqual({
+      ok: true,
+      item: { kind: 'labour', name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', unitPriceCents: 4000, vatRate: 23 },
+    });
+  });
+
+  test('the VAT rate is 23 % unless typed otherwise', () => {
+    expect(defaultVatRate).toBe(23);
+    const { vatRate: _typed, ...withoutRate } = typed;
+    expect(parseLabour(withoutRate)).toMatchObject({ ok: true, item: { vatRate: 23 } });
+    expect(refused({ vatRate: '5' })).toMatchObject({ ok: true, item: { vatRate: 5 } });
+    expect(refused({ vatRate: '0' })).toMatchObject({ ok: true, item: { vatRate: 0 } });
+  });
+
+  // 1,15 * 100 is 114.99999999999999 as a float: the digits are read, never multiplied.
+  test.each([
+    ['1,15', 115],
+    ['0,29', 29],
+    ['2.3', 230],
+    ['0,05', 5],
+    [' 12 ', 1200],
+    ['99999,99', 9999999],
+  ])('quantity "%s" is %i hundredths', (quantity, hundredths) => {
+    expect(refused({ quantity })).toMatchObject({ ok: true, item: { quantityHundredths: hundredths } });
+  });
+
+  test.each([
+    ['40,5', 4050],
+    ['40.50', 4050],
+    ['33,33', 3333],
+    ['0', 0],
+    ['1 000 000', 100000000],
+  ])('unit price "%s" is %i cents', (unitPrice, cents) => {
+    expect(refused({ unitPrice })).toMatchObject({ ok: true, item: { unitPriceCents: cents } });
+  });
+
+  test.each(['', '0', '0,00', '-1', '1,505', '1,2,3', 'hodina', '100000'])('quantity "%s" is refused', (quantity) => {
+    expect(refused({ quantity })).toEqual({ ok: false, errors: { quantity: 'invalid' } });
+  });
+
+  test.each(['', '-5', '40,505', '40 €', 'drahé', '1000000,01'])('unit price "%s" is refused', (unitPrice) => {
+    expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
+  });
+
+  test.each(['', '-1', '101', '2,5', '23 %', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
+    expect(refused({ vatRate })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
+  });
+
+  test('a name is required, and every reason comes back at once', () => {
+    expect(refused({ name: '  ' })).toEqual({ ok: false, errors: { name: 'required' } });
+    expect(refused({ name: '', quantity: '0', unitPrice: '', vatRate: 'x' })).toEqual({
+      ok: false,
+      errors: { name: 'required', quantity: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
     });
   });
 });
