@@ -1,5 +1,35 @@
 // Work order area (GLOSSARY: Zákazka a faktúra). Pure rules: no framework, database or network.
 
+/** Prijatá, Hotová, Vyfakturovaná. Further statuses (V práci, Čaká na diely, Zrušená) are added here and in `transitions`. */
+export const workOrderStatuses = ['received', 'done', 'invoiced'] as const;
+export type WorkOrderStatus = (typeof workOrderStatuses)[number];
+
+/** `user` is the admin's own button; `invoice` is the invoice being issued, the only way to Vyfakturovaná. */
+export type TransitionTrigger = 'user' | 'invoice';
+
+/** Every allowed change of status, in one table. Anything not listed here is refused. */
+const transitions: readonly { from: WorkOrderStatus; to: WorkOrderStatus; by: TransitionTrigger }[] = [
+  { from: 'received', to: 'done', by: 'user' },
+  { from: 'done', to: 'invoiced', by: 'invoice' },
+];
+
+/** The new status, with the delivery date (a day in Europe/Bratislava) when the Zákazka becomes Hotová; or why not. */
+export function transition(
+  from: WorkOrderStatus,
+  to: WorkOrderStatus,
+  by: TransitionTrigger,
+  now: Date,
+): { ok: true; status: WorkOrderStatus; completedOn?: string } | { ok: false; error: 'not-allowed' } {
+  if (!transitions.some((t) => t.from === from && t.to === to && t.by === by)) return { ok: false, error: 'not-allowed' };
+  return to === 'done' ? { ok: true, status: to, completedOn: localDate(now) } : { ok: true, status: to };
+}
+
+/** A Zákazka is open until it is invoiced. */
+export const isOpen = (status: WorkOrderStatus): boolean => status !== 'invoiced';
+
+/** Items change the amounts an invoice is made from, so they are added only while the Zákazka is Prijatá. */
+export const canAddItems = (status: WorkOrderStatus): boolean => status === 'received';
+
 /** `Z<year>-<sequence on four places>`; the sequence restarts at 1 every year, the database hands it out. */
 export function formatWorkOrderNumber(year: number, sequence: number): string {
   if (!Number.isInteger(sequence) || sequence < 1) throw new RangeError(`Not a sequence: ${sequence}`);
