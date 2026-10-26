@@ -1,4 +1,5 @@
 import { APIError } from 'better-auth/api';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { createAuth } from '../src/auth.ts';
 import { requireUser, UnauthenticatedError } from '../src/dal/user.ts';
@@ -45,6 +46,19 @@ test('signing out ends the session: the same cookie is rejected afterwards', asy
   await auth.api.signOut({ headers: requestHeaders });
 
   await expect(requireUser(requestHeaders, auth)).rejects.toBeInstanceOf(UnauthenticatedError);
+});
+
+test('a session whose role this code does not know is rejected', async () => {
+  const requestHeaders = await signIn();
+  // A database newer than the code can hold a role this version has never heard of.
+  await ctx.db.execute(sql`alter type role add value if not exists 'future_role'`);
+  await ctx.db.execute(sql`update "user" set role = 'future_role' where email = ${email}`);
+
+  try {
+    await expect(requireUser(requestHeaders, auth)).rejects.toBeInstanceOf(UnauthenticatedError);
+  } finally {
+    await ctx.db.execute(sql`update "user" set role = 'admin' where email = ${email}`);
+  }
 });
 
 test('there is no registration', async () => {
