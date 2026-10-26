@@ -49,7 +49,9 @@ pnpm smoke http://localhost:3000       # deploy tier: prihlasovacia stránka a /
 
 ## Nasadenie
 
-Testovacie prostredie beží na DigitalOcean (FRA1): služba z image, PostgreSQL 17 a pre-deploy job, ktorý pred každým nasadením aplikuje migrácie. Všetko opisuje [`.do/app.yaml`](.do/app.yaml), image [`Dockerfile`](Dockerfile) (`node:24-slim`, Next.js `standalone`, beží ako ne-root `node`). Nasadzuje ho workflow [`deploy`](.github/workflows/deploy.yml), ktorý spúšťa Kazarr rukou. Prostredie nezakladá ani nespúšťa agent.
+Testovacie prostredie beží na DigitalOcean (FRA1): služba z image, spravovaný cluster PostgreSQL 17, pre-deploy job, ktorý pred každým nasadením aplikuje migrácie, a post-deploy job, ktorý po nasadení založí admina. Všetko opisuje [`.do/app.yaml`](.do/app.yaml), image [`Dockerfile`](Dockerfile) (`node:24-slim`, Next.js `standalone`, beží ako ne-root `node`). Nasadzuje ho workflow [`deploy`](.github/workflows/deploy.yml), ktorý spúšťa Kazarr rukou z vetvy `main`. Prostredie nezakladá ani nespúšťa agent.
+
+Cena testovacieho prostredia: služba $5 + spravovaný PostgreSQL (Basic, 1 GiB RAM, 1 vCPU, 10 GiB) $15,15 = **$20,15 mesačne** bez DPH ([Research: Hosting](https://github.com/Kazarr/Servisnik/issues/47), ceny z 2026-10-21). S vývojovou databázou v appke by to bolo $12, ale tá nemá zdokumentované zálohy.
 
 ### Image lokálne
 
@@ -71,33 +73,43 @@ docker rm -f servisnik-app
 
 Agent nič z toho neurobí: ide o účet, platbu, token a tajomstvá.
 
-1. **Účet na DigitalOcean:** registrácia, 2FA, platobná karta ([Research: Hosting](https://github.com/Kazarr/Servisnik/issues/47): test vychádza na $12/mes.).
+1. **Účet na DigitalOcean:** registrácia, 2FA, platobná karta.
 2. **Register:** Container Registry vo FRA1 (jeden na účet; názov si workflow zistí sám).
-3. **Token:** API token s právom čítať a zapisovať App Platform a Container Registry (DigitalOcean > API > Generate New Token).
-4. **GitHub secrets:** token a tajomstvá appky, každý sa nastaví osobitne a hodnotu vypýta `gh`. Workflow ich pred zostavením skontroluje a vypíše všetky, ktoré chýbajú. `KROS_*` appka zatiaľ nečíta, ale secret nesmie byť prázdny, kým ich nenahradia skutočné hodnoty (`KROS_API_URL` z #61, `KROS_VAT_PAYER_TYPE` z fixtures #62), dá sa tam napísať `zatial-nic`.
+3. **Databáza:** spravovaný cluster PostgreSQL 17 vo FRA1, najmenšia veľkosť, s názvom `servisnik-test-db` (ten je v `.do/app.yaml`). V paneli Databases > Create, alebo `doctl`:
 
    ```powershell
+   doctl databases create servisnik-test-db --engine pg --version 17 --region fra1 --size db-s-1vcpu-1gb --num-nodes 1
+   ```
+
+4. **Token:** API token s právom čítať a zapisovať App Platform a Container Registry (DigitalOcean > API > Generate New Token).
+5. **GitHub Environment `test`:** workflow `deploy` beží na ľubovoľnej vetve a vetva si môže priniesť vlastné workflow, preto deploy secrets nepatria do repo secrets, ale do prostredia obmedzeného na `main`. Hodnoty secrets nech sú z písmen, číslic a `-_.`: action ich vkladá ako text do `.do/app.yaml`. Hodnotu každého vypýta `gh`. Workflow pred zostavením skontroluje štyri povinné a vypíše tie, ktoré chýbajú.
+
+   ```powershell
+   '{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}' | gh api --method PUT repos/Kazarr/Servisnik/environments/test --input -
+   gh api --method POST repos/Kazarr/Servisnik/environments/test/deployment-branch-policies -f name=main
    node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"   # hodnota pre BETTER_AUTH_SECRET
-   foreach ($name in 'DIGITALOCEAN_ACCESS_TOKEN', 'BETTER_AUTH_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'KROS_API_URL', 'KROS_API_TOKEN', 'KROS_WEBHOOK_SECRET', 'KROS_VAT_PAYER_TYPE') {
-     gh secret set $name --repo Kazarr/Servisnik
+   foreach ($name in 'DIGITALOCEAN_ACCESS_TOKEN', 'BETTER_AUTH_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD') {
+     gh secret set $name --env test --repo Kazarr/Servisnik
    }
    ```
 
-5. **Appka zo specu:** prvý beh workflow vytvorí appku `servisnik-test` z `.do/app.yaml` (službu, databázu aj pre-deploy job), každý ďalší ju aktualizuje.
+   `KROS_API_URL`, `KROS_API_TOKEN`, `KROS_WEBHOOK_SECRET` a `KROS_VAT_PAYER_TYPE` pridaj do toho istého prostredia s #81 (`gh secret set <meno> --env test`). Appka ich zatiaľ nečíta, workflow ich nevyžaduje a nenastavené odovzdá spec prázdne.
+6. **Appka zo specu:** prvý beh workflow vytvorí appku `servisnik-test` z `.do/app.yaml` (službu, väzbu na cluster, pre-deploy migráciu aj post-deploy seed admina), každý ďalší ju aktualizuje. Admin z `ADMIN_EMAIL` a `ADMIN_PASSWORD` vznikne po nasadení sám.
 
    ```powershell
    gh workflow run deploy --repo Kazarr/Servisnik --ref main
    gh run watch --repo Kazarr/Servisnik          # vyberie bežiaci beh
    ```
 
-6. **Prvý admin:** v DigitalOcean otvor appku `servisnik-test` > služba `web` > Console a spusti `node /migrate/scripts/seed.ts`. Je idempotentný, služba má `ADMIN_EMAIL` a `ADMIN_PASSWORD` zo secrets.
-
 ### Čo workflow robí
 
-Spúšťa sa len cez `workflow_dispatch`. V tomto poradí: skontroluje secrets, odmietne commit, ktorého check `ticket` nie je zelený, zostaví image označený SHA commitu a pošle ho do registra, nasadí `.do/app.yaml`, počká na dokončenie a spustí `pnpm smoke` proti adrese nasadenej appky. Migrácia zlyhá pred prepnutím a stará verzia beží ďalej.
+Spúšťa sa len cez `workflow_dispatch` a job beží len z vetvy `main`, v prostredí `test`. V tomto poradí: skontroluje secrets, odmietne commit, ktorého check `ticket` nie je zelený, zostaví image označený SHA commitu a pošle ho do registra, nasadí `.do/app.yaml`, počká na dokončenie a spustí `pnpm smoke` proti adrese nasadenej appky. Migrácia zlyhá pred prepnutím a stará verzia beží ďalej. Akcie, ktoré dostanú token DigitalOcean, sú pripnuté na SHA commitu, logy nasadenia sa do verejného logu nevypisujú.
+
+### Databáza a TLS
+
+DigitalOcean podpisuje databázy vlastnou CA, ktorú Node nepozná. Spec preto viaže `DATABASE_URL` aj `DATABASE_CA_CERT` (`${db.CA_CERT}`) a `createDb` v `apps/web/src/db/index.ts` (jediné miesto, kde sa pripájajú appka, `db:migrate` aj `db:seed`) overuje server proti tejto CA. `pg` nechá `sslmode` z URL prevážiť nad `ssl`, preto mu `createDb` pri zadanej CA odovzdá URL bez `sslmode`. Lokálne (`DATABASE_CA_CERT` prázdne) sa URL použije tak, ako je.
 
 ### Známe obmedzenia
 
-- Appka sa k databáze DigitalOcean pripája šifrovane, ale bez overenia reťaze certifikátov (`uselibpqcompat` v `DATABASE_URL`): DigitalOcean podpisuje databázy vlastnou CA, ktorú Node nepozná, a `pg` pri `sslmode=require` reťaz overuje. Overenie reťaze vyžaduje `ssl.ca` v `apps/web/src/db/index.ts` z `${db.CA_CERT}`.
-- Testovacia databáza je vývojová databáza v appke ($7/mes.); produkcia dostane spravovaný cluster so zálohami ([#51](https://github.com/Kazarr/Servisnik/issues/51)).
-- Prvý skutočný beh workflow ešte nebežal: `deploy` je overený lokálne (image, migrácia, `pnpm smoke`) a testmi konfigurácie, nie proti DigitalOcean.
+- Seed beží po každom nasadení: ak admin zmení heslo v appke, ďalšie nasadenie ho vráti na `ADMIN_PASSWORD`. Zmena hesla v appke zatiaľ nie je.
+- Prvý skutočný beh workflow ešte nebežal: `deploy` je overený lokálne (image, migrácia, seed, `pnpm smoke`) a testmi konfigurácie, nie proti DigitalOcean. Neoverené zostáva, či DigitalOcean prijme `KROS_*` bez hodnoty; ak nie, nastav ich pri prvom behu na skutočné hodnoty z #61 a #62.
