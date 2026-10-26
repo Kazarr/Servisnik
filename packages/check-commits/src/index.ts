@@ -1,4 +1,6 @@
-export type Commit = { sha: string; subject: string; files: string[]; merge?: true };
+// `parent` is the sha of the first parent; a hand-written linear list may omit it, which means
+// the commit listed just before.
+export type Commit = { sha: string; subject: string; files: string[]; parent?: string; merge?: true };
 
 // Glob forms: **/*.test.*, **/*.spec.*, e2e/**, test/** (the last two at any depth).
 const TEST_FILE = /(^|\/)([^/]*\.(test|spec)\.[^/]*|(e2e|test)\/.*)$/;
@@ -8,20 +10,27 @@ const TYPE = /^(\w+)(\([^)]*\))?!?:/;
 // Returns one "<sha> <subject>: <rule>" line per violation.
 export function checkCommits(commits: Commit[], allowed: ReadonlySet<string> = new Set()): string[] {
   const violations: string[] = [];
-  let testSinceFeat = false;
-  for (const { sha, subject, files, merge } of commits) {
-    if (merge || allowed.has(sha)) continue;
-    const type = TYPE.exec(subject)?.[1];
-    const fail = (rule: string) => violations.push(`${sha} ${subject}: ${rule}`);
-    if (type === 'feat' || type === 'fix') {
-      const tests = files.filter((f) => TEST_FILE.test(f));
-      if (tests.length) fail(`feat/fix changes test files: ${tests.join(', ')}`);
+  // Rule 2 state after each commit: a test commit on its first-parent line since the last feat.
+  // A parent outside the list is the base (or older), where nothing is tested yet.
+  const testedAfter = new Map<string, boolean>();
+  let previous: string | undefined;
+  for (const { sha, subject, files, merge, parent = previous } of commits) {
+    let tested = testedAfter.get(parent ?? '') ?? false;
+    previous = sha;
+    if (!merge && !allowed.has(sha)) {
+      const type = TYPE.exec(subject)?.[1];
+      const fail = (rule: string) => violations.push(`${sha} ${subject}: ${rule}`);
+      if (type === 'feat' || type === 'fix') {
+        const tests = files.filter((f) => TEST_FILE.test(f));
+        if (tests.length) fail(`feat/fix changes test files: ${tests.join(', ')}`);
+      }
+      if (type === 'test') tested = true;
+      if (type === 'feat') {
+        if (!tested) fail('feat without a test commit since the previous feat or the branch base');
+        tested = false;
+      }
     }
-    if (type === 'test') testSinceFeat = true;
-    if (type === 'feat') {
-      if (!testSinceFeat) fail('feat without a test commit since the previous feat or the branch base');
-      testSinceFeat = false;
-    }
+    testedAfter.set(sha, tested);
   }
   return violations;
 }
@@ -47,8 +56,10 @@ export function parseGitLog(output: string): Commit[] {
     .map((record) => {
       const [header = '', ...rest] = record.split('\n');
       const [sha = '', parents = '', subject = ''] = header.split('\x1f');
+      const [parent = ''] = parents.split(' ');
       return {
         sha,
+        parent,
         subject,
         files: rest.filter(Boolean),
         ...(parents.includes(' ') && { merge: true as const }),
