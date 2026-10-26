@@ -46,6 +46,23 @@ test('the admin signs in, sees the menu on the left and signs out', async ({ pag
   await expect(page).toHaveURL(/\/login$/);
 });
 
+// Forced colors replace the background that marks the current item, so something else must mark it.
+test('the current menu item is marked by an outline that forced colors keep', async ({ page }) => {
+  await page.emulateMedia({ forcedColors: 'active' });
+  await signIn(page);
+
+  const menu = page.getByRole('navigation', { name: 'Hlavné menu' });
+  const outline = (name: string) =>
+    menu.getByRole('link', { name }).evaluate((link) => {
+      const { outlineStyle, outlineWidth } = getComputedStyle(link);
+      return { outlineStyle, outlineWidth };
+    });
+  const width = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--border-width-strong').trim());
+
+  expect(await outline('Zákazky')).toEqual({ outlineStyle: 'solid', outlineWidth: width });
+  expect((await outline('Vozidlá')).outlineStyle).toBe('none');
+});
+
 test('a page checks the session itself when the user navigates from inside the app', async ({ page, browser, baseURL }) => {
   await signIn(page);
 
