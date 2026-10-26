@@ -69,3 +69,72 @@ export function totalsOf(items: readonly Priced[]): Amounts {
   const sum = (key: keyof Amounts) => items.reduce((total, item) => total + amountsOf(item)[key], 0);
   return { net: sum('net'), vat: sum('vat'), gross: sum('gross') };
 }
+
+/** Práca or Diel. The model has both from the start; only Práca is added anywhere so far. */
+export const itemKinds = ['labour', 'part'] as const;
+export type ItemKind = (typeof itemKinds)[number];
+
+/** Položka zákazky; the price is per unit and without VAT (ledger question 8 is open). */
+export type WorkOrderItem = Priced & { kind: ItemKind; name: string; unit: string };
+
+export const defaultVatRate = 23;
+
+// Limits keep every product below 2^53 and every stored number inside a PostgreSQL integer.
+const maxQuantityHundredths = 9_999_999; // 99 999,99
+const maxUnitPriceCents = 100_000_000; // 1 000 000,00 €
+const maxMileageKm = 9_999_999;
+
+/**
+ * A number typed with a decimal comma or point and at most two decimals, as hundredths, or null.
+ * Read from the digits: 1,15 * 100 is 114.99999999999999 as a float.
+ */
+function hundredths(typed: string): number | null {
+  const match = /^(\d+)(?:[.,](\d{1,2}))?$/.exec(typed.replace(/\s/g, ''));
+  return match ? Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')) : null;
+}
+
+/** A whole number such as the kilometres or a VAT rate; spaces may group the digits. */
+function wholeNumber(typed: string): number | null {
+  const digits = typed.replace(/\s/g, '');
+  return /^\d+$/.test(digits) ? Number(digits) : null;
+}
+
+export type WorkOrderInput = { mileageKm: string; customerRequest: string };
+export type WorkOrderErrors = { mileageKm?: 'invalid'; customerRequest?: 'required' };
+
+/** A Zákazka ready to store: the kilometres at intake (a whole number, 0 is fine) and the customer's request. */
+export function parseWorkOrder(
+  input: WorkOrderInput,
+): { ok: true; workOrder: { mileageKm: number; customerRequest: string } } | { ok: false; errors: WorkOrderErrors } {
+  const mileageKm = wholeNumber(input.mileageKm);
+  const customerRequest = input.customerRequest.trim();
+  if (mileageKm === null || mileageKm > maxMileageKm || !customerRequest) {
+    const errors: WorkOrderErrors = {};
+    if (mileageKm === null || mileageKm > maxMileageKm) errors.mileageKm = 'invalid';
+    if (!customerRequest) errors.customerRequest = 'required';
+    return { ok: false, errors };
+  }
+  return { ok: true, workOrder: { mileageKm, customerRequest } };
+}
+
+/** What the form sends for a Práca; `vatRate` left out means the default, a blank one is a mistake. */
+export type LabourInput = { name: string; quantity: string; unitPrice: string; vatRate?: string };
+export type LabourErrors = { name?: 'required'; quantity?: 'invalid'; unitPrice?: 'invalid'; vatRate?: 'invalid' };
+
+/**
+ * A Práca ready to store: hours (more than 0), a unit price without VAT (0 or more) and a whole VAT
+ * percentage from 0 to 100.
+ */
+export function parseLabour(input: LabourInput): { ok: true; item: WorkOrderItem } | { ok: false; errors: LabourErrors } {
+  const name = input.name.trim();
+  const quantityHundredths = hundredths(input.quantity);
+  const unitPriceCents = hundredths(input.unitPrice);
+  const vatRate = input.vatRate === undefined ? defaultVatRate : wholeNumber(input.vatRate);
+  const errors: LabourErrors = {};
+  if (!name) errors.name = 'required';
+  if (quantityHundredths === null || quantityHundredths < 1 || quantityHundredths > maxQuantityHundredths) errors.quantity = 'invalid';
+  if (unitPriceCents === null || unitPriceCents > maxUnitPriceCents) errors.unitPrice = 'invalid';
+  if (vatRate === null || vatRate > 100) errors.vatRate = 'invalid';
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, item: { kind: 'labour', name, quantityHundredths: quantityHundredths!, unit: 'h', unitPriceCents: unitPriceCents!, vatRate: vatRate! } };
+}
