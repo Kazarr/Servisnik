@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'vitest';
-import { formatWorkOrderNumber, localDate, localYear } from '../src/work-order/index.ts';
+import {
+  canAddItems,
+  formatWorkOrderNumber,
+  isOpen,
+  localDate,
+  localYear,
+  transition,
+  workOrderStatuses,
+  type TransitionTrigger,
+  type WorkOrderStatus,
+} from '../src/work-order/index.ts';
 
 describe('Zákazka number', () => {
   test.each([
@@ -35,5 +45,58 @@ describe('dates in Europe/Bratislava', () => {
   test('the year follows the local date, not UTC', () => {
     expect(localYear(new Date('2026-12-31T23:30:00Z'))).toBe(2027);
     expect(localYear(new Date('2026-12-31T22:30:00Z'))).toBe(2026);
+  });
+});
+
+describe('status transitions', () => {
+  const allowed: [WorkOrderStatus, WorkOrderStatus, TransitionTrigger][] = [
+    ['received', 'done', 'user'],
+    ['done', 'invoiced', 'invoice'],
+  ];
+  const triggers: TransitionTrigger[] = ['user', 'invoice'];
+  const every = workOrderStatuses.flatMap((from) => workOrderStatuses.flatMap((to) => triggers.map((by) => [from, to, by] as const)));
+  const forbidden = every.filter(([from, to, by]) => !allowed.some(([f, t, b]) => f === from && t === to && b === by));
+
+  test('Prijatá becomes Hotová by the user, and the delivery date is the day in Europe/Bratislava', () => {
+    // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
+    expect(transition('received', 'done', 'user', new Date('2026-12-31T23:30:00Z'))).toEqual({
+      ok: true,
+      status: 'done',
+      completedOn: '2027-01-01',
+    });
+  });
+
+  test('Hotová becomes Vyfakturovaná by the invoice, and the delivery date stays as it was', () => {
+    expect(transition('done', 'invoiced', 'invoice', new Date('2026-12-31T23:30:00Z'))).toEqual({ ok: true, status: 'invoiced' });
+  });
+
+  test('these two are the only transitions: the other 16 of 18 are refused', () => {
+    expect(every).toHaveLength(18);
+    expect(forbidden).toHaveLength(16);
+    for (const [from, to, by] of forbidden) {
+      expect(transition(from, to, by, new Date()), `${from} -> ${to} by ${by}`).toEqual({ ok: false, error: 'not-allowed' });
+    }
+  });
+
+  test('Hotová cannot be reached again, so the delivery date is never overwritten', () => {
+    expect(transition('done', 'done', 'user', new Date())).toEqual({ ok: false, error: 'not-allowed' });
+  });
+});
+
+describe('what a status allows', () => {
+  test.each([
+    ['received', true],
+    ['done', true],
+    ['invoiced', false],
+  ] as const)('%s is open: %s', (status, open) => {
+    expect(isOpen(status)).toBe(open);
+  });
+
+  test.each([
+    ['received', true],
+    ['done', false],
+    ['invoiced', false],
+  ] as const)('items can be added in %s: %s', (status, allowed) => {
+    expect(canAddItems(status)).toBe(allowed);
   });
 });
