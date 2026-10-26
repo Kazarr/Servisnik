@@ -28,8 +28,9 @@ test.each([200, 302, 404, 499])('the 5xx rule lets a %i response pass', (status)
   expect(problems).toEqual([]);
 });
 
-// What the app wrote to stderr in a real run: Better Auth's warning for the wrong password that login.spec.ts types, in colour.
-const betterAuthWarning = '\u001b[33m2026-10-26T10:00:00.000Z WARN [Better Auth]: Invalid password\u001b[0m';
+// Recorded from a real run: Better Auth's warning for the wrong password that login.spec.ts types, with its colour codes.
+const betterAuthWarning =
+  '\u001b[2m2026-10-26T21:36:33.643Z\u001b[0m \u001b[33mWARN\u001b[0m \u001b[1m[Better Auth]:\u001b[0m Invalid password';
 
 test('the stderr filter lets the warning for a wrong password pass', () => {
   expect(unexpectedStderr(`${betterAuthWarning}\n${betterAuthWarning}\n`)).toEqual([]);
