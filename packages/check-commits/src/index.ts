@@ -48,7 +48,17 @@ export function parseAllowlist(text: string): Set<string> {
   return shas;
 }
 
-// Parses `git log --name-only --format='%x1e%H%x1f%P%x1f%s'`: one \x1e record per commit.
+// One record per commit, fields split by \x1f: parseGitLog reads exactly this format.
+const LOG_FORMAT = '%x1e%H%x1f%P%x1f%s';
+
+// Arguments for the git that prints the commits of `<base>..HEAD`: oldest first, parents before
+// children, a rename as delete + add (so the old path of a moved test file is listed too).
+export function gitLogArgs(base: string): string[] {
+  const options = ['--reverse', '--topo-order', '--no-renames', '--name-only', `--format=${LOG_FORMAT}`];
+  return ['-c', 'core.quotepath=false', 'log', ...options, `${base}..HEAD`];
+}
+
+// Parses the output of `git log --name-only --format=LOG_FORMAT`: one \x1e record per commit.
 export function parseGitLog(output: string): Commit[] {
   return output
     .split('\x1e')
