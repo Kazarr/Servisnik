@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # the commit check reads the whole history of the branch
+          fetch-depth: 0 # a shallow clone lacks origin/<base_ref>, which the commit check reads up to HEAD
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -25,5 +25,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
         env:
-          # A PR is checked against its base; a push to main has no base_ref and falls back to origin/main.
+          # The commit check reads origin/<base_ref>..HEAD. A push to main has no base_ref, so it falls
+          # back to origin/main, which is HEAD itself: an empty range, nothing is checked there.
           CHECK_COMMITS_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) }}
