@@ -1,0 +1,35 @@
+# Lokálne prostredie (docs/adr/0001-stack.md). Premenné a prístupy sú v .env, kópii .env.example.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["${POSTGRES_PORT}:5432"]
+    volumes: [postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+      interval: 2s
+      retries: 30
+
+  minio:
+    # MinIO už nevydáva community image (Docker Hub ani quay.io), Chainguard ho stavia zo zdroja, len ako :latest.
+    image: cgr.dev/chainguard/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+    ports: ["${S3_PORT}:9000", "${S3_CONSOLE_PORT}:9001"]
+    volumes: [minio:/data]
+
+  # Cloudflare quick tunnel bez účtu pre webhook KROS; spúšťa sa len cez `pnpm tunnel`.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    command: tunnel --no-autoupdate --url ${TUNNEL_TARGET}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+volumes:
+  postgres:
+  minio:
