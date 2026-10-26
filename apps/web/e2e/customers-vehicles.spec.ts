@@ -1,0 +1,143 @@
+import type { Browser, Page } from '@playwright/test';
+import { expect, signIn, test } from './fixtures.ts';
+
+const vin = 'WVWZZZ1JZ3W386752';
+
+async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba') {
+  await page.goto('/zakaznici/novy');
+  await page.getByLabel(type, { exact: true }).check();
+  await page.getByLabel('Názov', { exact: false }).fill(name);
+  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
+  await expect(page.locator('main h1')).toHaveText(name);
+}
+
+/** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
+async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {
+  const elsewhere = await browser.newContext({ baseURL });
+  await elsewhere.addCookies(await page.context().cookies());
+  const otherTab = await elsewhere.newPage();
+  await otherTab.goto('/zakazky');
+  await otherTab.getByRole('button', { name: 'Odhlásiť sa' }).click();
+  await expect(otherTab).toHaveURL(/\/login$/);
+  await elsewhere.close();
+}
+
+test('the admin adds a company and its vehicle, and a second vehicle with the same VIN is refused', async ({ page }) => {
+  await signIn(page);
+  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
+  await page.getByRole('link', { name: 'Pridať zákazníka' }).click();
+  await expect(page.locator('main h1')).toHaveText('Nový zákazník');
+
+  // The company fields belong to a company only.
+  for (const label of ['IČO', 'DIČ', 'IČ DPH']) await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
+  await page.getByLabel('Firma', { exact: true }).check();
+  for (const label of ['IČO', 'DIČ', 'IČ DPH']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
+
+  await page.getByLabel('Názov').fill('Autodoprava Kováč s.r.o.');
+  await page.getByLabel('IČO', { exact: true }).fill('12345678');
+  await page.getByLabel('DIČ', { exact: true }).fill('2020123456');
+  await page.getByLabel('IČ DPH', { exact: true }).fill('SK2020123456');
+  await page.getByLabel('Ulica').fill('Hlavná 1');
+  await page.getByLabel('Mesto').fill('Bratislava');
+  await page.getByLabel('PSČ').fill('81101');
+  await page.getByLabel('E-mail').fill('info@kovac.sk');
+  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
+
+  const main = page.locator('main');
+  await expect(page).toHaveURL(/\/zakaznici\/[0-9a-f-]{36}$/);
+  await expect(main.locator('h1')).toHaveText('Autodoprava Kováč s.r.o.');
+  for (const shown of ['12345678', '2020123456', 'SK2020123456', 'Hlavná 1', 'Bratislava', '81101', 'info@kovac.sk']) {
+    await expect(main).toContainText(shown);
+  }
+  const customerUrl = page.url();
+
+  // A VIN that is not one stays on the form, with the reason at the field and what was typed.
+  await main.getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await expect(main.locator('h1')).toHaveText('Nové vozidlo');
+  await expect(main).toContainText('Autodoprava Kováč s.r.o.');
+  const vinField = page.getByLabel('VIN');
+  await vinField.fill('WVWZZZ1JZ3W38675');
+  await page.getByLabel('Značka').fill('Volkswagen');
+  await page.getByLabel('Model').fill('Golf');
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await expect(vinField).toHaveAccessibleDescription('VIN musí mať presne 17 znakov');
+  await expect(vinField).toHaveValue('WVWZZZ1JZ3W38675');
+  await vinField.fill('WVWZZZ1JZ3W38675O');
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await expect(vinField).toHaveAccessibleDescription('VIN smie obsahovať len písmená A–Z a číslice 0–9, bez I, O a Q');
+
+  // Typed the way it is read off a document, it is saved in capitals without spaces and hyphens.
+  await vinField.fill('wvw zzz1jz-3w386752');
+  await page.getByLabel('ŠPZ').fill('BA123AB');
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await expect(page).toHaveURL(customerUrl);
+  await expect(main.getByRole('row', { name: new RegExp(vin) })).toContainText('BA123AB');
+
+  // The same vehicle shows in Vozidlá with its owner and opens its detail.
+  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Vozidlá' }).click();
+  const row = main.getByRole('row', { name: new RegExp(vin) });
+  await expect(row).toContainText('BA123AB');
+  await expect(row).toContainText('Autodoprava Kováč s.r.o.');
+  await row.getByRole('link', { name: vin }).click();
+  await expect(main.locator('h1')).toHaveText('Volkswagen Golf');
+  await expect(main).toContainText(vin);
+  await main.getByRole('link', { name: 'Autodoprava Kováč s.r.o.' }).click();
+  await expect(page).toHaveURL(customerUrl);
+
+  // A second vehicle with the same VIN is refused, however it is typed.
+  await main.getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await vinField.fill('wvwzzz1jz3w386752');
+  await page.getByLabel('Značka').fill('Škoda');
+  await page.getByLabel('Model').fill('Octavia');
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await expect(vinField).toHaveAccessibleDescription('Vozidlo s týmto VIN už existuje');
+  await page.goto(customerUrl);
+  await expect(main.getByRole('row', { name: new RegExp(vin) })).toHaveCount(1);
+  await expect(main).not.toContainText('Octavia');
+});
+
+test('the admin adds a person without company fields, and the list starts with the newest customer', async ({ page }) => {
+  await signIn(page);
+  await addCustomer(page, 'Prvá Osobová');
+  await expect(page.locator('main')).not.toContainText('IČO');
+  await addCustomer(page, 'Druhá Osobová');
+
+  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
+  const names = await page.locator('main').getByRole('link', { name: /Osobová/ }).allTextContents();
+  expect(names).toEqual(['Druhá Osobová', 'Prvá Osobová']);
+
+  await page.locator('main').getByRole('link', { name: 'Prvá Osobová' }).click();
+  await expect(page.locator('main h1')).toHaveText('Prvá Osobová');
+});
+
+test('a customer form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
+  await signIn(page);
+  await page.goto('/zakaznici/novy');
+  await page.getByLabel('Názov').fill('Nemal by sa uložiť');
+  await endSessionBehindThePage(page, browser, baseURL);
+
+  // The proxy only sees a cookie, so only the Server Action itself can refuse.
+  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await signIn(page);
+  await page.goto('/zakaznici');
+  await expect(page.locator('main')).not.toContainText('Nemal by sa uložiť');
+});
+
+test('a vehicle form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
+  await signIn(page);
+  await addCustomer(page, 'Majiteľ bez auta');
+  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await page.getByLabel('VIN').fill('TMBZZZ5JZ3W000009');
+  await page.getByLabel('Značka').fill('Škoda');
+  await page.getByLabel('Model').fill('Fabia');
+  await endSessionBehindThePage(page, browser, baseURL);
+
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await signIn(page);
+  await page.goto('/vozidla');
+  await expect(page.locator('main')).not.toContainText('TMBZZZ5JZ3W000009');
+});
