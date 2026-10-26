@@ -1,22 +1,12 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
+import { watchPage } from './page-problems.ts';
 
 export { expect };
 
-/**
- * `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx.
- * Chromium also logs every failed response as a console error, so the 5xx rule overlaps with the
- * first one; it stays because it names the status and URL.
- */
+/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see page-problems.ts). */
 export const test = base.extend({
   page: async ({ page }, use) => {
-    const problems: string[] = [];
-    page.on('console', (message) => {
-      if (message.type() === 'error') problems.push(`console.error: ${message.text()}`);
-    });
-    page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
-    page.on('response', (response) => {
-      if (response.status() >= 500) problems.push(`HTTP ${response.status()}: ${response.url()}`);
-    });
+    const problems = watchPage(page);
 
     await use(page);
 

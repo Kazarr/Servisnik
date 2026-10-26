@@ -5,10 +5,10 @@ import { randomBytes } from 'node:crypto';
 import { cpSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { stripVTControlCharacters } from 'node:util';
 import { createDb } from '../src/db/index.ts';
 import { migrateDatabase } from '../src/db/migrate.ts';
 import { seedAdmin } from '../src/seed.ts';
+import { unexpectedStderr } from './server-stderr.ts';
 
 const appDir = join(import.meta.dirname, '..');
 
@@ -64,10 +64,7 @@ export default async function globalSetup(config: FullConfig) {
   return async () => {
     app.kill();
     await container.stop();
-    // Better Auth warns on every wrong password, and login.spec.ts types one on purpose.
-    const unexpected = stripVTControlCharacters(stderr)
-      .split('\n')
-      .filter((line) => line && !line.includes('[Better Auth]: Invalid password'));
+    const unexpected = unexpectedStderr(stderr);
     if (unexpected.length > 0) throw new Error(`The app wrote to stderr during the run:\n${unexpected.join('\n')}`);
   };
 }
