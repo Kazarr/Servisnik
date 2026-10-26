@@ -2,6 +2,7 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
 import ErrorPage from '../src/app/(app)/error.tsx';
+import GlobalError from '../src/app/global-error.tsx';
 import NotFound from '../src/app/not-found.tsx';
 
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void }>;
@@ -31,4 +32,16 @@ test('the error page says an error occurred, shows nothing of it, links back and
   const button = Children.toArray(page.props.children).find((child): child is Element => isValidElement(child) && child.type === 'button');
   button!.props.onClick!();
   expect(retry).toHaveBeenCalledOnce();
+});
+
+// An error in the root layout reaches no error.tsx; global-error.tsx replaces the layout, so it brings the
+// document, its language and its <main> itself.
+test('the global error page is a Slovak document with the error page in it and nothing of the error', () => {
+  const error = Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:5432'), { digest: 'd1g3st0123' });
+
+  const html = renderToStaticMarkup(GlobalError({ error, retry: vi.fn() }));
+
+  expect(html).toContain('<html lang="sk">');
+  expect(html).toMatch(/<main class="content">.*<h1>Nastala chyba<\/h1>.*href="\/zakazky".*<\/main>/);
+  for (const detail of [error.message, error.digest]) expect(html).not.toContain(detail);
 });
