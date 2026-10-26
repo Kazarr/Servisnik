@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { cpSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { createDb } from '../src/db/index.ts';
 import { migrateDatabase } from '../src/db/migrate.ts';
 import { seedAdmin } from '../src/seed.ts';
@@ -34,6 +35,7 @@ export default async function globalSetup(config: FullConfig) {
   // The standalone server serves neither static files nor public/ itself; `next build` leaves them beside it.
   const server = join(appDir, '.next/standalone/apps/web');
   cpSync(join(appDir, '.next/static'), join(server, '.next/static'), { recursive: true });
+  process.env.E2E_SERVER_DIR = server; // startup.spec.ts starts the same server with a variable missing
 
   const app = spawn(process.execPath, ['server.js'], {
     cwd: server,
@@ -62,7 +64,11 @@ export default async function globalSetup(config: FullConfig) {
   return async () => {
     app.kill();
     await container.stop();
-    if (stderr) throw new Error(`The app wrote to stderr during the run:\n${stderr}`);
+    // Better Auth warns on every wrong password, and login.spec.ts types one on purpose.
+    const unexpected = stripVTControlCharacters(stderr)
+      .split('\n')
+      .filter((line) => line && !line.includes('[Better Auth]: Invalid password'));
+    if (unexpected.length > 0) throw new Error(`The app wrote to stderr during the run:\n${unexpected.join('\n')}`);
   };
 }
 
