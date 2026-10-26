@@ -5,8 +5,12 @@ import * as schema from './schema.ts';
 
 export type Database = ReturnType<typeof createDb>;
 
+// pg waits forever for a host that neither refuses nor answers, and /api/health must answer well
+// inside a platform health-check timeout.
+const connectionTimeoutMillis = 2000;
+
 export function createDb(connectionString: string) {
-  return drizzle(new pg.Pool({ connectionString }), { schema });
+  return drizzle(new pg.Pool({ connectionString, connectionTimeoutMillis }), { schema });
 }
 
 // One pool per process; the global survives dev-server module reloads.
