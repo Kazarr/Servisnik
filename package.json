@@ -11,6 +11,7 @@
     "test": "vitest run",
     "check-commits": "node packages/check-commits/src/cli.ts",
     "verify": "pnpm typecheck && pnpm check-commits && pnpm test",
+    "smoke": "node tools/smoke.ts",
     "dev": "pnpm --filter @servisnik/web dev",
     "db:migrate": "pnpm --filter @servisnik/web db:migrate",
     "db:seed": "pnpm --filter @servisnik/web db:seed",
