@@ -40,7 +40,7 @@ Registrácia v appke nie je, prihlásiť sa dá len admin zo seedu. Zmenu schém
 
 ```powershell
 pnpm verify                            # ticket tier: typecheck a testy; Testcontainers spustí PostgreSQL 17, Docker musí bežať
-pnpm exec playwright install chromium  # raz, prehliadač pre e2e
+pnpm e2e:install                       # raz, stiahne prehliadač pre e2e
 pnpm e2e                               # batch tier: build appky, čerstvá databáza, cesta prihlásenie, menu, odhlásenie
 ```
 
