@@ -1,4 +1,5 @@
 import { appEnv } from './env.ts';
+import { printError } from './print-error.ts';
 
 /** A missing variable stops the app with a message that names it. */
 export function checkEnv() {
@@ -6,7 +7,7 @@ export function checkEnv() {
     appEnv();
   } catch (error) {
     // Next only logs a register() that throws and keeps serving, so the exit is ours.
-    console.error(error instanceof Error ? error.message : error);
+    printError(error);
     process.exit(1);
   }
 }
