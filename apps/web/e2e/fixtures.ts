@@ -2,7 +2,11 @@ import { expect, test as base, type Page } from '@playwright/test';
 
 export { expect };
 
-/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx. */
+/**
+ * `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx.
+ * Chromium also logs every failed response as a console error, so the 5xx rule overlaps with the
+ * first one; it stays because it names the status and URL.
+ */
 export const test = base.extend({
   page: async ({ page }, use) => {
     const problems: string[] = [];

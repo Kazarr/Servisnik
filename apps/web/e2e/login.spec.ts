@@ -17,7 +17,7 @@ test('a wrong password keeps the user on the login page with a message', async (
   await page.getByLabel('Heslo').fill('nespravne-heslo');
   await page.getByRole('button', { name: 'Prihlásiť sa' }).click();
 
-  await expect(page.getByRole('alert')).toHaveText('Nesprávny e-mail alebo heslo.');
+  await expect(page.locator('main').getByRole('alert')).toHaveText('Nesprávny e-mail alebo heslo.');
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByLabel('E-mail')).toHaveValue(process.env.E2E_ADMIN_EMAIL!);
 });
@@ -40,9 +40,26 @@ test('the admin signs in, sees the menu on the left and signs out', async ({ pag
   await page.getByRole('button', { name: 'Odhlásiť sa' }).click();
   await expect(page).toHaveURL(/\/login$/);
 
-  // Put the old cookie back: proxy.ts lets it through, so only the page's own check can turn it away.
+  // Put the old cookie back: proxy.ts lets it through, so the session check in the app itself must refuse it.
   await context.addCookies(signedInCookies);
   await page.goto('/zakazky');
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test('a page checks the session itself when the user navigates from inside the app', async ({ page, browser, baseURL }) => {
+  await signIn(page);
+
+  // End the session behind the page's back, as another tab or an expiry would.
+  const elsewhere = await browser.newContext({ baseURL });
+  await elsewhere.addCookies(await page.context().cookies());
+  const otherTab = await elsewhere.newPage();
+  await otherTab.goto('/zakazky');
+  await otherTab.getByRole('button', { name: 'Odhlásiť sa' }).click();
+  await expect(otherTab).toHaveURL(/\/login$/);
+  await elsewhere.close();
+
+  // The layout does not run again on this navigation, the proxy sees a cookie: only the page can refuse.
+  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Vozidlá' }).click();
   await expect(page).toHaveURL(/\/login$/);
 });
 
