@@ -33,12 +33,12 @@ export default async function globalSetup(config: FullConfig) {
   const next = createRequire(import.meta.url).resolve('next/dist/bin/next');
   execFileSync(process.execPath, [next, 'build'], { cwd: appDir, stdio: 'inherit', env: { ...process.env, NODE_ENV: 'production' } });
   // The standalone server serves neither static files nor public/ itself; `next build` leaves them beside it.
-  const server = join(appDir, '.next/standalone/apps/web');
-  cpSync(join(appDir, '.next/static'), join(server, '.next/static'), { recursive: true });
-  process.env.E2E_SERVER_DIR = server; // startup.spec.ts starts the same server with a variable missing
+  const serverDir = join(appDir, '.next/standalone/apps/web');
+  cpSync(join(appDir, '.next/static'), join(serverDir, '.next/static'), { recursive: true });
+  process.env.E2E_SERVER_DIR = serverDir; // startup.spec.ts starts the same server with a variable missing
 
-  const app = spawn(process.execPath, ['server.js'], {
-    cwd: server,
+  const server = spawn(process.execPath, ['server.js'], {
+    cwd: serverDir,
     env: {
       ...process.env,
       NODE_ENV: 'production',
@@ -51,9 +51,9 @@ export default async function globalSetup(config: FullConfig) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stderr = '';
-  app.stderr.on('data', (chunk) => (stderr += chunk));
+  server.stderr.on('data', (chunk) => (stderr += chunk));
   let exited = false;
-  app.on('exit', () => (exited = true));
+  server.on('exit', () => (exited = true));
 
   const ready = Date.now() + 30_000;
   while (!(await healthy(baseURL))) {
@@ -62,7 +62,7 @@ export default async function globalSetup(config: FullConfig) {
   }
 
   return async () => {
-    app.kill();
+    server.kill();
     await container.stop();
     const unexpected = unexpectedStderr(stderr);
     if (unexpected.length > 0) throw new Error(`The app wrote to stderr during the run:\n${unexpected.join('\n')}`);

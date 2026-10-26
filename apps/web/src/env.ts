@@ -10,6 +10,6 @@ export function readEnv<const K extends string>(source: Source, names: readonly 
 }
 
 /** Variables the running app needs. Memoised, so the check runs once. */
-let app: ReturnType<typeof readAppEnv> | undefined;
+let env: ReturnType<typeof readAppEnv> | undefined;
 const readAppEnv = () => readEnv(process.env, ['DATABASE_URL', 'BETTER_AUTH_SECRET']);
-export const appEnv = () => (app ??= readAppEnv());
+export const appEnv = () => (env ??= readAppEnv());
