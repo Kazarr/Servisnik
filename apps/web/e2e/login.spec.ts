@@ -1,4 +1,4 @@
-import { expect, signIn, test } from './fixtures.ts';
+import { endSessionBehindThePage, expect, signIn, submitLogin, test } from './fixtures.ts';
 
 const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky'];
 
@@ -12,10 +12,7 @@ for (const path of ['/', '/zakaznici', '/vozidla', '/zakazky']) {
 }
 
 test('a wrong password keeps the user on the login page with a message', async ({ page }) => {
-  await page.goto('/login');
-  await page.getByLabel('E-mail').fill(process.env.E2E_ADMIN_EMAIL!);
-  await page.getByLabel('Heslo').fill('nespravne-heslo');
-  await page.getByRole('button', { name: 'Prihlásiť sa' }).click();
+  await submitLogin(page, 'nespravne-heslo');
 
   await expect(page.locator('main').getByRole('alert')).toHaveText('Nesprávny e-mail alebo heslo.');
   await expect(page).toHaveURL(/\/login$/);
@@ -66,14 +63,7 @@ test('the current menu item is marked by an outline that forced colors keep', as
 test('a page checks the session itself when the user navigates from inside the app', async ({ page, browser, baseURL }) => {
   await signIn(page);
 
-  // End the session behind the page's back, as another tab or an expiry would.
-  const elsewhere = await browser.newContext({ baseURL });
-  await elsewhere.addCookies(await page.context().cookies());
-  const otherTab = await elsewhere.newPage();
-  await otherTab.goto('/zakazky');
-  await otherTab.getByRole('button', { name: 'Odhlásiť sa' }).click();
-  await expect(otherTab).toHaveURL(/\/login$/);
-  await elsewhere.close();
+  await endSessionBehindThePage(page, browser, baseURL);
 
   // The layout does not run again on this navigation, the proxy sees a cookie: only the page can refuse.
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Vozidlá' }).click();
