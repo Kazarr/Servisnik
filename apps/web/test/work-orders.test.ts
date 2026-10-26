@@ -237,14 +237,25 @@ test('a double click on "Označiť ako hotovú" marks the Zákazka once', async 
   expect(results).toContainEqual({ ok: false, error: 'not-allowed' });
 });
 
-test('work added while the Zákazka is being marked as done lands before it or is refused, never after', async () => {
+test('work added while another request is marking the Zákazka as done waits for it and is then refused', async () => {
   const id = await openWorkOrder();
+  const marking = Promise.withResolvers<void>();
+  const committed = Promise.withResolvers<void>();
+  // The other request: its update holds the row lock until `committed` is resolved.
+  const marked = ctx.db.transaction(async (tx) => {
+    await tx.execute(sql`update work_order set status = 'done', completed_on = '2026-07-15' where id = ${id}`);
+    marking.resolve();
+    await committed.promise;
+  });
+  await marking.promise;
 
-  const [added] = await Promise.all([addLabour(admin, id, oilChange, ctx.db), markWorkOrderDone(admin, id, ctx.db, summer)]);
+  const adding = addLabour(admin, id, oilChange, ctx.db);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  committed.resolve();
+  await marked;
 
-  const detail = await getWorkOrder(admin, id, ctx.db);
-  expect(detail?.status).toBe('done');
-  expect(detail?.items).toHaveLength(added.ok ? 1 : 0);
+  expect(await adding).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toEqual([]);
 });
 
 test('Zákazky are listed from the newest with number, customer, vehicle and status', async () => {
