@@ -58,7 +58,7 @@ jobs:
       registry_type: DOCR
       repository: servisnik
       tag: ${IMAGE_TAG}
-    run_command: node /migrate/scripts/migrate.ts
+    run_command: node /migrate/apps/web/scripts/migrate.ts
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME
@@ -75,7 +75,7 @@ jobs:
       registry_type: DOCR
       repository: servisnik
       tag: ${IMAGE_TAG}
-    run_command: node /migrate/scripts/seed.ts
+    run_command: node /migrate/apps/web/scripts/seed.ts
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME
