@@ -148,6 +148,14 @@ _Avoid_: zisk (ten je až po réžii), rabat
 Percento z nákupnej ceny, o ktoré je predajná cena dielu vyššia. Každý diel môže mať inú prirážku, aj nulovú.
 _Avoid_: marža (tá sa počíta z predajnej ceny), navýšenie
 
+**Sadzba DPH** (`vatRate`):
+Percento DPH na položke, celé číslo. Vyberá sa zo sadzieb v Nastaveniach, jedna z nich je predvolená. Položka si sadzbu uloží, takže zmena Nastavení staré zákazky nemení.
+_Avoid_: DPH (to je suma), daň
+
+**Hodinová sadzba** (`hourlyRate`):
+Cena jednej hodiny práce bez DPH z Nastavení. Predvyplní predajnú cenu práce.
+_Avoid_: hodinovka, cena práce
+
 **Zľava** (`discount`):
 Zníženie ceny celej zákazky percentom alebo sumou, ktoré autoservis zákazníkovi dá. Platí na všetky položky zákazky.
 _Avoid_: rabat, akcia
@@ -169,3 +177,21 @@ _Avoid_: preberací protokol, dodací list
 **Import šablóna** (`ImportTemplate`):
 Uložené priradenie stĺpcov súboru k údajom dielu, napríklad pre export z Partslinku.
 _Avoid_: mapovanie, profil importu
+
+### Používatelia a nastavenia
+
+**Deaktivovaný používateľ** (`banned`):
+Používateľ, ktorého admin deaktivoval: neprihlási sa a jeho prihlásenia sa hneď ukončia. Používateľ sa nikdy nemaže, admin ho môže znova aktivovať.
+_Avoid_: zmazaný, zablokovaný, neaktívny účet
+
+**Nastavenia** (`Settings`):
+Hodnoty pre celý autoservis, ktoré mení len admin: údaje autoservisu, logo, sadzby DPH, hodinová sadzba, prirážka na diely, používatelia a prepojenie s KROS.
+_Avoid_: konfigurácia, predvoľby
+
+**Údaje autoservisu** (`WorkshopDetails`):
+Názov, adresa, IČO, DIČ, IČ DPH, platiteľ DPH, IBAN a kontakty autoservisu, ktoré idú na tlačivá.
+_Avoid_: údaje firmy, firma (to je typ zákazníka)
+
+**Platiteľ DPH** (`vatPayerType`):
+Postavenie autoservisu voči DPH: platiteľ, neplatiteľ alebo registrovaný podľa §7. Hodnoty zodpovedajú KROS.
+_Avoid_: platca DPH
