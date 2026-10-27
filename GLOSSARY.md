@@ -75,3 +75,73 @@ _Avoid_: materiál, tovar, súčiastka
 **Faktúra** (`Invoice`):
 Doklad k zákazke, ktorý na pokyn Servisníka vystaví KROS Fakturácia. Číslo, PDF aj úhrady vedie KROS, Servisník faktúru sám nevystavuje.
 _Avoid_: účet, doklad
+
+### Zákazka v dielni
+
+**Stav zákazky** (`WorkOrderStatus`):
+Kde zákazka práve je: Prijatá (`received`), V práci (`inProgress`), Čaká na diely (`waitingForParts`), Hotová (`done`), Vyfakturovaná (`invoiced`) alebo Zrušená (`cancelled`).
+_Avoid_: fáza, status
+
+**Rozpracovaná zákazka** (`active`):
+Zákazka v stave Prijatá, V práci alebo Čaká na diely.
+_Avoid_: otvorená, aktívna
+
+**Uzavretá zákazka** (`closed`):
+Zákazka v stave Vyfakturovaná alebo Zrušená. Zrušená zákazka si ponechá svoje číslo.
+_Avoid_: ukončená, archivovaná
+
+**Termín** (`deadline`):
+Deň, do ktorého autoservis zákazníkovi sľúbil vozidlo opraviť. Rozpracovaná zákazka po termíne je oneskorená.
+_Avoid_: dátum odovzdania, splatnosť (tá patrí faktúre)
+
+**Príjem vozidla** (`intake`):
+Založenie zákazky, keď zákazník privezie vozidlo, prípadne aj s novým zákazníkom alebo vozidlom.
+_Avoid_: check-in, prevzatie
+
+### Ceny
+
+**Cenník** (`PriceList`):
+Zoznam prác a dielov s cenami, z ktorého autoservis pridáva položky na zákazku.
+_Avoid_: katalóg, sortiment
+
+**Položka cenníka** (`PriceListItem`):
+Jedna práca alebo jeden diel v cenníku. Na zákazku sa skopíruje, takže neskoršia zmena cenníka zákazku nemení.
+_Avoid_: produkt, karta
+
+**Nákupná cena** (`purchasePrice`):
+Cena za mernú jednotku bez DPH, za ktorú autoservis diel kúpil. Práca nákupnú cenu nemá.
+_Avoid_: obstarávacia cena, náklad
+
+**Predajná cena** (`salePrice`):
+Cena za mernú jednotku, za ktorú autoservis prácu alebo diel predáva zákazníkovi.
+_Avoid_: koncová cena, cena pre zákazníka
+
+**Marža** (`margin`):
+Rozdiel medzi predajnými a nákupnými cenami bez DPH, v eurách alebo v percentách z predajnej ceny.
+_Avoid_: zisk (ten je až po réžii), rabat
+
+**Prirážka** (`markup`):
+Percento z nákupnej ceny, o ktoré je predajná cena dielu vyššia. Každý diel môže mať inú prirážku, aj nulovú.
+_Avoid_: marža (tá sa počíta z predajnej ceny), navýšenie
+
+**Zľava** (`discount`):
+Zníženie ceny celej zákazky percentom alebo sumou, ktoré autoservis zákazníkovi dá. Platí na všetky položky zákazky.
+_Avoid_: rabat, akcia
+
+### Tlačivá a import
+
+**Zákazkový list** (`JobSheet`):
+Tlačivo pri príjme vozidla s údajmi zákazníka, vozidla a požiadavkou zákazníka, ktoré zákazník podpíše. Nemá ceny.
+_Avoid_: objednávka, príjemka
+
+**Cenová ponuka** (`Quote`):
+Tlačivo s položkami zákazky a ich cenami, ktoré zákazník dostane pred opravou. Nemá vlastné číslo, nesie číslo zákazky.
+_Avoid_: kalkulácia, rozpočet
+
+**Odovzdávací protokol** (`HandoverProtocol`):
+Tlačivo pri odovzdaní vozidla so zoznamom vykonaných prác a dielov, ktoré podpíše zákazník aj autoservis.
+_Avoid_: preberací protokol, dodací list
+
+**Import šablóna** (`ImportTemplate`):
+Uložené priradenie stĺpcov súboru k údajom dielu, napríklad pre export z Partslinku.
+_Avoid_: mapovanie, profil importu

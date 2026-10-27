@@ -1,5 +1,10 @@
 {
   "name": "@servisnik/domain",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    "./customer": "./src/customer/index.ts",
+    "./vehicle": "./src/vehicle/index.ts",
+    "./work-order": "./src/work-order/index.ts"
+  }
 }
