@@ -19,6 +19,8 @@ description: Lessons for Playwright end-to-end tests. Use when writing or fixing
 - Prove a deferred stylesheet (`media="print"` + `onload`) applied by asserting a property only that file sets (`toHaveCSS('position', 'fixed')`), not visibility. Source: pesitro#140.
 - Retry hydration races with `expect(...).toPass()` around the action plus its check, not with sleeps. Source: pesitro `clickUntil`.
 - Mark one slow test with `test.slow()` and a comment saying why; leave the global timeout alone. Why: a raised global timeout hides hangs in every other test. Source: pesitro#33.
+- Read lists and counts through a retrying assertion (`toHaveText([...])`, `toHaveCount`), never `allTextContents()` or `textContent()` right after a click or navigation. Why: after a client-side navigation `allTextContents()` read the previous page and returned `[]` under load, so the batch tier went red while every ticket's own run was green. Source: Servisnik run 2026-10-26.
+- Give every spec its own data, tagged per run (e.g. a random suffix on names and unique keys), and assert only the rows it created. Why: workers and `--repeat-each` share one database, so fixed names matched other runs' rows and fixed VINs collided. Source: Servisnik run 2026-10-26.
 
 ## Assertions that mean something
 

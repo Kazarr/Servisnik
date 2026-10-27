@@ -33,9 +33,10 @@ description: Lessons for test strategy and TDD discipline on any stack. Use when
 - A "no configuration changes nothing" test compares the whole captured state with strict equality, never a subset match. Source: pesitro#189.
 - A test that bypasses the real path (order via API instead of checkout) claims only what it covers; the real path's totals are asserted in its own test. Why: the API path rounded VAT to 0.66, checkout to 0.65. Source: pesitro#149.
 - A rule that lives in a template or view is tested by rendering it over temporary data, not by calling the helper it uses. Source: pesitro#228.
-- A refactor that deletes tests maps every deleted assertion to a surviving or new one. Source: pesitro#157.
+- A refactor that deletes tests maps every deleted assertion to a surviving or new one, and proves each mapping by deleting the guarded line and watching a test fail; a fixture's teardown assertion counts too and keeps a failing case that runs through the fixture itself. Why: extracting an e2e fixture's checks into a helper left the fixture's own `expect` with no failing case, so deleting it kept every tier green. Source: pesitro#157, Servisnik#86.
 - A test that reports state involving a secret prints only whether it matched (`password: matches`), never the value. Source: pesitro#189.
 
 ## Checks are code too
 
 - Every custom check (lint script, budget, boundary rule) has its own test with one example that passes and one that fails, asserting the exact violation list. Its CLI wrapper is only the line that reads argv; everything else is exported and tested. Why: a silently broken check is a false green, and an autonomous run trusts green. Source: pesitro#97, #224.
+- A check over git history keeps per-commit state inherited from each commit's first parent, never one flag over a `--topo-order` list, and reads changed files with `--no-renames`. Why: a ticket branch that merged its base mid-branch passed its own PR but would fail the integration PR, and a `feat` that renamed a test file away listed only the new path and passed. Source: Servisnik#87.

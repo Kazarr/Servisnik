@@ -13,3 +13,5 @@ description: Lessons for agents running on Windows against a repo or tools in WS
 - Run `gh` from Windows with `--repo owner/name`; it is not installed in WSL. Source: pesitro retro 2026-10-21.
 - `python` on Windows may be the Microsoft Store stub; call a real interpreter by full path. MSYS mangles `/paths` passed to native tools; set `MSYS_NO_PATHCONV=1` for that call. Source: pesitro retro 2026-10-21.
 - Commit `.gitattributes` with `* text=auto eol=lf` before the first generated file. Source: pesitro.
+- Normalize both sides with `cygpath -u` before comparing a path from a Claude tool payload with one from git. Why: Git for Windows prints `C:/Work/…` and the hook payload carries `C:\Work\…`, so an "is this file in the repo" check never matched. Source: Servisnik#85.
+- Delete an agent worktree that holds `node_modules` with `cmd /c 'rd /s /q "\\?\<absolute path>"'` (literal path, no variables), and confirm with `Test-Path` afterwards. Why: `git worktree remove` failed with "Filename too long" on pnpm's deep paths, unregistered the worktree anyway and left half-deleted directories. Source: Servisnik run 2026-10-26.

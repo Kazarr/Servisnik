@@ -8,6 +8,7 @@ description: Lessons for integrating with external systems (ERP, payments, carri
 ## Reality first
 
 - Get sandbox access and record real responses for every call before building against a system; the field-mapping spec marks each row decided, verified on the live API, or open. Why: three live mismatches and a field that took three deploys to get right all came from docs-based assumptions. Source: pesitro#179, #231–#234.
+- Before writing "no sandbox" from public docs, ask the human who decides whether the vendor runs a test environment, and record its hosts and how to get access. Why: KROS research concluded "no sandbox" from its docs, but KROS runs one on `*.kros.wtf`, and the reality gate had been planned around the production API. Source: Kazarr/Servisnik#49.
 - When a ticket establishes a fact about the API, update every docblock, doc and open-question row that stated the old assumption, in the same commit. Mark a row verified only when it was verified on the API or decided by the customer. Source: pesitro#179, #222.
 - Live access runs through one wrapper with an explicit write budget (for example "one test order"), and live credentials never enter a shared dev environment. Why: a parallel session started a dev environment with live ERP credentials. Source: pesitro#156, retro 2026-10-21.
 
