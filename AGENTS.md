@@ -21,6 +21,8 @@ Lightweight ERP for car repair shops: job orders, customers, vehicles, stock and
 | Money, contract, customer-visible scope | Human |
 | Business rules, or data the customer owns | Customer, through the question ledger; never invented |
 
+Sort every question by this table before asking it, grilling rounds included: put only the Human rows to the human, file the Customer rows in the ledger, decide the rest and note it. Why: a grilling round put 13 mostly technical questions to the human, and the human pushed back. Source: https://github.com/Kazarr/Servisnik/issues/55.
+
 ## Definition of done: verify tiers
 
 | Tier | Runs | Command | Budget |
