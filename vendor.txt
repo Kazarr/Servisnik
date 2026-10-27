@@ -2,38 +2,38 @@
 # `tools/vendor.sh` re-copies at the pinned commits; `tools/vendor.sh update` moves to upstream tips.
 
 # dev-lessons core
-tools/vendor.sh https://github.com/Kazarr/dev-lessons core/vendor.sh 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/charter https://github.com/Kazarr/dev-lessons core/skills/charter 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/run https://github.com/Kazarr/dev-lessons core/skills/run 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/lesson https://github.com/Kazarr/dev-lessons core/skills/lesson 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/agents/implementer.md https://github.com/Kazarr/dev-lessons core/agents/implementer.md 93e507f21672467de01d1718889e4dfef65f6abf
+tools/vendor.sh https://github.com/Kazarr/dev-lessons core/vendor.sh eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/charter https://github.com/Kazarr/dev-lessons core/skills/charter eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/run https://github.com/Kazarr/dev-lessons core/skills/run eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/lesson https://github.com/Kazarr/dev-lessons core/skills/lesson eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/agents/implementer.md https://github.com/Kazarr/dev-lessons core/agents/implementer.md eb0614ab43baf7cbefd5233e2a9c305262edc542
 
 # dev-lessons packs: one line per pack picked from packs/catalog.md, e.g.
 # .claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy HEAD
-.claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/review-standards https://github.com/Kazarr/dev-lessons packs/review-standards 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/devops https://github.com/Kazarr/dev-lessons packs/devops 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/integration https://github.com/Kazarr/dev-lessons packs/integration 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/frontend-design https://github.com/Kazarr/dev-lessons packs/frontend-design 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/windows-wsl https://github.com/Kazarr/dev-lessons packs/windows-wsl 93e507f21672467de01d1718889e4dfef65f6abf
-.claude/skills/playwright https://github.com/Kazarr/dev-lessons packs/playwright 93e507f21672467de01d1718889e4dfef65f6abf
+.claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/review-standards https://github.com/Kazarr/dev-lessons packs/review-standards eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/devops https://github.com/Kazarr/dev-lessons packs/devops eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/integration https://github.com/Kazarr/dev-lessons packs/integration eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/frontend-design https://github.com/Kazarr/dev-lessons packs/frontend-design eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/windows-wsl https://github.com/Kazarr/dev-lessons packs/windows-wsl eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/playwright https://github.com/Kazarr/dev-lessons packs/playwright eb0614ab43baf7cbefd5233e2a9c305262edc542
 
 # mattpocock/skills (MIT)
-.claude/skills/setup-matt-pocock-skills https://github.com/mattpocock/skills skills/engineering/setup-matt-pocock-skills 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/triage https://github.com/mattpocock/skills skills/engineering/triage 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/wayfinder https://github.com/mattpocock/skills skills/engineering/wayfinder 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/grilling https://github.com/mattpocock/skills skills/productivity/grilling 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/domain-modeling https://github.com/mattpocock/skills skills/engineering/domain-modeling 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/research https://github.com/mattpocock/skills skills/engineering/research 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/prototype https://github.com/mattpocock/skills skills/engineering/prototype 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/to-spec https://github.com/mattpocock/skills skills/engineering/to-spec 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/to-tickets https://github.com/mattpocock/skills skills/engineering/to-tickets 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/implement-spec https://github.com/mattpocock/skills skills/engineering/implement-spec 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/implement https://github.com/mattpocock/skills skills/engineering/implement 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/tdd https://github.com/mattpocock/skills skills/engineering/tdd 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/codebase-design https://github.com/mattpocock/skills skills/engineering/codebase-design 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/code-review https://github.com/mattpocock/skills skills/engineering/code-review 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/diagnosing-bugs https://github.com/mattpocock/skills skills/engineering/diagnosing-bugs 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/improve-codebase-architecture https://github.com/mattpocock/skills skills/engineering/improve-codebase-architecture 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/retro https://github.com/mattpocock/skills skills/engineering/retro 5beb35b040e3de97e54fa9e386d7e42d15c295c2
-.claude/skills/writing-for-agents https://github.com/mattpocock/skills skills/productivity/writing-for-agents 5beb35b040e3de97e54fa9e386d7e42d15c295c2
+.claude/skills/setup-matt-pocock-skills https://github.com/mattpocock/skills skills/engineering/setup-matt-pocock-skills 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/triage https://github.com/mattpocock/skills skills/engineering/triage 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/wayfinder https://github.com/mattpocock/skills skills/engineering/wayfinder 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/grilling https://github.com/mattpocock/skills skills/productivity/grilling 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/domain-modeling https://github.com/mattpocock/skills skills/engineering/domain-modeling 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/research https://github.com/mattpocock/skills skills/engineering/research 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/prototype https://github.com/mattpocock/skills skills/engineering/prototype 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/to-spec https://github.com/mattpocock/skills skills/engineering/to-spec 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/to-tickets https://github.com/mattpocock/skills skills/engineering/to-tickets 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/implement-spec https://github.com/mattpocock/skills skills/engineering/implement-spec 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/implement https://github.com/mattpocock/skills skills/engineering/implement 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/tdd https://github.com/mattpocock/skills skills/engineering/tdd 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/codebase-design https://github.com/mattpocock/skills skills/engineering/codebase-design 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/code-review https://github.com/mattpocock/skills skills/engineering/code-review 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/diagnosing-bugs https://github.com/mattpocock/skills skills/engineering/diagnosing-bugs 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/improve-codebase-architecture https://github.com/mattpocock/skills skills/engineering/improve-codebase-architecture 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/retro https://github.com/mattpocock/skills skills/engineering/retro 59db609eb1e18aaf59b63284d0e52255aff0c63c
+.claude/skills/writing-for-agents https://github.com/mattpocock/skills skills/productivity/writing-for-agents 59db609eb1e18aaf59b63284d0e52255aff0c63c
