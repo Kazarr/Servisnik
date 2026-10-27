@@ -76,6 +76,30 @@ _Avoid_: materiál, tovar, súčiastka
 Doklad k zákazke, ktorý na pokyn Servisníka vystaví KROS Fakturácia. Číslo, PDF aj úhrady vedie KROS, Servisník faktúru sám nevystavuje.
 _Avoid_: účet, doklad
 
+**Stav faktúry** (`InvoiceStatus`):
+Kde je faktúra na ceste do KROS: Odosiela sa, Prijatá, Vystavená, Odmietnutá, Neistá alebo Zmazaná v KROS.
+_Avoid_: stav dokladu, stav úhrady (to je iný pojem)
+
+**Platná faktúra** (`valid`):
+Každá faktúra okrem odmietnutej a zmazanej v KROS. Zákazka má najviac jednu platnú faktúru.
+_Avoid_: aktívna faktúra, aktuálna faktúra
+
+**Neistá faktúra** (`uncertain`):
+Faktúra, o ktorej Servisník nevie, či ju KROS prijal. Kým sa v KROS nedohľadá, nesmie sa poslať znova.
+_Avoid_: visiaca, stratená faktúra
+
+**Úhrada** (`Payment`):
+Platba zákazníka, ktorú KROS priradil k faktúre. Faktúra môže mať viac úhrad.
+_Avoid_: platba, splátka
+
+**Stav úhrady** (`PaymentStatus`):
+Koľko z faktúry zákazník zaplatil: Neuhradená, Čiastočne uhradená, Uhradená alebo Preplatená. Vedie ho KROS.
+_Avoid_: stav platby
+
+**eFaktúra** (`EInvoice`):
+Faktúra pre firmu s DIČ, ktorú KROS doručí elektronicky cez sieť Peppol.
+_Avoid_: elektronická faktúra, e-faktúra
+
 ### Zákazka v dielni
 
 **Stav zákazky** (`WorkOrderStatus`):
