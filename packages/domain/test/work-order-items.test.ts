@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { markupFromSalePrice, parseMarkup, salePriceFromMarkup } from '../src/work-order/index.ts';
+import { defaultUnits, markupFromSalePrice, parseItem, parseMarkup, salePriceFromMarkup, type ItemInput } from '../src/work-order/index.ts';
 
 // Prirážka (GLOSSARY) is a percentage of the Nákupná cena. It is never stored: the form turns it into a
 // Predajná cena and back. It is counted in tenths of a percent (125 is 12,5 %), so no amount is a float.
@@ -91,5 +91,130 @@ describe('the Prirážka made from a Nákupná cena and a Predajná cena', () =>
 
   test('it undoes salePriceFromMarkup for a whole Prirážka on a round price', () => {
     expect(markupFromSalePrice(1000, salePriceFromMarkup(1000, 250)!)).toBe(250);
+  });
+});
+
+// A Položka zákazky as the admin types it, a Práca or a Diel. The rates of Nastavenia are handed to the domain.
+describe('a Položka zákazky as the admin types it', () => {
+  const rates = { defaultVatRate: 23, vatRates: [23, 19, 5] };
+  const labour = { kind: 'labour', name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' } as const;
+  const part = {
+    kind: 'part',
+    code: ' OL-5W30 ',
+    name: ' Olej 5W-30 ',
+    quantity: '4',
+    unit: 'l',
+    purchasePrice: '12,50',
+    unitPrice: '15,60',
+    vatRate: '19',
+  } as const;
+  const parsed = (input: ItemInput) => parseItem(input, rates);
+  const refused = (overrides: Partial<ItemInput>) => parsed({ ...labour, ...overrides });
+
+  test('a Práca is in hours unless the unit is typed, has no code and no Nákupná cena, and keeps its quantity in hundredths and its price in cents', () => {
+    expect(parsed(labour)).toEqual({
+      ok: true,
+      item: { kind: 'labour', code: null, name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', purchasePriceCents: null, unitPriceCents: 4000, vatRate: 23 },
+    });
+  });
+
+  test('a Diel keeps its trimmed code, unit and Nákupná cena beside the Predajná cena', () => {
+    expect(parsed(part)).toEqual({
+      ok: true,
+      item: { kind: 'part', code: 'OL-5W30', name: 'Olej 5W-30', quantityHundredths: 400, unit: 'l', purchasePriceCents: 1250, unitPriceCents: 1560, vatRate: 19 },
+    });
+  });
+
+  test('a Diel is in pieces unless the unit is typed', () => {
+    const { unit: _typed, ...withoutUnit } = part;
+    expect(parsed(withoutUnit)).toMatchObject({ ok: true, item: { unit: 'ks' } });
+    expect(defaultUnits).toEqual({ labour: 'h', part: 'ks' });
+  });
+
+  test('a Diel with no Nákupná cena typed has none, and one typed as 0 has 0', () => {
+    expect(parsed({ ...part, purchasePrice: '' })).toMatchObject({ ok: true, item: { purchasePriceCents: null } });
+    expect(parsed({ ...part, purchasePrice: ' ' })).toMatchObject({ ok: true, item: { purchasePriceCents: null } });
+    const { purchasePrice: _typed, ...withoutPrice } = part;
+    expect(parsed(withoutPrice)).toMatchObject({ ok: true, item: { purchasePriceCents: null } });
+    expect(parsed({ ...part, purchasePrice: '0' })).toMatchObject({ ok: true, item: { purchasePriceCents: 0 } });
+  });
+
+  test('a Práca has no Nákupná cena, whatever is sent for it', () => {
+    expect(parsed({ ...labour, purchasePrice: '10' })).toMatchObject({ ok: true, item: { purchasePriceCents: null } });
+    expect(parsed({ ...labour, purchasePrice: 'drahé' })).toMatchObject({ ok: true, item: { purchasePriceCents: null } });
+  });
+
+  test('a code left blank is none', () => {
+    expect(parsed({ ...part, code: '  ' })).toMatchObject({ ok: true, item: { code: null } });
+    expect(parsed({ ...labour, code: 'PR-1' })).toMatchObject({ ok: true, item: { code: 'PR-1' } });
+  });
+
+  test('the VAT rate is the default rate the domain is given unless typed otherwise, and a typed one must be one of its rates', () => {
+    const { vatRate: _typed, ...withoutRate } = labour;
+    expect(parseItem(withoutRate, { defaultVatRate: 19, vatRates: [23, 19] })).toMatchObject({ ok: true, item: { vatRate: 19 } });
+    expect(parseItem(withoutRate, { defaultVatRate: 5, vatRates: [23, 5] })).toMatchObject({ ok: true, item: { vatRate: 5 } });
+    expect(refused({ vatRate: '5' })).toMatchObject({ ok: true, item: { vatRate: 5 } });
+    expect(parseItem({ ...labour, vatRate: '0' }, { defaultVatRate: 23, vatRates: [23, 0] })).toMatchObject({ ok: true, item: { vatRate: 0 } });
+    expect(refused({ vatRate: '7' })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
+    expect(refused({ vatRate: '0' })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
+  });
+
+  // 1,15 * 100 is 114.99999999999999 as a float: the digits are read, never multiplied.
+  test.each([
+    ['1,15', 115],
+    ['0,29', 29],
+    ['2.3', 230],
+    ['0,05', 5],
+    [' 12 ', 1200],
+    ['99999,99', 9999999],
+  ])('quantity "%s" is %i hundredths', (quantity, hundredths) => {
+    expect(refused({ quantity })).toMatchObject({ ok: true, item: { quantityHundredths: hundredths } });
+  });
+
+  test.each([
+    ['40,5', 4050],
+    ['40.50', 4050],
+    ['33,33', 3333],
+    ['0', 0],
+    ['1 000 000', 100000000],
+  ])('Predajná cena "%s" is %i cents', (unitPrice, cents) => {
+    expect(refused({ unitPrice })).toMatchObject({ ok: true, item: { unitPriceCents: cents } });
+  });
+
+  test.each([
+    ['12,5', 1250],
+    ['0,01', 1],
+    ['1 000 000', 100000000],
+  ])('Nákupná cena "%s" is %i cents', (purchasePrice, cents) => {
+    expect(parsed({ ...part, purchasePrice })).toMatchObject({ ok: true, item: { purchasePriceCents: cents } });
+  });
+
+  test.each(['', '0', '0,00', '-1', '1,505', '1,2,3', 'hodina', '100000'])('quantity "%s" is refused', (quantity) => {
+    expect(refused({ quantity })).toEqual({ ok: false, errors: { quantity: 'invalid' } });
+  });
+
+  test.each(['', '-5', '40,505', '40 €', 'drahé', '1000000,01'])('Predajná cena "%s" is refused', (unitPrice) => {
+    expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
+  });
+
+  test.each(['-5', '12,505', '12 €', 'drahé', '1000000,01'])('Nákupná cena "%s" of a Diel is refused', (purchasePrice) => {
+    expect(parsed({ ...part, purchasePrice })).toEqual({ ok: false, errors: { purchasePrice: 'invalid' } });
+  });
+
+  test.each(['', '-1', '101', '2,5', '23 %', '2 3', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
+    expect(refused({ vatRate })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
+  });
+
+  test('a unit sent blank is refused, where one left out is the default', () => {
+    expect(refused({ unit: ' ' })).toEqual({ ok: false, errors: { unit: 'required' } });
+    expect(refused({ unit: ' ks ' })).toMatchObject({ ok: true, item: { unit: 'ks' } });
+  });
+
+  test('a name is required, and every reason comes back at once', () => {
+    expect(refused({ name: '  ' })).toEqual({ ok: false, errors: { name: 'required' } });
+    expect(parsed({ ...part, name: '', quantity: '0', unit: '', purchasePrice: 'x', unitPrice: '', vatRate: 'x' })).toEqual({
+      ok: false,
+      errors: { name: 'required', quantity: 'invalid', unit: 'required', purchasePrice: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
+    });
   });
 });
