@@ -17,7 +17,7 @@ test('the admin downloads the zákazkový list from the detail of a Zákazka, an
   baseURL,
   request,
 }) => {
-  test.slow(); // two Chromiums print: the one of the server starts with the first print, and the host is shared
+  test.slow(); // the server starts its Chromium with the first print, and on a host that other runs share that takes long
   const tag = runTag();
   const order = await seedWorkOrder(db, tag);
   const path = `/zakazky/${order.orderId}/zakazkovy-list`;
