@@ -1,14 +1,13 @@
 import { maxLogoBytes } from '@servisnik/domain/settings';
-import { forbiddenMessage } from './app/(app)/forbidden.ts';
 import { getLogo, removeLogo, saveLogo } from './dal/logo.ts';
-import { assertCan, ForbiddenError, UnauthenticatedError, type User } from './dal/user.ts';
+import { assertCan, type User } from './dal/user.ts';
 import type { Database } from './db/index.ts';
+import { failure, guarded } from './route-guard.ts';
 
 // The answers of the Route Handler of the logo (app/api/logo/route.ts), which only finds the user in the
 // session. Uploading and removing go through a Route Handler because a Server Action takes at most 1 MB
 // (docs/adr/0001-stack.md). Every error is `{ error }` with a message for the admin to read.
 
-const failure = (error: string, status: number) => Response.json({ error }, { status });
 const noContent = () => new Response(null, { status: 204 });
 
 /** What a refused file is told. */
@@ -17,17 +16,6 @@ const messages = {
   'unsupported-type': 'Logo musí byť obrázok PNG alebo JPEG. Rozhoduje obsah súboru, nie jeho prípona.',
 };
 const statuses = { 'too-large': 413, 'unsupported-type': 415 };
-
-/** `answer`, or 401 for nobody signed in and 403 for a Rola that may not: the DAL refuses before it reads or writes anything. */
-async function guarded(answer: () => Promise<Response>) {
-  try {
-    return await answer();
-  } catch (error) {
-    if (error instanceof UnauthenticatedError) return failure('Nie ste prihlásený.', 401);
-    if (error instanceof ForbiddenError) return failure(forbiddenMessage, 403);
-    throw error;
-  }
-}
 
 /**
  * The body of `request`, or null when it is longer than `limit`. A Content-Length over the limit is
