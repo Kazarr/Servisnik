@@ -3,7 +3,7 @@ import { listCustomers } from '../src/dal/customers.ts';
 import { listVehicles } from '../src/dal/vehicles.ts';
 import { getWorkOrder, listWorkOrders } from '../src/dal/work-orders.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { expect, signInAs, test } from './fixtures.ts';
+import { expect, runTag, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -20,7 +20,7 @@ async function seedMechanik(tag: string) {
 }
 
 test('the mechanik signs in to Zákazky only, sees the number as text and no amount, and every other page leads him back', async ({ page }) => {
-  const tag = randomBytes(3).toString('hex');
+  const tag = runTag();
   const order = await seedWorkOrder(db, tag);
   await signInAs(page, await seedMechanik(tag));
 
@@ -51,7 +51,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
 });
 
 test('forms and buttons used after the admin became a mechanik answer with a message and change nothing', async ({ page, context }) => {
-  const tag = randomBytes(3).toString('hex');
+  const tag = runTag();
   const order = await seedWorkOrder(db, tag);
   const user = { email: `admin-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
   await seedUser(db, { ...user, role: 'admin' });
@@ -62,7 +62,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await page.getByLabel('Názov').fill(`Nemal by sa uložiť ${tag}`);
   const vehiclePage = await context.newPage();
   await vehiclePage.goto(`/vozidla/novy?zakaznik=${order.customerId}`);
-  await vehiclePage.getByLabel('VIN').fill(`ZZZ${tag.toUpperCase()}00000000`);
+  await vehiclePage.getByLabel('VIN').fill(vinOf(tag, 'ZZZ00000000'));
   await vehiclePage.getByLabel('Značka').fill('Škoda');
   await vehiclePage.getByLabel('Model').fill('Fabia');
   const orderPage = await context.newPage();
