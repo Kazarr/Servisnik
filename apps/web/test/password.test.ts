@@ -47,8 +47,8 @@ async function signIn({ email, password }: { email: string; password: string }) 
   return cookieHeader(sent);
 }
 
-const change = async (requestHeaders: Headers, input: Partial<PasswordChange> = {}) =>
-  changeOwnPassword(await requireUser(requestHeaders, auth), requestHeaders, { currentPassword: oldPassword, newPassword, confirmation: newPassword, ...input }, auth);
+const change = (requestHeaders: Headers, input: Partial<PasswordChange> = {}) =>
+  changeOwnPassword(requestHeaders, { currentPassword: oldPassword, newPassword, confirmation: newPassword, ...input }, auth);
 
 /** True when the user can still sign in with this password. */
 const canSignInWith = (email: string, password: string) =>
@@ -58,7 +58,7 @@ const canSignInWith = (email: string, password: string) =>
   );
 
 test.each(['admin', 'mechanik'] as const)(
-  'the %s changes his own password: his other sign-ins end, the one he is in stays, and nobody else is touched',
+  "the %s changes his own password: his other sign-ins end, the one he is in stays, and another user's sign-in stays",
   async (role) => {
     const account = await newUser(role);
     const here = await signIn(account);
@@ -77,6 +77,18 @@ test.each(['admin', 'mechanik'] as const)(
     await expect(requireUser(othersSignIn, auth)).resolves.toMatchObject({ email: other.email });
   },
 );
+
+test('a request without a session changes no password: the user is the one the session names', async () => {
+  const account = await newUser('admin');
+  const ended = await signIn(account);
+  await auth.api.signOut({ headers: ended });
+
+  await expect(change(ended)).rejects.toBeInstanceOf(UnauthenticatedError);
+  await expect(change(new Headers())).rejects.toBeInstanceOf(UnauthenticatedError);
+
+  expect(await canSignInWith(account.email, oldPassword)).toBe(true);
+  expect(await canSignInWith(account.email, newPassword)).toBe(false);
+});
 
 test('after the change the new password signs him in and the old one does not', async () => {
   const account = await newUser('mechanik');

@@ -53,8 +53,9 @@ const calls: Record<string, Call> = {
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, db),
   listUnclosedWorkOrdersOfVehicle: (user, db) => workOrders.listUnclosedWorkOrdersOfVehicle(user, vehicleId, db),
-  changeOwnPassword: (user) =>
-    password.changeOwnPassword(user, new Headers(), { currentPassword: 'povodne-heslo-1234', newPassword: 'nove-heslo-5678', confirmation: 'nove-heslo-5678' }, auth),
+  // Takes no user: it is the one the session in the headers names, so the row has none (the headers carry no session, as for a missing user).
+  changeOwnPassword: () =>
+    password.changeOwnPassword(new Headers(), { currentPassword: 'povodne-heslo-1234', newPassword: 'nove-heslo-5678', confirmation: 'nove-heslo-5678' }, auth),
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
