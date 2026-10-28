@@ -1,4 +1,14 @@
-import { parseNewUser, parseUserEdit, type NewUserErrors, type NewUserInput, type Role, type UserEditErrors, type UserEditInput } from '@servisnik/domain/access';
+import {
+  parseNewUser,
+  parseUserEdit,
+  passwordError,
+  type NewUserErrors,
+  type NewUserInput,
+  type PasswordError,
+  type Role,
+  type UserEditErrors,
+  type UserEditInput,
+} from '@servisnik/domain/access';
 import { eq, sql } from 'drizzle-orm';
 import { APIError } from 'better-auth/api';
 import { getAuth, type Auth } from '../auth.ts';
@@ -81,7 +91,26 @@ export async function activateUser(user: User | null, requestHeaders: Headers, u
   return { ok: true };
 }
 
-export type UpdateUserErrors =Omit<UserEditErrors, 'email' | 'role'> & { email?: 'format' | 'taken'; role?: 'invalid' | 'own' };
+export type SetUserPasswordResult = { ok: true } | { ok: false; errors: { password: PasswordError } };
+
+/**
+ * Gives the Používateľ `userId` a new password and ends every sign-in he had, which `setUserPassword`
+ * of the plugin does not do by itself. The password is set first, so that nobody signs in with the old one
+ * while the sessions are being ended; if ending them fails the admin sends the same form again. The
+ * password is judged by the access area first, never logged and never returned.
+ */
+export async function setUserPassword(user: User | null, requestHeaders: Headers, userId: string, password: string, auth?: Auth): Promise<SetUserPasswordResult> {
+  assertCan(user, 'users.write');
+  const tooBad = passwordError(password);
+  if (tooBad) return { ok: false, errors: { password: tooBad } };
+
+  const api = (auth ?? getAuth()).api;
+  await api.setUserPassword({ headers: requestHeaders, body: { userId, newPassword: password } });
+  await api.revokeUserSessions({ headers: requestHeaders, body: { userId } });
+  return { ok: true };
+}
+
+export type UpdateUserErrors = Omit<UserEditErrors, 'email' | 'role'> & { email?: 'format' | 'taken'; role?: 'invalid' | 'own' };
 export type UpdateUserResult = { ok: true } | { ok: false; errors: UpdateUserErrors };
 
 /**
