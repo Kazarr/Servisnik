@@ -6,6 +6,7 @@ import { ForbiddenError, requireUser } from '../src/dal/user.ts';
 import { listUsers, updateUser } from '../src/dal/users.ts';
 import { user } from '../src/db/schema.ts';
 import { createTestDb } from './support/db.ts';
+import { raceForUserWrites } from './support/race.ts';
 import { signInHeaders } from './support/sessions.ts';
 import { seedUser } from './support/users.ts';
 
@@ -134,15 +135,19 @@ test('an e-mail of the shape of ours that Better Auth does not take is refused a
   expect((await rowOf(worker.id))!.email).toBe(worker.email);
 });
 
-test('two edits to the same e-mail at once save one and tell the other it is taken, not a server error', async () => {
+test('two edits to the same e-mail that both checked it is free save one and tell the other it is taken, not a server error', async () => {
   const boss = await newUser('admin');
   const first = await newUser('mechanik');
   const second = await newUser('mechanik');
 
-  const results = await Promise.all([first, second].map((worker) => edit(boss, worker.id, { email: 'spolu@autoservis.test' })));
+  const results = await raceForUserWrites(
+    ctx.db,
+    [first, second].map((worker) => () => edit(boss, worker.id, { email: 'spolu@autoservis.test' })),
+  );
 
   expect(results.filter((result) => result.ok)).toHaveLength(1);
   expect(results.filter((result) => !result.ok)).toEqual([{ ok: false, errors: { email: 'taken' } }]);
+  expect(await ctx.db.$count(user, eq(user.email, 'spolu@autoservis.test'))).toBe(1);
 });
 
 test('the Rola counts from the next request of the user whose Rola changed, with the cookie he already has', async () => {
