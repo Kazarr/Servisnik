@@ -26,10 +26,10 @@ describe('Prístup', () => {
     expect(can('admin', unknown)).toBe(true);
   });
 
-  test('the mechanik may do only what is on his list: the list of Zákazky and changing his own password', () => {
+  test('the mechanik may do only what is on his list: the list of Zákazky, changing his own password and reading the details and logo of the autoservis for print', () => {
     const allowed = capabilities.filter((capability) => can('mechanik', capability));
 
-    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.list']);
+    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.list', 'workshop.read']);
   });
 
   test('a capability that is not on the mechanik list is forbidden to him, even one nobody has listed', () => {
@@ -47,6 +47,15 @@ describe('Prístup', () => {
       expect(can('admin', capability), capability).toBe(true);
       expect(can('mechanik', capability), capability).toBe(false);
     }
+  });
+
+  // The Údaje autoservisu are printed on the documents a mechanik prints (the job sheet), so he reads them; only the admin writes them, with settings.write.
+  test('the mechanik reads Údaje autoservisu, which the Nastavenia capabilities do not give him, and writes none', () => {
+    expect(capabilities).toContain('workshop.read');
+    expect(can('admin', 'workshop.read')).toBe(true);
+    expect(can('mechanik', 'workshop.read')).toBe(true);
+    expect(can('mechanik', 'settings.read')).toBe(false);
+    expect(can('mechanik', 'settings.write')).toBe(false);
   });
 
   // The list of Používatelia and the creation of one are the admin's alone: they hand out access to everything.

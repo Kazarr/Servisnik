@@ -64,6 +64,27 @@
       "when": 1793200437355,
       "tag": "0008_users_admin_plugin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793204943858,
+      "tag": "0009_workshop_logo",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793206818843,
+      "tag": "0010_workshop_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793208148141,
+      "tag": "0011_work_order_item_part",
+      "breakpoints": true
     }
   ]
 }

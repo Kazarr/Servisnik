@@ -27,6 +27,7 @@
   --border-width-strong: 2px;
   --sidebar-width: 14rem;
   --form-width: 22rem;
+  --logo-preview-height: 8rem;
   --viewport-height: 100vh;
   --width-full: 100%;
   --track-fill: minmax(0, 1fr);
@@ -353,6 +354,22 @@ tfoot td {
   margin-top: var(--space-4);
 }
 
+/* The links and buttons in the last cell of a row of items. */
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* A warning above the forms that the sums need not be right; its text says so, the bar only marks it. */
+.notice {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-left: var(--border-width-strong) solid var(--color-danger);
+  background: var(--color-surface);
+}
+
 /* The buttons of a form sit in the row of .actions as if the form were not there. */
 .actions > form {
   display: contents;
@@ -370,6 +387,28 @@ tfoot td {
 
 .settings-section h2 {
   margin-bottom: var(--space-3);
+}
+
+/* The logo as the admin sees it: whole, at most as tall as the token, on the surface colour so that a white logo shows. */
+.logo-preview {
+  display: inline-block;
+  max-width: var(--width-full);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.logo-preview img {
+  display: block;
+  max-width: var(--width-full);
+  max-height: var(--logo-preview-height);
+}
+
+.logo-preview figcaption {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
 }
 
 .multiline {

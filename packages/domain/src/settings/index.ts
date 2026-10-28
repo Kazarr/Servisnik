@@ -67,3 +67,5 @@ export function parseRates(input: RatesInput): { ok: true; rates: Rates } | { ok
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, rates: { vatRates: vatRates as number[], defaultVatRate: defaultVatRate!, hourlyRateCents, markupPercent: markupPercent! } };
 }
+
+export * from './logo.ts';

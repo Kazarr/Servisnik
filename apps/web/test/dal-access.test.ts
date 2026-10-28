@@ -4,6 +4,8 @@ import { createAuth } from '../src/auth.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as logo from '../src/dal/logo.ts';
+import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
@@ -12,11 +14,13 @@ import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
+import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
-import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
+import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { jpeg, png } from './support/logo-files.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 
 // Every function of the Data Access Layer checks the Rola's capability, not only the sign-in
@@ -26,14 +30,20 @@ let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let auth: ReturnType<typeof createAuth>;
 let ownerId: string;
 let vehicleId: string;
+let idleCustomerId: string;
+let idleVehicleId: string;
 let orderId: string;
+let itemId: string;
 beforeAll(async () => {
   ctx = await createTestDb();
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123' }); // on the real db, so that building it is not a touch of the watched one
   ownerId = idOf(await customers.createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
+  idleCustomerId = idOf(await customers.createCustomer(admin, { type: 'person', name: 'Bez väzieb' }, ctx.db)); // nothing links to these two, so an admin may delete them
+  idleVehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
-  idOf(await workOrders.addLabour(admin, orderId, { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
 
@@ -43,23 +53,40 @@ type Call = (user: User | null, db: Database) => Promise<unknown>;
 const calls: Record<string, Call> = {
   createCustomer: (user, db) => customers.createCustomer(user, { type: 'person', name: 'Ján Novák' }, db),
   updateCustomer: (user, db) => customers.updateCustomer(user, ownerId, { type: 'person', name: 'Premenovaný' }, db),
+  deleteCustomer: (user, db) => customers.deleteCustomer(user, idleCustomerId, db),
   listCustomers: (user, db) => customers.listCustomers(user, db),
   searchCustomers: (user, db) => customers.searchCustomers(user, { query: 'Firma' }, db),
   getCustomer: (user, db) => customers.getCustomer(user, ownerId, db),
   createVehicle: (user, db) => vehicles.createVehicle(user, { ownerId, vin: 'TMBZZZ5JZ3W000101', licensePlate: '', make: 'Škoda', model: 'Octavia' }, db),
   updateVehicle: (user, db) =>
     vehicles.updateVehicle(user, vehicleId, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Passat' }, db),
-  listVehicles: (user, db) => vehicles.listVehicles(user, db),
+  deleteVehicle: (user, db) => vehicles.deleteVehicle(user, idleVehicleId, db),
+  searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
-  addLabour: (user, db) => workOrders.addLabour(user, orderId, { name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
+  addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
+  updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', unitPrice: '12' }, db),
+  deleteItem: (user, db) => workOrders.deleteItem(user, itemId, db),
   // Whether a mechanik may change states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, db),
-  listUnclosedWorkOrdersOfVehicle: (user, db) => workOrders.listUnclosedWorkOrdersOfVehicle(user, vehicleId, db),
+  listWorkOrdersOfVehicle: (user, db) => workOrders.listWorkOrdersOfVehicle(user, vehicleId, db),
+  listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
   getRates: (user, db) => settings.getRates(user, db),
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
+  getWorkshopDetails: (user, db) => workshopDetails.getWorkshopDetails(user, db),
+  getVatPayerType: (user, db) => workshopDetails.getVatPayerType(user, db),
+  saveWorkshopDetails: (user, db) =>
+    workshopDetails.saveWorkshopDetails(
+      user,
+      { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
+      db,
+    ),
+  getLogo: (user, db) => logo.getLogo(user, db),
+  getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
+  saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
+  removeLogo: (user, db) => logo.removeLogo(user, db),
   // The list reads the database it is given; the creation goes through Better Auth, which has the real database of the test, so only what it wrote shows (`everything`).
   listUsers: (user, db) => users.listUsers(user, db),
   getUser: (user, db) => users.getUser(user, 'user-3', db),
@@ -75,19 +102,29 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'changeOwnPassword'];
+const mechanikMay = ['listWorkOrders', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
-const dataAccess = { 'customers.ts': customers, 'password.ts': password, 'settings.ts': settings, 'users.ts': users, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders };
+const dataAccess = {
+  'customers.ts': customers,
+  'logo.ts': logo,
+  'password.ts': password,
+  'settings.ts': settings,
+  'users.ts': users,
+  'vehicles.ts': vehicles,
+  'work-orders.ts': workOrders,
+  'workshop.ts': workshopDetails,
+};
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the refused
- * constraint, the user, the id check and the page-side wrapper. An export added to one of them fails
+ * constraint, the paging of the lists, the user, the id check and the page-side wrapper. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  */
 const helpers = {
-  'constraint.ts': { module: constraintModule, exports: ['violates'] },
+  'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
+  'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
 };
@@ -119,6 +156,7 @@ const everything = async () => ({
   items: await ctx.db.select().from(workOrderItem),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
+  workshopLogo: await ctx.db.select().from(workshopLogo),
   users: await ctx.db.select().from(userTable),
   accounts: await ctx.db.select().from(account),
 });

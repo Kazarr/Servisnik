@@ -17,13 +17,18 @@ export const capabilities = [
   'password.change',
   'settings.read',
   'settings.write',
+  'workshop.read',
   'users.read',
   'users.write',
 ] as const;
 export type Capability = (typeof capabilities)[number];
 
-/** What a mechanik may do. Everything else is forbidden to him, so a forgotten check reveals nothing. */
-const mechanikCapabilities: readonly Capability[] = ['work-orders.list', 'password.change'];
+/**
+ * What a mechanik may do. Everything else is forbidden to him, so a forgotten check reveals nothing.
+ * `workshop.read` is the details and the logo of the Autoservis, which the forms he prints carry; the
+ * rates and every other value of Nastavenia stay behind `settings.read`. Writing them is `settings.write`.
+ */
+const mechanikCapabilities: readonly Capability[] = ['work-orders.list', 'password.change', 'workshop.read'];
 
 /** The admin may do everything; the mechanik only what is on his list. */
 export const can = (role: Role, capability: Capability) => role === 'admin' || mechanikCapabilities.includes(capability);

@@ -57,6 +57,15 @@ test('a feat that renames a test file out of the test patterns is flagged by the
   expect(check('trunk')).toEqual([`${sha} feat: move c: feat/fix changes test files: test/c.test.ts`]);
 });
 
+test('a test commit that moves a production file into test/ is flagged by the old path', { timeout: 30_000 }, () => {
+  git('checkout', '-q', '-b', 'move-prod', 'trunk');
+  commit('chore: add helper', 'src/helper.ts');
+  mkdirSync(join(dir, 'test'), { recursive: true });
+  git('mv', 'src/helper.ts', 'test/helper.test.ts');
+  const sha = commit('test: move helper');
+  expect(check('trunk')).toEqual([`${sha} test: move helper: test commit changes non-test files: src/helper.ts`]);
+});
+
 test('a ticket branch that merges its base mid-branch passes on the run -> main range', { timeout: 30_000 }, () => {
   git('checkout', '-q', '-b', 'a', 'trunk');
   commit('test: a', 'test/a.test.ts');

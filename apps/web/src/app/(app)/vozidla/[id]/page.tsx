@@ -4,9 +4,11 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getVehicle } from '../../../../dal/vehicles.ts';
-import { listUnclosedWorkOrdersOfVehicle } from '../../../../dal/work-orders.ts';
+import { listWorkOrdersOfVehicle } from '../../../../dal/work-orders.ts';
 import { formatWhole } from '../../../../format.ts';
-import { workOrderStatusLabels } from '../../zakazky/status-labels.ts';
+import { DeleteForm } from '../../delete-form.tsx';
+import { WorkOrderList } from '../../zakazky/work-order-list.tsx';
+import { removeVehicle } from '../actions.ts';
 import { fuelLabels } from '../fuel-labels.ts';
 
 export const metadata: Metadata = { title: 'Vozidlo' };
@@ -15,7 +17,7 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
   const user = await currentUserWith('vehicles.read');
   const vehicle = await getVehicle(user, (await params).id);
   if (!vehicle) notFound();
-  const unclosedOrders = await listUnclosedWorkOrdersOfVehicle(user, vehicle.id);
+  const orders = await listWorkOrdersOfVehicle(user, vehicle.id);
 
   const details: [label: string, value: ReactNode][] = [
     ['VIN', vehicle.vin],
@@ -54,17 +56,10 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
           Nová zákazka
         </Link>
       </div>
-      {unclosedOrders.length > 0 && (
-        <>
-          <h3>Otvorené zákazky</h3>
-          <ul>
-            {unclosedOrders.map((order) => (
-              <li key={order.id}>
-                <Link href={`/zakazky/${order.id}`}>{order.number}</Link> ({workOrderStatusLabels[order.status]})
-              </li>
-            ))}
-          </ul>
-        </>
+      {orders.length === 0 ? <p>Zatiaľ žiadna zákazka.</p> : <WorkOrderList orders={orders} role={user.role} without="vehicle" />}
+
+      {orders.length === 0 && (
+        <DeleteForm id={vehicle.id} action={removeVehicle} label="Zmazať vozidlo" question={`Zmazať vozidlo ${vehicle.make} ${vehicle.model} (${vehicle.vin})? Zmazanie nemožno vrátiť.`} />
       )}
     </>
   );

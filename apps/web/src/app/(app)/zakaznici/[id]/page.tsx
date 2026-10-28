@@ -3,14 +3,20 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getCustomer } from '../../../../dal/customers.ts';
+import { listWorkOrdersOfCustomer } from '../../../../dal/work-orders.ts';
+import { DeleteForm } from '../../delete-form.tsx';
 import { VehicleCells } from '../../vozidla/vehicle-cells.tsx';
+import { WorkOrderList } from '../../zakazky/work-order-list.tsx';
+import { removeCustomer } from '../actions.ts';
 import { customerTypeLabels } from '../type-labels.ts';
 
 export const metadata: Metadata = { title: 'Zákazník' };
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
-  const customer = await getCustomer(await currentUserWith('customers.read'), (await params).id);
+  const user = await currentUserWith('customers.read');
+  const customer = await getCustomer(user, (await params).id);
   if (!customer) notFound();
+  const orders = await listWorkOrdersOfCustomer(user, customer.id);
 
   const details: [label: string, value: string | null][] = [
     ['Typ', customerTypeLabels[customer.type]],
@@ -74,6 +80,13 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             </tbody>
           </table>
         </div>
+      )}
+
+      <h2>Zákazky</h2>
+      <WorkOrderList orders={orders} role={user.role} />
+
+      {customer.vehicles.length === 0 && orders.length === 0 && (
+        <DeleteForm id={customer.id} action={removeCustomer} label="Zmazať zákazníka" question={`Zmazať zákazníka ${customer.name}? Zmazanie nemožno vrátiť.`} />
       )}
     </>
   );

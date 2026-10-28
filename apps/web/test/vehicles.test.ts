@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer } from '../src/dal/customers.ts';
 import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
-import { createVehicle, getVehicle, listVehicles, updateVehicle } from '../src/dal/vehicles.ts';
+import { createVehicle, getVehicle, searchVehicles, updateVehicle } from '../src/dal/vehicles.ts';
 import { createWorkOrder, getWorkOrder } from '../src/dal/work-orders.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
@@ -24,6 +24,9 @@ beforeEach(async () => {
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
 });
 
+/** Every vehicle saved, newest first: a blank search, whose first page holds them all while a test saves fewer than 25. */
+const allVehicles = async () => (await searchVehicles(admin, {}, ctx.db)).vehicles;
+
 const golf = (overrides: { ownerId?: string; vin?: string; licensePlate?: string } = {}) => ({
   ownerId,
   vin,
@@ -41,20 +44,20 @@ const golfFields = (overrides: Partial<Parameters<typeof updateVehicle>[2]> = {}
 
 test('without a user every function rejects, and nothing is written', async () => {
   const saved = idOf(await createVehicle(admin, golf(), ctx.db));
-  const before = await listVehicles(admin, ctx.db);
+  const before = await allVehicles();
 
   await expect(createVehicle(null, golf({ vin: 'WVWZZZ1JZ3W000001' }), ctx.db)).rejects.toBeInstanceOf(UnauthenticatedError);
   await expect(updateVehicle(null, saved, golfFields({ vin: 'WVWZZZ1JZ3W000001' }), ctx.db)).rejects.toBeInstanceOf(UnauthenticatedError);
-  await expect(listVehicles(null, ctx.db)).rejects.toBeInstanceOf(UnauthenticatedError);
+  await expect(searchVehicles(null, {}, ctx.db)).rejects.toBeInstanceOf(UnauthenticatedError);
   await expect(getVehicle(null, saved, ctx.db)).rejects.toBeInstanceOf(UnauthenticatedError);
 
-  expect(await listVehicles(admin, ctx.db)).toEqual(before);
+  expect(await allVehicles()).toEqual(before);
 });
 
 test('a mechanik cannot add a vehicle, and nothing is written', async () => {
   await expect(createVehicle(mechanic, golf(), ctx.db)).rejects.toBeInstanceOf(ForbiddenError);
 
-  expect(await listVehicles(admin, ctx.db)).toEqual([]);
+  expect(await allVehicles()).toEqual([]);
 });
 
 test('a vehicle for an owner that does not exist, or an id that is not one, is not saved', async () => {
@@ -62,7 +65,7 @@ test('a vehicle for an owner that does not exist, or an id that is not one, is n
 
   await expect(createVehicle(admin, golf({ ownerId: randomUUID() }), ctx.db)).resolves.toEqual(unknown);
   await expect(createVehicle(admin, golf({ ownerId: 'zakaznik-1' }), ctx.db)).resolves.toEqual(unknown);
-  expect(await listVehicles(admin, ctx.db)).toEqual([]);
+  expect(await allVehicles()).toEqual([]);
 });
 
 test('a field error, and a VIN that is taken, are answered before an owner that does not exist', async () => {
@@ -79,7 +82,7 @@ test('a field error, and a VIN that is taken, are answered before an owner that 
     errors: { vin: 'confusable' },
   });
   await expect(createVehicle(admin, golf({ ownerId: nobody }), ctx.db)).resolves.toMatchObject({ ok: false, errors: { vin: 'taken' } });
-  expect(await listVehicles(admin, ctx.db)).toHaveLength(1);
+  expect(await allVehicles()).toHaveLength(1);
 });
 
 test('a vehicle is saved with its VIN and ŠPZ normalised and read back with its owner', async () => {
@@ -117,7 +120,7 @@ test('a vehicle that breaks a rule is not saved, and every reason comes back', a
   expect(blank).toEqual({ ok: false, errors: { make: 'required', model: 'required' } });
   expect(details).toEqual({ ok: false, errors: { year: 'invalid', fuel: 'invalid', mileageKm: 'invalid' } });
   expect(future).toEqual({ ok: false, errors: { year: 'invalid' } });
-  expect(await listVehicles(admin, ctx.db)).toEqual([]);
+  expect(await allVehicles()).toEqual([]);
 });
 
 test('a second vehicle with the same VIN is not saved, however the VIN is typed and whoever owns it, and the answer names the first', async () => {
@@ -131,7 +134,7 @@ test('a second vehicle with the same VIN is not saved, however the VIN is typed 
     errors: { vin: 'taken' },
     existing: { id: first, make: 'Volkswagen', model: 'Golf', owner: { id: ownerId, name: 'Firma s.r.o.' } },
   });
-  expect(await listVehicles(admin, ctx.db)).toHaveLength(1);
+  expect(await allVehicles()).toHaveLength(1);
 });
 
 test('two attempts at the same VIN at once save exactly one vehicle', async () => {
@@ -146,7 +149,7 @@ test('two attempts at the same VIN at once save exactly one vehicle', async () =
       existing: { id: idOf(saved[0]!), make: 'Volkswagen', model: 'Golf', owner: { id: ownerId, name: 'Firma s.r.o.' } },
     }),
   );
-  expect(await listVehicles(admin, ctx.db)).toHaveLength(1);
+  expect(await allVehicles()).toHaveLength(1);
 });
 
 test('two vehicles with the same ŠPZ are both saved, however it is typed', async () => {
@@ -162,7 +165,7 @@ test('vehicles are listed from the newest with VIN, ŠPZ and owner', async () =>
   idOf(await createVehicle(admin, golf(), ctx.db));
   idOf(await createVehicle(admin, golf({ ownerId: other, vin: 'TMBZZZ5JZ3W000002', licensePlate: 'KE456CD' }), ctx.db));
 
-  const list = await listVehicles(admin, ctx.db);
+  const list = await allVehicles();
 
   expect(list.map(({ vin, licensePlate, owner }) => ({ vin, licensePlate, owner: owner.name }))).toEqual([
     { vin: 'TMBZZZ5JZ3W000002', licensePlate: 'KE456CD', owner: 'Ján Novák' },
@@ -195,7 +198,7 @@ test('the VIN of a saved vehicle is corrected, its owner and Zákazky stay with 
   expect(result).toEqual({ ok: true });
   expect(await getVehicle(admin, id, ctx.db)).toMatchObject({ id, vin, owner: { id: ownerId } });
   expect(await getWorkOrder(admin, created.id, ctx.db)).toMatchObject({ vehicle: { id, vin } });
-  expect(await listVehicles(admin, ctx.db)).toHaveLength(1);
+  expect(await allVehicles()).toHaveLength(1);
 });
 
 test('a vehicle saved again with every field replaces them all, and a blank one clears what was there', async () => {
@@ -219,7 +222,7 @@ test('a vehicle saved again with its own VIN, however typed, is no duplicate of 
 test('a corrected vehicle keeps the rules: a VIN that is not valid, or that another vehicle has, changes nothing', async () => {
   const id = idOf(await createVehicle(admin, golf(), ctx.db));
   const other = idOf(await createVehicle(admin, golf({ vin: 'TMBZZZ5JZ3W000002', licensePlate: 'KE456CD' }), ctx.db));
-  const before = await listVehicles(admin, ctx.db);
+  const before = await allVehicles();
 
   expect(await updateVehicle(admin, id, golfFields({ vin: 'WVWZZZ1JZ3W38675' }), ctx.db)).toEqual({ ok: false, errors: { vin: 'length' } });
   expect(await updateVehicle(admin, id, golfFields({ vin: 'WVWZZZ1JZ3W38675O' }), ctx.db)).toEqual({ ok: false, errors: { vin: 'confusable' } });
@@ -230,7 +233,7 @@ test('a corrected vehicle keeps the rules: a VIN that is not valid, or that anot
     existing: { id: other, make: 'Volkswagen', model: 'Golf', owner: { id: ownerId, name: 'Firma s.r.o.' } },
   });
 
-  expect(await listVehicles(admin, ctx.db)).toEqual(before);
+  expect(await allVehicles()).toEqual(before);
 });
 
 test('two vehicles corrected to the same VIN at once: exactly one gets it', async () => {
@@ -241,17 +244,17 @@ test('two vehicles corrected to the same VIN at once: exactly one gets it', asyn
 
   expect(results.filter((result) => result.ok)).toHaveLength(1);
   expect(results.filter((result) => !result.ok)).toEqual([expect.objectContaining({ errors: { vin: 'taken' } })]);
-  const vins = (await listVehicles(admin, ctx.db)).map((listed) => listed.vin);
+  const vins = (await allVehicles()).map((listed) => listed.vin);
   expect(vins.filter((listed) => listed === 'WVWZZZ1JZ3W000003')).toHaveLength(1);
 });
 
 test('a vehicle that does not exist, or an id that is not one, is not corrected', async () => {
-  const before = await listVehicles(admin, ctx.db);
+  const before = await allVehicles();
 
   await expect(updateVehicle(admin, randomUUID(), golfFields(), ctx.db)).resolves.toEqual({ ok: false, errors: { vehicle: 'unknown' } });
   await expect(updateVehicle(admin, 'vozidlo-1', golfFields(), ctx.db)).resolves.toEqual({ ok: false, errors: { vehicle: 'unknown' } });
 
-  expect(await listVehicles(admin, ctx.db)).toEqual(before);
+  expect(await allVehicles()).toEqual(before);
 });
 
 test('the migration gives the ŠPZ of the vehicles that exist before it the form the domain gives it', async () => {
