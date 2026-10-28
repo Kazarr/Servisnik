@@ -40,7 +40,7 @@ Registrácia v appke nie je: prvého admina založí seed a ďalších používa
 
 ```powershell
 pnpm verify                            # ticket tier: typecheck a testy; Testcontainers spustí PostgreSQL 17, Docker musí bežať
-pnpm e2e:install                       # raz, stiahne prehliadač pre e2e
+pnpm e2e:install                       # raz, stiahne Chromium: potrebuje ho e2e aj tlač PDF, ktorú testuje `pnpm verify`
 pnpm e2e                               # batch tier: build appky, čerstvá databáza, špecifikácie z apps/web/e2e
 pnpm smoke http://localhost:3000       # deploy tier: prihlasovacia stránka a /api/health odpovedia 200, inak nenulový exit
 ```

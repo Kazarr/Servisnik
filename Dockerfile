@@ -26,6 +26,16 @@ RUN pnpm install --frozen-lockfile --prod --filter "@servisnik/web..." \
 FROM node:24-slim
 # Next.js standalone listens on HOSTNAME, which Docker sets to the container id; 0.0.0.0 makes it reachable.
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
+# Chromium prints the PDFs of the forms (docs/adr/0001-stack.md). Playwright installs the headless browser and the
+# libraries it needs; fonts-liberation adds the fonts, which cover the Slovak letters (Latin Extended-A). This layer
+# sits above the code, so that a new commit does not download the browser again, and its version is the one pnpm-lock.yaml
+# locks for playwright-core (tools/deploy-config.test.ts compares them). PLAYWRIGHT_BROWSERS_PATH stays set: it is where
+# the app looks for the browser, and every user may read it.
+ARG PLAYWRIGHT_VERSION=1.64.1
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx --yes playwright-core@${PLAYWRIGHT_VERSION} install --with-deps --only-shell chromium \
+ && apt-get install -y --no-install-recommends fonts-liberation \
+ && rm -rf /var/lib/apt/lists/* /root/.npm
 # The code belongs to root: the user that runs it cannot change it. Only .next/cache is writable.
 COPY --from=build /repo/apps/web/.next/standalone /app
 # The standalone server does not serve .next/static itself.
