@@ -58,7 +58,7 @@ test('the admin finds a vehicle by the last 6 characters of its VIN and transfer
   await expect(heading).toHaveText('Volkswagen Golf');
   await expect(main.getByRole('link', { name: buyer })).toBeVisible();
   await expect(main.getByRole('link', { name: seller })).toHaveCount(0);
-  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, seller, 'Prijatá']);
+  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, seller, 'Prijatá', '']); // the last cell is the Termín, which this Zákazka has none
 
   // The old owner has no vehicle any more and keeps the Zákazka; the new one has the vehicle and not the Zákazka.
   await page.goto(sellerUrl);
