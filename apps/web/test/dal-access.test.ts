@@ -1,5 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'vitest';
+import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
 import * as settings from '../src/dal/settings.ts';
@@ -10,15 +11,13 @@ import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
+import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 
 // Every function of the Data Access Layer checks the Rola's capability, not only the sign-in
 // (docs/adr/0001-stack.md, packages/domain/src/access). This is the one table that proves it.
-
-const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
-const mechanik: User = { id: 'user-2', email: 'mechanik@autoservis.test', name: 'Mechanik', role: 'mechanik' };
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let ownerId: string;
@@ -61,12 +60,13 @@ const mechanikMay = ['listWorkOrders'];
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = { 'customers.ts': customers, 'settings.ts': settings, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders };
 /**
- * The files of src/dal that hold no data access, with their exports pinned by name: the user, the id
- * check and the page-side wrapper. An export added to one of them fails the test below, so whoever
- * adds it decides: a function that reads or writes data goes in a data access file and in `calls`,
- * anything else goes in this list.
+ * The files of src/dal that hold no data access, with their exports pinned by name: the refused
+ * constraint, the user, the id check and the page-side wrapper. An export added to one of them fails
+ * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
+ * access file and in `calls`, anything else goes in this list.
  */
 const helpers = {
+  'constraint.ts': { module: constraintModule, exports: ['violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
@@ -107,7 +107,7 @@ test.each(Object.entries(calls).filter(([name]) => !mechanikMay.includes(name)))
     const before = await everything();
     const spy = watched(ctx.db);
 
-    await expect(call(mechanik, spy.db)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(call(mechanic, spy.db)).rejects.toBeInstanceOf(ForbiddenError);
 
     expect(spy.touched).toEqual([]);
     expect(await everything()).toEqual(before);
@@ -123,7 +123,7 @@ test.each(Object.entries(calls))('%s rejects a missing user as not signed in, no
 });
 
 test('the mechanik reads the list of Zákazky with its number, customer, vehicle and status, and no price key anywhere in it', async () => {
-  const list = await workOrders.listWorkOrders(mechanik, ctx.db);
+  const list = await workOrders.listWorkOrders(mechanic, ctx.db);
 
   expect(list).toEqual([
     {

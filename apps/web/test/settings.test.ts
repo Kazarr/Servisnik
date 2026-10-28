@@ -2,17 +2,15 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { getRates, saveRates } from '../src/dal/settings.ts';
-import type { User } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
 import { addLabour, createWorkOrder, getWorkOrder } from '../src/dal/work-orders.ts';
 import { workshop } from '../src/db/schema.ts';
+import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 
 // The rates part of Nastavenia (GLOSSARY): the VAT rates with the default one, the hourly rate and the markup on parts.
 // Who may read and write them is the table in dal-access.test.ts.
-
-const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
 
 const startingRates = { vatRates: [23, 19, 5], defaultVatRate: 23, hourlyRateCents: null, markupPercent: 0 };
 const startingInput = { vatRates: '23\n19\n5', defaultVatRate: '23', hourlyRate: '', markup: '0' };

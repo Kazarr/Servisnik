@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getCustomer } from '../../../../dal/customers.ts';
+import { VehicleCells } from '../../vozidla/vehicle-cells.tsx';
 import { customerTypeLabels } from '../type-labels.ts';
 
 export const metadata: Metadata = { title: 'Zákazník' };
@@ -65,10 +66,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             <tbody>
               {customer.vehicles.map((vehicle) => (
                 <tr key={vehicle.id}>
-                  <td>
-                    <Link href={`/vozidla/${vehicle.id}`}>{vehicle.vin}</Link>
-                  </td>
-                  <td>{vehicle.licensePlate}</td>
+                  <VehicleCells vehicle={vehicle} />
                   <td>{vehicle.make}</td>
                   <td>{vehicle.model}</td>
                 </tr>
