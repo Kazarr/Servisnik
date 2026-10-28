@@ -1,7 +1,6 @@
-import type { Locator } from '@playwright/test';
 import { createPriceListItem } from '../src/dal/price-list.ts';
 import { idOf } from '../test/support/id-of.ts';
-import { expect, runTag, searchPriceList, signIn, test } from './fixtures.ts';
+import { detail, expect, runTag, searchPriceList, signIn, test } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -9,9 +8,6 @@ test.beforeAll(() => {
   db = openDatabase();
 });
 test.afterAll(() => db.$client.end());
-
-/** The value next to a label in the detail list of a page. */
-const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
 test('the admin adds a Diel to the Cenník with a Prirážka, finds it without diacritics and adds it to a Zákazka, where a later change of the Cenník leaves it alone', async ({ page }) => {
   test.slow(); // a seeded work order, two forms of the Cenník, a search and a click on a Zákazka; under --repeat-each the workers share one server

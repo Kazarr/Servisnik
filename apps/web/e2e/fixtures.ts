@@ -1,4 +1,4 @@
-import { expect, test as base, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test as base, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
 import type { Database } from '../src/db/index.ts';
 import { seedUser } from '../test/support/users.ts';
@@ -170,6 +170,9 @@ export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľa
 
 /** Searches the list of vehicles for `text` (see searchList). */
 export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);
+
+/** The value next to a label in the detail list of a page. */
+export const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
 /** Searches the Cenník, on its own page or in the section of a Zákazka, for `text` (see searchList). */
 export const searchPriceList = (page: Page, text: string) => searchList(page, 'Hľadať v cenníku', text);
