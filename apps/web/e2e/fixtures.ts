@@ -85,15 +85,21 @@ export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda'
 }
 
 /**
- * Types `text` into the search field of the customer list, searches, and waits until the page of that
+ * Types `text` into the search field called `label`, searches, and waits until the page of that
  * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
  * `text` must differ from what the list was last searched for, or there is no new page to wait for.
  */
-export async function searchCustomers(page: Page, text: string) {
-  await page.getByLabel('Hľadať zákazníka').fill(text);
+async function searchList(page: Page, label: string, text: string) {
+  await page.getByLabel(label).fill(text);
   await page.getByRole('button', { name: 'Hľadať', exact: true }).click();
   await page.waitForURL((url) => url.searchParams.get('q') === text);
 }
+
+/** Searches the list of customers for `text` (see searchList). */
+export const searchCustomers = (page: Page, text: string) => searchList(page, 'Hľadať zákazníka', text);
+
+/** Searches the list of vehicles for `text` (see searchList). */
+export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);
 
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
 export async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {
