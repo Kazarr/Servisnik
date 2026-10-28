@@ -6,14 +6,16 @@ export const pageMargins = { top: '15mm', right: '15mm', bottom: '20mm', left: '
 
 /**
  * The `:root` of a printed page: the app's tokens that it uses, with their values, and the ones only print
- * needs. The root size is 10 pt, so every length in rem is a length on the paper.
+ * needs. The root size is 10 pt, so every length in rem is a length on the paper. The font is not the app's
+ * `system-ui`, which is whatever the machine has (in the image it was a Chinese font): a form names Arial, and
+ * a machine without it, like the image, answers with Liberation Sans, which has the same metrics and the Slovak letters.
  */
 export const printTokens = `:root {
   --color-text: #1c2430;
   --color-text-muted: #5a6677;
   --color-border: #d3d9e2;
   --color-surface: #f3f5f8;
-  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-family-print: Arial, 'Liberation Sans', Helvetica, sans-serif;
   --font-size-base: 1rem;
   --font-size-title: 1.5rem;
   --font-size-heading: 1.25rem;
@@ -53,7 +55,7 @@ html {
 body {
   margin: 0;
   color: var(--color-text);
-  font-family: var(--font-family);
+  font-family: var(--font-family-print);
   font-size: var(--font-size-base);
   line-height: var(--line-height-base);
 }
@@ -199,7 +201,7 @@ ${printTokens}
   width: var(--width-full);
   padding: 0 var(--page-margin-x);
   color: var(--color-text-muted);
-  font-family: var(--font-family);
+  font-family: var(--font-family-print);
   font-size: var(--font-size-footer);
   text-align: right;
 }
