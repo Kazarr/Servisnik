@@ -165,6 +165,7 @@ test('the App Spec names the environment variables of spec #77 and keeps the sec
     [
       'BETTER_AUTH_SECRET',
       'BETTER_AUTH_URL',
+      'CLIENT_IP_HEADER',
       'DATABASE_CA_CERT',
       'DATABASE_URL',
       'KROS_API_TOKEN',
@@ -188,11 +189,13 @@ test('what the service and the jobs share is written once in the App Spec: the i
   expect(written('value: ${db.CA_CERT}')).toBe(1);
 });
 
-test('the App Spec holds no value, only placeholders', () => {
+test('the App Spec holds no value but one, only placeholders: the header with the address of the client', () => {
   const { services, jobs } = spec();
   const literals = [...services, ...jobs].flatMap(({ envs }) => envs).filter(({ value }) => !value?.includes('${'));
 
-  expect(literals).toEqual([]);
+  // DigitalOcean's ingress is what x-forwarded-for holds; the client is in do-connecting-ip (apps/web/src/auth.ts).
+  // It is no secret and no setting of an environment, so it is written here and not exported by the deploy step.
+  expect(literals.map(({ key, value }) => ({ key, value }))).toEqual([{ key: 'CLIENT_IP_HEADER', value: 'do-connecting-ip' }]);
 });
 
 test('every component that connects to the database takes the URL and the CA as DigitalOcean binds them', () => {

@@ -3,6 +3,7 @@
 import { passwordLength } from '@servisnik/domain/access';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { tooManyAttemptsMessage } from '../../../dal/attempt-limit.ts';
 import { currentUser } from '../../../dal/current-user.ts';
 import { changeOwnPassword, type PasswordChangeErrors } from '../../../dal/password.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
@@ -17,15 +18,17 @@ const messages = {
     tooLong: `Nové heslo smie mať najviac ${passwordLength.max} znakov`,
   },
   confirmation: 'Zopakované heslo sa nezhoduje s novým heslom',
+  form: tooManyAttemptsMessage,
 };
 
 /** What the Používateľ is told, field by field. */
-function refused({ currentPassword, newPassword, confirmation }: PasswordChangeErrors): PasswordFormState {
+function refused({ currentPassword, newPassword, confirmation, form }: PasswordChangeErrors): PasswordFormState {
   return {
     errors: {
       currentPassword: currentPassword && messages.currentPassword,
       newPassword: newPassword && messages.newPassword[newPassword],
       confirmation: confirmation && messages.confirmation,
+      form: form && messages.form,
     },
   };
 }
