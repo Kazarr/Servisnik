@@ -13,11 +13,21 @@ export class UnauthenticatedError extends Error {
   }
 }
 
+/** The page every Rola may open: where a user is sent whose Rola may not open the page asked for. */
+export const homePage = '/zakazky';
+
 /**
- * The user's Rola may not do this. Pages redirect first, through currentUserWith, so one thrown in
- * a page shows the error page; a Server Action turns it into a message (app/(app)/forbidden.ts).
+ * The user's Rola may not do this. Pages redirect first, through currentUserWith. One thrown while a
+ * page renders anyway (a DAL function the gate did not cover) carries the digest of the error that
+ * Next's `redirect(homePage)` throws, so Next sends the user there, with no error page and no log
+ * line, as it does for redirect(). A Server Action turns it into a message (app/(app)/forbidden.ts)
+ * before Next sees it. A Route Handler must catch it and answer 403 (spec #117, "Vynútenie na serveri"):
+ * left uncaught it is a 307 to the home page there too. The digest is spelled out because the e2e specs import the DAL under Node, where
+ * `next/navigation` does not resolve; test/forbidden-page.test.ts compares it with what redirect() throws.
  */
 export class ForbiddenError extends Error {
+  readonly digest = `NEXT_REDIRECT;replace;${homePage};307;`;
+
   constructor(capability: Capability) {
     super(`Zakázané: ${capability}`);
   }
