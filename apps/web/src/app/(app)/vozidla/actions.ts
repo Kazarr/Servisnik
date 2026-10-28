@@ -89,7 +89,7 @@ const transferMessages = {
 /**
  * Server Action of "Potvrdiť prepis". It checks the session itself, like every action, and sends the
  * Majiteľ the page showed along with the new one, so that a Prepis confirmed after another one is
- * refused (`transferOwnership`). A Vozidlo or a Zákazník that does not exist is a page that does not.
+ * refused (`transferOwnership`), unless the Vozidlo has come back to that Majiteľ. A Vozidlo or a Zákazník that does not exist is a page that does not.
  */
 export async function transferVehicle(_state: TransferFormState, formData: FormData): Promise<TransferFormState> {
   const user = await currentUser();

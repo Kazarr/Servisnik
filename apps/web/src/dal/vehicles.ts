@@ -104,8 +104,8 @@ export type TransferOwnershipResult = { ok: true } | { ok: false; errors: { vehi
  * Prepis (GLOSSARY): gives the Vozidlo `id` to the Zákazník `toOwnerId` and changes nothing else; the
  * Zákazky stay with the Vozidlo and with the Zákazník they were made for. `fromOwnerId` is the Majiteľ
  * the admin saw when he confirmed. The update only matches while the Vozidlo still has him, so two
- * Prepisy at once cannot both get through and a stale confirmation never overwrites a newer Prepis.
- * Admin only (GLOSSARY, Rola).
+ * Prepisy at once cannot both get through and a stale confirmation does not overwrite a newer Prepis,
+ * unless the Vozidlo has meanwhile come back to that Majiteľ. Admin only (GLOSSARY, Rola).
  */
 export async function transferOwnership(
   user: User | null,
