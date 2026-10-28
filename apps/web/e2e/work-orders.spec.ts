@@ -49,6 +49,7 @@ async function addLabour(page: Page, fields: { name: string; quantity: string; u
 }
 
 test('the admin opens a work order on a vehicle, adds work, sees the amounts and marks it done', async ({ page }) => {
+  test.slow(); // the longest flow; under --repeat-each the workers share one server and it took 34 s
   // All specs share one database, and this one also runs repeated: its customer and VIN carry a tag, and the order is read by its own number.
   const tag = runTag();
   const [owner, vin] = [`Majiteľ Prvej Zákazky ${tag}`, vinOf(tag)];
@@ -116,6 +117,7 @@ test('the admin opens a work order on a vehicle, adds work, sees the amounts and
 });
 
 test('a work order for another customer than the owner keeps that customer, and a later one gets a higher number', async ({ page }) => {
+  test.slow(); // two customers, a vehicle and two work orders; under --repeat-each the workers share one server and it took 24 s
   const tag = runTag();
   const [other, owner] = [`Iný Zákazník Zákazky ${tag}`, `Majiteľ Druhej Zákazky ${tag}`];
   await signIn(page);

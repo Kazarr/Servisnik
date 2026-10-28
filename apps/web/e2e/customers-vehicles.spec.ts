@@ -97,6 +97,7 @@ test('the admin adds a person without company fields, and the list starts with t
 });
 
 test('a customer form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
+  test.slow(); // two sign-ins and an ended session; under --repeat-each the workers share one server and it took 26 s
   const name = `Nemal by sa uložiť ${runTag()}`;
   await signIn(page);
   await page.goto('/zakaznici/novy');
