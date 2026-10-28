@@ -5,6 +5,7 @@ import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
 import * as logo from '../src/dal/logo.ts';
+import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
@@ -13,6 +14,7 @@ import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
+import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
 import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
@@ -55,7 +57,7 @@ const calls: Record<string, Call> = {
   updateVehicle: (user, db) =>
     vehicles.updateVehicle(user, vehicleId, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Passat' }, db),
   transferOwnership: (user, db) => vehicles.transferOwnership(user, vehicleId, { fromOwnerId: ownerId, toOwnerId: buyerId }, db),
-  listVehicles: (user, db) => vehicles.listVehicles(user, db),
+  searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
   addLabour: (user, db) => workOrders.addLabour(user, orderId, { name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
@@ -67,6 +69,14 @@ const calls: Record<string, Call> = {
   listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
   getRates: (user, db) => settings.getRates(user, db),
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
+  getWorkshopDetails: (user, db) => workshopDetails.getWorkshopDetails(user, db),
+  getVatPayerType: (user, db) => workshopDetails.getVatPayerType(user, db),
+  saveWorkshopDetails: (user, db) =>
+    workshopDetails.saveWorkshopDetails(
+      user,
+      { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
+      db,
+    ),
   getLogo: (user, db) => logo.getLogo(user, db),
   getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
   saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
@@ -80,7 +90,7 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'changeOwnPassword', 'getLogo'];
+const mechanikMay = ['listWorkOrders', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = {
@@ -91,16 +101,18 @@ const dataAccess = {
   'users.ts': users,
   'vehicles.ts': vehicles,
   'work-orders.ts': workOrders,
+  'workshop.ts': workshopDetails,
 };
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the refused
- * constraint, the user, the id check and the page-side wrapper. An export added to one of them fails
+ * constraint, the paging of the lists, the user, the id check and the page-side wrapper. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  */
 const helpers = {
   'constraint.ts': { module: constraintModule, exports: ['violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
+  'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
 };

@@ -1,5 +1,7 @@
 // Vehicle area (GLOSSARY: Vozidlá). Pure rules: no framework, database or network.
 
+import { normalizeText } from '../customer/index.ts';
+
 /** `confusable`: an I, O or Q, which a VIN never has (1 is meant by I, 0 by O and Q); `characters`: anything else but A-Z and 0-9. */
 export type VinError = 'length' | 'characters' | 'confusable';
 
@@ -37,6 +39,19 @@ export function parseMileageKm(typed: string): number | null {
   const digits = typed.replace(/\s/g, '');
   return /^\d+$/.test(digits) && Number(digits) <= maxMileageKm ? Number(digits) : null;
 }
+
+// Hľadanie vozidiel: one field finds a Vozidlo by a part of its VIN, its ŠPZ or the name of its Majiteľ. As with the
+// Zákazníci, what is typed is normalized the way the stored values are, so PostgreSQL needs no `unaccent` or `upper`.
+
+export type VehicleSearch = {
+  /** Looked for in the VIN and in the ŠPZ, which are both stored in capitals without spaces or hyphens. Blank when nothing is left of what was typed. */
+  code: string;
+  /** Looked for in the normalized name of the Majiteľ (`searchName` of a Zákazník). */
+  ownerName: string;
+};
+
+/** What to look for when `typed` is typed into the search field; blank text looks for nothing. */
+export const parseVehicleSearch = (typed: string): VehicleSearch => ({ code: parseLicensePlate(typed) ?? '', ownerName: normalizeText(typed) });
 
 export type VehicleInput = {
   vin: string;
