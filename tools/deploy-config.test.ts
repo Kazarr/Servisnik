@@ -360,14 +360,16 @@ test('the registry is left alone, and the step fails, when listing its tags fail
 });
 
 test('before the build the workflow waits while the registry collects garbage, which keeps it read-only, and gives up after ten minutes', () => {
-  const wait = (collections: number) => execute(step(isGcWait), { files: { 'gc-active': String(collections) }, env: { GC_POLL_SECONDS: '0' } });
+  // The step polls 30 times, 20 seconds apart, unless told otherwise; the test shortens both.
+  const wait = (collections: number) => execute(step(isGcWait), { files: { 'gc-active': String(collections) }, env: { GC_POLL_SECONDS: '0', GC_POLL_ATTEMPTS: '3' } });
   const poll = 'registry garbage-collection get-active';
 
+  expect(step(isGcWait).run).toMatch(/GC_POLL_ATTEMPTS:-30[\s\S]*GC_POLL_SECONDS:-20/);
   expect(wait(0)).toMatchObject({ status: 0, calls: [poll] });
   expect(wait(2)).toMatchObject({ status: 0, calls: [poll, poll, poll] });
   const stuck = wait(99);
   expect(stuck.status).toBe(1);
-  expect(stuck.calls).toHaveLength(30);
+  expect(stuck.calls).toEqual([poll, poll, poll]);
   expect(stuck.output).toContain('::error');
 });
 
