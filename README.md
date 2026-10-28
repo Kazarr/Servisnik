@@ -74,14 +74,14 @@ docker rm -f servisnik-app
 Agent nič z toho neurobí: ide o účet, platbu, token a tajomstvá.
 
 1. **Účet na DigitalOcean:** registrácia, 2FA, platobná karta.
-2. **Register:** Container Registry vo FRA1 (jeden na účet; názov si workflow zistí sám). Úroveň Starter je zadarmo a drží 500 MiB, preto workflow po každom úspešnom nasadení ponechá len najnovšie tagy (počet je v [`tools/registry-retention.ts`](tools/registry-retention.ts)), ostatné zmaže a spustí garbage collection, ktorá register na chvíľu prepne len na čítanie. Ak sa image nezmestí ani tak, treba vyššiu úroveň registra.
+2. **Register:** Container Registry vo FRA1 (jeden na účet; názov si workflow zistí sám). Úroveň Starter je zadarmo a drží 500 MiB, preto workflow po každom pushi image, aj keď nasadenie potom zlyhalo, ponechá len najnovšie tagy a tagy, ktoré práve beží nasadená appka (počet je v [`tools/registry-retention.ts`](tools/registry-retention.ts)), ostatné zmaže a spustí garbage collection. Tá beží ďalej po skončení behu a drží register len na čítanie, preto ďalší beh pred pushom počká, kým skončí (najviac 10 minút). Ak sa živý tag nedá zistiť, krok nič nezmaže a zlyhá. Ak sa image nezmestí ani tak, treba vyššiu úroveň registra.
 3. **Databáza:** spravovaný cluster PostgreSQL 17 vo FRA1, najmenšia veľkosť, s názvom `servisnik-test-db` (ten je v `.do/app.yaml`). V paneli Databases > Create, alebo `doctl`:
 
    ```powershell
    doctl databases create servisnik-test-db --engine pg --version 17 --region fra1 --size db-s-1vcpu-1gb --num-nodes 1
    ```
 
-4. **Token:** API token s právom čítať a zapisovať App Platform a Container Registry (DigitalOcean > API > Generate New Token).
+4. **Token:** API token (DigitalOcean > API > Generate New Token) s právami: App Platform čítať a zapisovať (nasadenie; workflow z neho číta aj zoznam appiek a ich logy) a Container Registry čítať, zapisovať a mazať (push image, `delete-tag` starých tagov a garbage collection).
 5. **GitHub Environment `test`:** workflow `deploy` beží na ľubovoľnej vetve a vetva si môže priniesť vlastné workflow, preto deploy secrets nepatria do repo secrets, ale do prostredia obmedzeného na `main`. Hodnoty secrets nech sú z písmen, číslic a `-_.`: action ich vkladá ako text do `.do/app.yaml`. Hodnotu každého vypýta `gh`.
 
    ```powershell
@@ -100,7 +100,7 @@ Agent nič z toho neurobí: ide o účet, platbu, token a tajomstvá.
 
 ### Čo workflow robí
 
-Spúšťa sa len cez `workflow_dispatch` a job beží len z vetvy `main`, v prostredí `test`. V tomto poradí: skontroluje secrets, odmietne commit, ktorého check `ticket` nie je zelený, zostaví image označený SHA commitu (ten dostane aj ako `GIT_SHA`) a pošle ho do registra, uloží log bežiacej verzie, nasadí `.do/app.yaml`, počká na dokončenie a spustí `pnpm smoke` proti adrese nasadenej appky. Smoke okrem odpovedí 200 overí, že `/api/health` hlási práve nasadený commit. Potom porovná log po nasadení s tým pred ním: nový riadok s chybou zhodí beh, ale jeho text sa nevypíše, lebo log behu verejného repa je verejný (prečítaš ho cez `doctl apps logs`). Nakoniec ponechá v registri najnovšie tagy (viď Register vyššie). Migrácia zlyhá pred prepnutím a stará verzia beží ďalej. Akcie, ktoré dostanú token DigitalOcean, sú pripnuté na SHA commitu, logy nasadenia sa do verejného logu nevypisujú.
+Spúšťa sa len cez `workflow_dispatch` a job beží len z vetvy `main`, v prostredí `test`. V tomto poradí: skontroluje secrets, odmietne commit, ktorého check `ticket` nie je zelený, počká na dobehnutie garbage collection v registri, zostaví image označený SHA commitu (ten dostane aj ako `GIT_SHA`) a pošle ho do registra, uloží log bežiacej verzie, nasadí `.do/app.yaml`, počká na dokončenie a spustí `pnpm smoke` proti adrese nasadenej appky. Smoke okrem odpovedí 200 overí, že `/api/health` hlási práve nasadený commit. Potom porovná log po nasadení s tým pred ním: nový riadok s chybou zhodí beh, ale jeho text sa nevypíše, lebo log behu verejného repa je verejný (prečítaš ho cez `doctl apps logs`). Nakoniec vyčistí register (viď Register vyššie); to robí po pushi aj vtedy, keď nasadenie alebo smoke zlyhali. Migrácia zlyhá pred prepnutím a stará verzia beží ďalej. Akcie, ktoré dostanú token DigitalOcean, sú pripnuté na SHA commitu, logy nasadenia sa do verejného logu nevypisujú.
 
 ### Databáza a TLS
 

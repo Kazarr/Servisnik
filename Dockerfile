@@ -41,7 +41,7 @@ COPY --from=migrate /migrate/apps/web/drizzle /migrate/apps/web/drizzle
 COPY --from=migrate /migrate/apps/web/scripts /migrate/apps/web/scripts
 COPY --from=migrate /migrate/apps/web/src/db /migrate/apps/web/src/db
 COPY --from=migrate /migrate/apps/web/src/env.ts /migrate/apps/web/src/print-error.ts /migrate/apps/web/src/seed.ts /migrate/apps/web/src/
-# Last, so that a new commit changes this layer only.
+# Last, so that a new GIT_SHA invalidates no cached layer above it.
 ARG GIT_SHA=
 ENV GIT_SHA=$GIT_SHA
 USER node
