@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
 import { addItem, changeWorkOrderStatus, createWorkOrder, deleteItem, updateItem } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
+import { itemMessages } from '../item-messages.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
@@ -66,15 +67,7 @@ const notEditableMessage = 'Položky sa dajú meniť len na rozpracovanej zákaz
 
 /** The messages for the reasons an item was refused, at the fields; `notEditable` is the reason for the whole form. */
 function itemErrors(errors: ItemErrors, notEditable: boolean): NonNullable<ItemFormState>['errors'] {
-  return {
-    name: errors.name && 'Vyplňte názov',
-    quantity: errors.quantity && 'Množstvo musí byť väčšie ako 0, najviac na 2 desatinné miesta',
-    unit: errors.unit && 'Vyplňte jednotku',
-    purchasePrice: errors.purchasePrice && 'Nákupná cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
-    unitPrice: errors.unitPrice && 'Cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
-    vatRate: errors.vatRate && 'Vyberte sadzbu DPH zo sadzieb v Nastaveniach',
-    form: notEditable ? notEditableMessage : undefined,
-  };
+  return { ...itemMessages(errors), form: notEditable ? notEditableMessage : undefined };
 }
 
 /** Server Action of the form that adds a Práca or a Diel; it checks the session itself, like every action. */
