@@ -189,17 +189,17 @@ test('exactly 25 vehicles fit on one page', async () => {
   expect(await found('', 2)).toHaveLength(25);
 });
 
-test('vehicles saved at the same moment keep their order from page to page', async () => {
+test('vehicles saved at the same moment come in the order of their id, so no page repeats or skips one', async () => {
   const owner = await customer('Ján Novák');
   for (let i = 1; i <= 30; i++) await add(owner, { vin: vinOf(i) });
   await ctx.db.execute(sql`update vehicle set created_at = now()`);
 
   const ids = async (page: number) => (await searchVehicles(admin, { page }, ctx.db)).vehicles.map((vehicle) => vehicle.id);
-  const [first, second] = [await ids(1), await ids(2)];
+  const listed = [...(await ids(1)), ...(await ids(2))];
 
-  expect(new Set([...first, ...second]).size).toBe(30);
-  expect(await ids(1)).toEqual(first);
-  expect(await ids(2)).toEqual(second);
+  expect(new Set(listed).size).toBe(30);
+  // The ids are random, so the order the rows were saved in is not their order.
+  expect(listed).toEqual([...listed].sort());
 });
 
 test('the pages of a search hold only what it finds', async () => {
