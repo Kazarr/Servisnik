@@ -100,12 +100,13 @@ test('a search that finds nobody gives an empty page', async () => {
   expect(await searchCustomers(admin, { query: 'nikto' }, ctx.db)).toEqual({ customers: [], page: 1, pageCount: 1, total: 0 });
 });
 
-test('a blank search lists every customer alphabetically, without diacritics deciding the order', async () => {
-  for (const name of ['Žilina s.r.o.', 'Zoltán', 'čech', 'Adam', 'Ábel', 'de Luca', 'Dvořák', 'Boris']) {
+test('a blank search lists every customer alphabetically, with neither case nor diacritics deciding the order', async () => {
+  for (const name of ['Žilina s.r.o.', 'Zoltán', 'čech', 'Janko Hruška', 'Adam', 'Ábel', 'de Luca', 'Ján Novák', 'Dvořák', 'Boris']) {
     await add({ type: 'person', name });
   }
 
-  const expected = ['Ábel', 'Adam', 'Boris', 'čech', 'de Luca', 'Dvořák', 'Žilina s.r.o.', 'Zoltán'];
+  // "Ján Novák" is before "Janko": a word ends before a longer one that starts the same, whatever the server's locale.
+  const expected = ['Ábel', 'Adam', 'Boris', 'čech', 'de Luca', 'Dvořák', 'Ján Novák', 'Janko Hruška', 'Žilina s.r.o.', 'Zoltán'];
   expect(await found('')).toEqual(expected);
   expect(await found('   ')).toEqual(expected);
   expect((await searchCustomers(admin, {}, ctx.db)).customers.map((customer) => customer.name)).toEqual(expected);
