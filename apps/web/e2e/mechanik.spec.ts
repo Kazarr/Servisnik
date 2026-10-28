@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { listCustomers } from '../src/dal/customers.ts';
+import { getRates } from '../src/dal/settings.ts';
 import { listVehicles } from '../src/dal/vehicles.ts';
 import { getWorkOrder, listWorkOrders } from '../src/dal/work-orders.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
@@ -44,6 +45,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/vozidla/${order.vehicleId}/upravit`,
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
     `/zakazky/${order.orderId}`,
+    '/nastavenia',
   ];
   for (const path of elsewhere) {
     await page.goto(path);
@@ -79,6 +81,9 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await detailPage.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
   await detailPage.getByLabel('Množstvo (h)').fill('1');
   await detailPage.getByLabel('Cena za jednotku bez DPH (€)').fill('10');
+  const settingsPage = await context.newPage();
+  await settingsPage.goto('/nastavenia');
+  await settingsPage.getByLabel('Prirážka na diely (%)').fill('77');
 
   await setRole(db, user.email, 'mechanik');
 
@@ -96,6 +101,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText(message);
   await detailPage.getByRole('button', { name: 'Označiť ako hotovú' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message]);
+  await settingsPage.getByRole('button', { name: 'Uložiť sadzby' }).click();
+  await expect(settingsPage.locator('main').getByRole('alert')).toHaveText(message);
 
   // Nothing was saved: only the records the spec made through the DAL exist.
   const names = (await listCustomers(admin, db)).map((customer) => customer.name).filter((name) => name.includes(tag));
@@ -106,4 +113,5 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const orders = (await listWorkOrders(admin, db)).filter((found) => found.customer.name === order.customerName);
   expect(orders.map(({ number }) => number)).toEqual([order.number]);
   expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [] });
+  expect(await getRates(admin, db)).toMatchObject({ markupPercent: 0 });
 });

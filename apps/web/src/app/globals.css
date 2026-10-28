@@ -345,6 +345,15 @@ tfoot td {
   margin-top: var(--space-4);
 }
 
+/* Nastavenia: one section per part, each under its own heading. */
+.settings-section {
+  margin-top: var(--space-4);
+}
+
+.settings-section h2 {
+  margin-bottom: var(--space-3);
+}
+
 .multiline {
   white-space: pre-line;
 }

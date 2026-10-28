@@ -1,5 +1,5 @@
 {
-  "id": "75e92a72-4823-492e-805b-5873df135d73",
+  "id": "a4d33db1-a293-40b5-8b7c-b894d9c7abba",
   "prevId": "094e24fe-c5d0-47f1-8e96-79f23d0f754e",
   "version": "7",
   "dialect": "postgresql",
@@ -478,31 +478,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "year": {
-          "name": "year",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fuel": {
-          "name": "fuel",
-          "type": "vehicle_fuel",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mileage_km": {
-          "name": "mileage_km",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -938,6 +913,86 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.workshop": {
+      "name": "workshop",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "vat_rates": {
+          "name": "vat_rates",
+          "type": "integer[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "default_vat_rate": {
+          "name": "default_vat_rate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hourly_rate_cents": {
+          "name": "hourly_rate_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "markup_percent": {
+          "name": "markup_percent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workshop_single_row_check": {
+          "name": "workshop_single_row_check",
+          "value": "\"workshop\".\"id\" = 1"
+        },
+        "workshop_vat_rates_check": {
+          "name": "workshop_vat_rates_check",
+          "value": "0 <= all(\"workshop\".\"vat_rates\") and 100 >= all(\"workshop\".\"vat_rates\")"
+        },
+        "workshop_default_vat_rate_check": {
+          "name": "workshop_default_vat_rate_check",
+          "value": "\"workshop\".\"default_vat_rate\" = any(\"workshop\".\"vat_rates\")"
+        },
+        "workshop_hourly_rate_cents_check": {
+          "name": "workshop_hourly_rate_cents_check",
+          "value": "\"workshop\".\"hourly_rate_cents\" >= 0"
+        },
+        "workshop_markup_percent_check": {
+          "name": "workshop_markup_percent_check",
+          "value": "\"workshop\".\"markup_percent\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -955,19 +1010,6 @@
       "values": [
         "admin",
         "mechanik"
-      ]
-    },
-    "public.vehicle_fuel": {
-      "name": "vehicle_fuel",
-      "schema": "public",
-      "values": [
-        "petrol",
-        "diesel",
-        "hybrid",
-        "electric",
-        "lpg",
-        "cng",
-        "other"
       ]
     },
     "public.work_order_item_kind": {

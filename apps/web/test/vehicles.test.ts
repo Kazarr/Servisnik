@@ -266,7 +266,7 @@ test('the migration gives the ŠPZ of the vehicles that exist before it the form
   }
 
   // The file's own UPDATE, as the migrator runs it.
-  const migration = readFileSync(new URL('../drizzle/0005_vehicle_details.sql', import.meta.url), 'utf8');
+  const migration = readFileSync(new URL('../drizzle/0006_vehicle_details.sql', import.meta.url), 'utf8');
   const normalise = migration.split('--> statement-breakpoint').find((statement) => statement.includes('UPDATE "vehicle"'));
   await ctx.db.execute(sql.raw(normalise!.replace(/^--.*$/gm, '')));
 
