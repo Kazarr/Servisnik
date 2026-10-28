@@ -40,8 +40,8 @@ const id = '3f0c8c1e-6a52-4a39-9c52-0d4a4b6c1f10';
 const formRefused = expect.objectContaining({ errors: { form: forbiddenMessage } });
 
 /**
- * One row per Server Action that uses the DAL, sent with a form that would succeed for an admin, and
- * what it answers a mechanik. A new action needs its row, or the first test fails.
+ * One row per Server Action the DAL can refuse a mechanik, sent with a form that would succeed for an
+ * admin, and what it answers him. A new action needs its row, or the first test fails.
  */
 const actions = {
   addCustomer: { call: () => customerActions.addCustomer(null, form({ type: 'person', name: 'Ján Novák' })), answer: formRefused },
@@ -64,15 +64,18 @@ const actions = {
 
 // Every actions.ts under app/(app), found by the file system rather than listed, so that a new one is not missed.
 const actionFiles = import.meta.glob<Record<string, unknown>>('../src/app/[(]app[)]/**/actions.ts', { eager: true });
-/** Server Actions that read and write no data of the DAL, so the Rola cannot refuse them: signOut ends the session. */
-const withoutDal = ['signOut'];
+/**
+ * Server Actions the DAL does not refuse a mechanik: signOut uses no DAL, and changePassword needs
+ * `password.change`, which is on the mechanik's list.
+ */
+const notRefusedToMechanik = ['signOut', 'changePassword'];
 
-test('the table has a row for every Server Action of every actions.ts under app/(app) that uses the DAL, and for nothing else', () => {
+test('the table has a row for every Server Action of every actions.ts under app/(app) that the DAL can refuse a mechanik, and for nothing else', () => {
   expect(Object.keys(actionFiles).length).toBeGreaterThan(0);
 
   const exported = Object.values(actionFiles).flatMap((module) => Object.keys(module));
 
-  expect(exported.filter((name) => !withoutDal.includes(name)).sort()).toEqual(Object.keys(actions).sort());
+  expect(exported.filter((name) => !notRefusedToMechanik.includes(name)).sort()).toEqual(Object.keys(actions).sort());
 });
 
 test.each(Object.entries(actions))('%s answers a mechanik with the message and reads and writes nothing', async (_name, { call, answer }) => {
