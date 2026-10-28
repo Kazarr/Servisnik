@@ -3,7 +3,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
-import { addLabour, createWorkOrder, markWorkOrderDone } from '../../../dal/work-orders.ts';
+import { addItem, createWorkOrder, markWorkOrderDone } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
@@ -53,7 +53,7 @@ export async function addLabourToWorkOrder(_state: LabourFormState, formData: Fo
     vatRate: field(formData, 'vatRate'),
   };
 
-  const result = await orForbidden(addLabour(user, workOrderId, values));
+  const result = await orForbidden(addItem(user, workOrderId, { kind: 'labour', ...values }));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     const { workOrder, name, quantity, unitPrice, vatRate } = result.errors;

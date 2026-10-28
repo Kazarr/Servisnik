@@ -43,6 +43,13 @@
       "when": 1793192548312,
       "tag": "0005_workshop_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793198099769,
+      "tag": "0006_work_order_item_part",
+      "breakpoints": true
     }
   ]
 }
