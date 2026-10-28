@@ -28,7 +28,7 @@ test("a customer's detail lists the Zákazky made for them, and a Zákazka of an
   await expect(main.locator('h1')).toHaveText(mine.customerName);
   await expect(main.getByRole('heading', { name: 'Zákazky', exact: true })).toBeVisible();
   const ownRow = main.getByRole('row', { name: new RegExp(mine.number) });
-  await expect(ownRow.getByRole('cell')).toHaveText([mine.number, mine.customerName, new RegExp(mine.vin), 'Prijatá']);
+  await expect(ownRow.getByRole('cell')).toHaveText([mine.number, mine.customerName, new RegExp(mine.vin), 'Prijatá', '']);
   await expect(main).not.toContainText(foreign.number);
 
   // The vehicle and the Zákazka open from here.
@@ -42,7 +42,7 @@ test("a customer's detail lists the Zákazky made for them, and a Zákazka of an
   await page.goto(`/zakaznici/${otherId}`);
   await expect(main.locator('h1')).toHaveText(otherName);
   const foreignRow = main.getByRole('row', { name: new RegExp(foreign.number) });
-  await expect(foreignRow.getByRole('cell')).toHaveText([foreign.number, otherName, new RegExp(mine.vin), 'Prijatá']);
+  await expect(foreignRow.getByRole('cell')).toHaveText([foreign.number, otherName, new RegExp(mine.vin), 'Prijatá', '']);
   await expect(main).not.toContainText(mine.number);
   await expect(main).toContainText('Zatiaľ žiadne vozidlo.');
 });

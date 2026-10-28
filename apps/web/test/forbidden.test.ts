@@ -60,6 +60,10 @@ const actions = {
     call: () => workOrderActions.addWorkOrder(null, form({ vehicleId: id, customerId: id, mileageKm: '1', customerRequest: 'Brzdy' })),
     answer: formRefused,
   },
+  editWorkOrder: {
+    call: () => workOrderActions.editWorkOrder(null, form({ id, mileageKm: '1', customerRequest: 'Brzdy', deadline: '2026-12-01', note: 'Poznámka' })),
+    answer: formRefused,
+  },
   addItemToWorkOrder: {
     call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', unitPrice: '10', vatRate: '23' })),
     answer: formRefused,
