@@ -61,6 +61,10 @@ const actions = {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),
     answer: formRefused,
   },
+  saveWorkshopDetailsAction: {
+    call: () => settingsActions.saveWorkshopDetailsAction(null, form({ name: 'Autoservis Novák', vatPayerType: 'nonPayer' })),
+    answer: formRefused,
+  },
 };
 
 // Every actions.ts under app/(app), found by the file system rather than listed, so that a new one is not missed.
