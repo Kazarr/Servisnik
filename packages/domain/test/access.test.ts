@@ -26,10 +26,19 @@ describe('Prístup', () => {
     expect(can('admin', unknown)).toBe(true);
   });
 
-  test('the mechanik may do only what is on his list: the list of Zákazky, printing the zákazkový list, changing his own password and reading the details and logo of the autoservis for print', () => {
+  test('the mechanik may do only what is on his list: the list of Zákazky, reading a Zákazka without prices, printing the zákazkový list, changing his own password and reading the details and logo of the autoservis for print', () => {
     const allowed = capabilities.filter((capability) => can('mechanik', capability));
 
-    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.job-sheet', 'work-orders.list', 'workshop.read']);
+    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.job-sheet', 'work-orders.list', 'work-orders.read-unpriced', 'workshop.read']);
+  });
+
+  // The detail of a Zákazka has two reads: the admin's with prices and the mechanik's without them (spec #95, Mechanik; ledger question 11 keeps him from changing it).
+  test('the mechanik reads a Zákazka without its prices and still neither reads it with them nor changes it', () => {
+    expect(capabilities).toContain('work-orders.read-unpriced');
+    expect(can('admin', 'work-orders.read-unpriced')).toBe(true);
+    expect(can('mechanik', 'work-orders.read-unpriced')).toBe(true);
+    expect(can('mechanik', 'work-orders.read')).toBe(false);
+    expect(can('mechanik', 'work-orders.write')).toBe(false);
   });
 
   // The zákazkový list has no price (spec #95, Mechanik): he prints it for the car, but still reads and changes no Zákazka.
