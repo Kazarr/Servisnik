@@ -19,9 +19,10 @@ export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoic
 
 /**
  * The one lock of a Zákazka: its items change only while it is Rozpracovaná, because from Hotová on an
- * invoice is made from them. `addLabour` checks it under the row lock; every later write of an item, the
- * discount or the header (kilometres, request, deadline, note) must call `canEdit` the same way, since a
- * hidden button is not enough. Hotová stays locked until ledger question 9 is answered.
+ * invoice is made from them. `lockForItems` of the Data Access Layer checks it under the row lock for
+ * `addItem`, `updateItem` and `deleteItem`; every later write of the discount or the header (kilometres,
+ * request, deadline, note) must call `canEdit` the same way, since a hidden button is not enough. Hotová
+ * stays locked until ledger question 9 is answered.
  */
 export const canEdit = (status: WorkOrderStatus): boolean => isActive(status);
 
