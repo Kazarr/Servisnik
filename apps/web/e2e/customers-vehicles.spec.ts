@@ -1,11 +1,10 @@
-import { randomBytes, randomInt } from 'node:crypto';
-import { addCustomer, endSessionBehindThePage, expect, signIn, test } from './fixtures.ts';
+import { randomBytes } from 'node:crypto';
+import { addCustomer, endSessionBehindThePage, expect, newIco, signIn, test } from './fixtures.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
-// An IČO is unique and all specs share one database, so each run takes its own.
-const ico = String(randomInt(10_000_000, 100_000_000));
 
 test('the admin adds a company and its vehicle, and a second vehicle with the same VIN is refused', async ({ page }) => {
+  const ico = newIco();
   await signIn(page);
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
   await page.getByRole('link', { name: 'Pridať zákazníka' }).click();

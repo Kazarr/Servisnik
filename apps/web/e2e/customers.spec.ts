@@ -1,9 +1,6 @@
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { addCustomer, expect, signIn, test } from './fixtures.ts';
-
-/** All specs share one database and an IČO is unique, so every run takes its own. */
-const newIco = () => String(randomInt(10_000_000, 100_000_000));
+import { addCustomer, expect, newIco, signIn, test } from './fixtures.ts';
 
 const save = (page: Page) => page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
 
@@ -68,12 +65,7 @@ test('the admin adds a firma with only a name and an IČO, and two customers wit
   const name = `Ján Novák ${tag}`;
   await signIn(page);
 
-  await page.goto('/zakaznici/novy');
-  await page.getByLabel('Firma', { exact: true }).check();
-  await page.getByLabel('Názov').fill(name);
-  await page.getByLabel('IČO', { exact: true }).fill(newIco());
-  await save(page);
-  await expect(page.locator('main h1')).toHaveText(name);
+  await addCustomer(page, name, 'Firma');
   const company = page.url();
 
   await addCustomer(page, name);
@@ -88,10 +80,14 @@ test('the admin edits a customer, and a firma changed to an osoba loses its IČO
   const main = page.locator('main');
   const field = (label: string) => page.getByLabel(label, { exact: true });
   await signIn(page);
-  await page.goto('/zakaznici/novy');
-  await field('Firma').check();
-  await page.getByLabel('Názov').fill(oldName);
-  await field('IČO').fill(ico);
+  await addCustomer(page, oldName, 'Firma', ico);
+
+  // An edit starts from what is saved, and adds the rest of the firma.
+  await main.getByRole('link', { name: 'Upraviť' }).click();
+  await expect(main.locator('h1')).toHaveText('Upraviť zákazníka');
+  await expect(field('Firma')).toBeChecked();
+  await expect(page.getByLabel('Názov')).toHaveValue(oldName);
+  await expect(field('IČO')).toHaveValue(ico);
   await field('DIČ').fill('2020123456');
   await field('IČ DPH').fill('SK2020123456');
   await field('Telefón').fill('0905 123 456');
@@ -101,10 +97,6 @@ test('the admin edits a customer, and a firma changed to an osoba loses its IČO
   for (const shown of [ico, '2020123456', 'SK2020123456', '0905 123 456', 'Platí v hotovosti']) await expect(main).toContainText(shown);
 
   await main.getByRole('link', { name: 'Upraviť' }).click();
-  await expect(main.locator('h1')).toHaveText('Upraviť zákazníka');
-  await expect(field('Firma')).toBeChecked();
-  await expect(page.getByLabel('Názov')).toHaveValue(oldName);
-  await expect(field('IČO')).toHaveValue(ico);
   await expect(field('IČ DPH')).toHaveValue('SK2020123456');
   await expect(field('Poznámka')).toHaveValue('Platí v hotovosti');
 
@@ -118,10 +110,5 @@ test('the admin edits a customer, and a firma changed to an osoba loses its IČO
   for (const gone of [ico, '2020123456', 'SK2020123456']) await expect(main).not.toContainText(gone);
 
   // The IČO is free again.
-  await page.goto('/zakaznici/novy');
-  await field('Firma').check();
-  await page.getByLabel('Názov').fill(`Nová Firma ${tag}`);
-  await field('IČO').fill(ico);
-  await save(page);
-  await expect(main.locator('h1')).toHaveText(`Nová Firma ${tag}`);
+  await addCustomer(page, `Nová Firma ${tag}`, 'Firma', ico);
 });
