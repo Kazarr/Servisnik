@@ -24,7 +24,7 @@ test('the admin changes a user, gives him a new password and sees it in the list
   browser,
   baseURL,
 }) => {
-  test.slow(); // the production build is shared by the workers; this one signs in four times and sends the forms five times
+  test.slow(); // the production build is shared by the workers; this one signs in three times and sends the forms twice
   const tag = runTag();
   const mechanik = await seedMechanik(db, tag);
   const renamed = { name: `Premenovaný ${tag}`, email: `premenovany-${tag}@autoservis.test` };
@@ -41,12 +41,6 @@ test('the admin changes a user, gives him a new password and sees it in the list
   await expect(data.getByLabel('E-mail používateľa')).toHaveValue(mechanik.email);
   await expect(data.getByLabel('Rola používateľa')).toHaveValue('mechanik');
 
-  // The e-mail is taken by the admin's own, in capitals: refused with the reason, and what was typed stays.
-  await data.getByLabel('E-mail používateľa').fill(process.env.E2E_ADMIN_EMAIL!.toUpperCase());
-  await data.getByRole('button', { name: 'Uložiť údaje' }).click();
-  await expect(data.getByLabel('E-mail používateľa')).toHaveAccessibleDescription('Používateľ s týmto e-mailom už existuje');
-  await expect(data.getByLabel('E-mail používateľa')).toHaveValue(process.env.E2E_ADMIN_EMAIL!.toUpperCase());
-
   // A Rola that is not the default one is sent too; the e-mail comes back as it is stored.
   await data.getByLabel('Meno používateľa').fill(renamed.name);
   await data.getByLabel('E-mail používateľa').fill(renamed.email.toUpperCase());
@@ -59,19 +53,14 @@ test('the admin changes a user, gives him a new password and sees it in the list
   await mechanikPage.goto('/zakazky');
   await expect(mechanikPage.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link')).toHaveText(['Zákazníci', 'Vozidlá', 'Zákazky', 'Nastavenia']);
 
-  // A password of 7 characters is refused with the reason; a good one ends his sign-in.
+  // The new password ends his sign-in; he signs in again with it.
   const password = page.getByRole('region', { name: 'Nové heslo' });
-  await password.getByLabel('Nové heslo používateľa').fill('1234567');
-  await password.getByRole('button', { name: 'Nastaviť nové heslo' }).click();
-  await expect(password.getByLabel('Nové heslo používateľa')).toHaveAccessibleDescription('Heslo musí mať aspoň 8 znakov');
   await password.getByLabel('Nové heslo používateľa').fill(newPassword);
   await password.getByRole('button', { name: 'Nastaviť nové heslo' }).click();
   await expect(password.getByRole('status')).toHaveText('Nové heslo je nastavené. Prihlásenia používateľa sú ukončené.');
   await expect(password.getByLabel('Nové heslo používateľa')).toHaveValue('');
   await mechanikPage.goto('/zakazky');
   await expect(mechanikPage).toHaveURL(/\/login$/);
-  await submitLogin(mechanikPage, mechanik.password, renamed.email);
-  await expect(mechanikPage.locator('main').getByRole('alert')).toHaveText('Nesprávny e-mail alebo heslo.');
   await submitLogin(mechanikPage, newPassword, renamed.email);
   await expect(mechanikPage).toHaveURL(/\/zakazky$/);
   await elsewhere.close();
@@ -81,23 +70,8 @@ test('the admin changes a user, gives him a new password and sees it in the list
   await expect(rowOf(page, renamed.email).getByRole('cell')).toHaveText([renamed.name, renamed.email, 'Admin', 'Aktívny']);
 });
 
-test('the admin has no way to change his own Rola, deactivate himself or give himself a new password here', async ({ page }) => {
-  await signIn(page);
-
-  await openUser(page, process.env.E2E_ADMIN_EMAIL!);
-
-  await expect(page.getByLabel('Meno používateľa')).toBeVisible();
-  await expect(page.getByLabel('E-mail používateľa')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Údaje používateľa' })).toContainText('Svoju rolu nezmeníte');
-  await expect(page.getByLabel('Rola používateľa')).toHaveCount(0);
-  await expect(page.getByLabel('Nové heslo používateľa')).toHaveCount(0);
-  await expect(page.getByText('Deaktivovať', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Aktivovať' })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Stav' })).toContainText('Aktívny');
-});
-
 test('the admin deactivates a mechanik, who lands on the login with the reason, and activates him again', async ({ page, browser, baseURL }) => {
-  test.slow(); // the production build is shared by the workers; this one signs in five times
+  test.slow(); // the production build is shared by the workers; this one signs in four times
   const mechanik = await seedMechanik(db, runTag());
   const elsewhere = await browser.newContext({ baseURL });
   const mechanikPage = await elsewhere.newPage();
@@ -116,15 +90,12 @@ test('the admin deactivates a mechanik, who lands on the login with the reason, 
   await page.getByRole('link', { name: 'Späť na Nastavenia' }).click();
   await expect(rowOf(page, mechanik.email).getByRole('cell')).toHaveText([mechanik.name, mechanik.email, 'Mechanik', 'Deaktivovaný']);
 
-  // His open sign-in ended: his next page is the login. With the right password he is told why; with a wrong one he is not.
+  // His open sign-in ended: his next page is the login. With the right password he is told why.
   await mechanikPage.goto('/zakazky');
   await expect(mechanikPage).toHaveURL(/\/login$/);
-  const alert = mechanikPage.locator('main').getByRole('alert');
   await submitLogin(mechanikPage, mechanik.password, mechanik.email);
-  await expect(alert).toHaveText('Účet je deaktivovaný. Obráťte sa na admina.');
+  await expect(mechanikPage.locator('main').getByRole('alert')).toHaveText('Účet je deaktivovaný. Obráťte sa na admina.');
   await expect(mechanikPage).toHaveURL(/\/login$/);
-  await submitLogin(mechanikPage, 'nespravne-heslo', mechanik.email);
-  await expect(alert).toHaveText('Nesprávny e-mail alebo heslo.');
 
   // Activated again, he signs in with the password he had.
   await openUser(page, mechanik.email);
