@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi, type MockInstance } from 'vitest';
+import { signInWithPassword } from '../src/app/login/sign-in.ts';
 import { createAuth } from '../src/auth.ts';
 import { changeOwnPassword, type PasswordChange } from '../src/dal/password.ts';
-import { signInWithPassword } from '../src/dal/sign-in.ts';
 import { createTestDb } from './support/db.ts';
 import { seedUser } from './support/users.ts';
 
@@ -15,6 +15,7 @@ vi.mock('next/headers.js', () => ({
   cookies: async () => ({ set: () => undefined }),
 }));
 
+const secret = 'test-secret-test-secret-test-secret-0123';
 const password = 'spravne-heslo-1234';
 const newPassword = 'nove-heslo-5678';
 const wrongPassword = 'zle-heslo-1234';
@@ -26,7 +27,7 @@ let checksCurrentPassword: MockInstance<(typeof auth.api)['changePassword']>;
 beforeAll(async () => {
   ctx = await createTestDb();
   // Better Auth limits only when NODE_ENV is production, unless told to: the tests tell it to.
-  auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123', rateLimit: { enabled: true } });
+  auth = createAuth({ db: ctx.db, secret, rateLimit: { enabled: true } });
   checksSignIn = vi.spyOn(auth.api, 'signInEmail');
   checksCurrentPassword = vi.spyOn(auth.api, 'changePassword');
 });
@@ -58,12 +59,13 @@ async function signedIn(account: { email: string }, from: Headers) {
   return withCookie;
 }
 
-const signIn = (account: { email: string }, from: Headers, withPassword = password) => signInWithPassword(from, { email: account.email, password: withPassword }, auth);
+const signIn = (account: { email: string }, from: Headers, withPassword = password) => signInWithPassword(auth, from, account.email, withPassword);
 const change = (from: Headers, input: Partial<PasswordChange> = {}) =>
   changeOwnPassword(from, { currentPassword: password, newPassword, confirmation: newPassword, ...input }, auth);
 
-const refused = { ok: false, reason: 'refused' } as const;
-const tooManyAttempts = { ok: false, reason: 'tooManyAttempts' } as const;
+// The messages are the ones the Používateľ reads, written out here and not taken from the code.
+const refused = { ok: false, message: 'Nesprávny e-mail alebo heslo.' } as const;
+const tooManyAttempts = { ok: false, message: 'Príliš veľa pokusov. Skúste to znova o chvíľu.' } as const;
 const tooManyChanges = { ok: false, errors: { form: 'tooManyAttempts' } } as const;
 
 test('the fourth attempt to sign in within 10 seconds is refused, with the right password too, and the password is not checked', async () => {
@@ -100,6 +102,21 @@ test("a client is not limited by another client's attempts", async () => {
   expect(await signIn(account, busy)).toEqual(tooManyAttempts);
 
   expect(await signIn(account, client())).toEqual({ ok: true });
+});
+
+test('the address of the client is read from the header the app is told to, not from x-forwarded-for, which a proxy fills with itself', async () => {
+  // DigitalOcean's ingress is what x-forwarded-for holds for every client, and the client is in do-connecting-ip.
+  const behindProxy = createAuth({ db: ctx.db, secret, rateLimit: { enabled: true }, clientIpHeader: 'do-connecting-ip' });
+  const account = await newUser();
+  const request = (address: string, forwardedFor = '198.51.100.1, 198.51.100.2') => new Headers({ 'x-forwarded-for': forwardedFor, 'do-connecting-ip': address });
+  const busyAddress = `203.0.113.${++counter}`;
+  for (let attempt = 0; attempt < 3; attempt++) await signInWithPassword(behindProxy, request(busyAddress), account.email, wrongPassword);
+  expect(await signInWithPassword(behindProxy, request(busyAddress), account.email, password)).toEqual(tooManyAttempts);
+
+  // A forged x-forwarded-for gives the client no new attempts.
+  expect(await signInWithPassword(behindProxy, request(busyAddress, '192.0.2.77'), account.email, password)).toEqual(tooManyAttempts);
+  // A client with another address has attempts of its own, behind the same x-forwarded-for.
+  expect(await signInWithPassword(behindProxy, request(`203.0.113.${++counter}`), account.email, password)).toEqual({ ok: true });
 });
 
 test('the fourth attempt to change the password within 10 seconds is refused, with the right current password too, and nothing is checked or changed', async () => {
