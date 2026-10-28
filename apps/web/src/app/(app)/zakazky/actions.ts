@@ -6,12 +6,13 @@ import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
 import { addLabour, changeWorkOrderStatus, createWorkOrder } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
+import { orderMessages, readOrder, type OrderFormErrors, type OrderFormValues } from './order-input.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 export type WorkOrderFormState = {
-  values: Record<'mileageKm' | 'customerRequest', string>;
-  errors: { mileageKm?: string; customerRequest?: string; form?: string };
+  values: OrderFormValues;
+  errors: OrderFormErrors & { form?: string };
 } | null;
 
 /**
@@ -21,19 +22,13 @@ export type WorkOrderFormState = {
  */
 export async function addWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
   const user = await currentUser();
-  const values = { mileageKm: field(formData, 'mileageKm'), customerRequest: field(formData, 'customerRequest') };
+  const values = readOrder(formData);
 
   const result = await orForbidden(createWorkOrder(user, { vehicleId: field(formData, 'vehicleId'), customerId: field(formData, 'customerId'), ...values }));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.vehicle || result.errors.customer) notFound();
-    return {
-      values,
-      errors: {
-        mileageKm: result.errors.mileageKm && 'Zadajte kilometre ako celé číslo, 0 alebo viac',
-        customerRequest: result.errors.customerRequest && 'Vyplňte požiadavku zákazníka',
-      },
-    };
+    return { values, errors: orderMessages(result.errors) };
   }
   redirect(`/zakazky/${result.id}`);
 }

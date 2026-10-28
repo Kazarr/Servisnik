@@ -1,9 +1,10 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field, FormError, SelectField, TextAreaField } from '../../field.tsx';
+import { FormError, SelectField } from '../../field.tsx';
 import { valueIn } from '../../form-value.ts';
 import { addWorkOrder } from '../actions.ts';
+import { OrderFields } from '../order-fields.tsx';
 
 /** The customer is the vehicle's owner unless another is chosen. */
 export function WorkOrderForm({ vehicleId, ownerId, customers }: { vehicleId: string; ownerId: string; customers: { id: string; name: string }[] }) {
@@ -21,16 +22,7 @@ export function WorkOrderForm({ vehicleId, ownerId, customers }: { vehicleId: st
           </option>
         ))}
       </SelectField>
-      <Field
-        label="Kilometre pri príjme"
-        name="mileageKm"
-        inputMode="numeric"
-        autoComplete="off"
-        defaultValue={value('mileageKm')}
-        error={state?.errors.mileageKm}
-        required
-      />
-      <TextAreaField label="Požiadavka zákazníka" name="customerRequest" rows={4} defaultValue={value('customerRequest')} error={state?.errors.customerRequest} required />
+      <OrderFields value={value} errors={state?.errors ?? {}} />
       <button type="submit" disabled={pending}>
         Uložiť zákazku
       </button>
