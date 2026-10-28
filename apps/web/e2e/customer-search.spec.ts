@@ -1,9 +1,10 @@
-import { randomBytes, randomInt } from 'node:crypto';
-import { addCustomer, expect, newIco, searchCustomers as search, signIn, test } from './fixtures.ts';
+import { randomInt } from 'node:crypto';
+import { addCustomer, expect, newIco, runTag, searchCustomers as search, signIn, test } from './fixtures.ts';
 
 test('the admin finds a customer by a part of the name, the IČO, the e-mail or the phone, however they are written', async ({ page }) => {
+  test.slow(); // two customers added through the form, then a dozen searches; under --repeat-each the workers share one server
   // All specs share one database, so every customer carries a tag and the checks look for it.
-  const tag = randomBytes(3).toString('hex');
+  const tag = runTag();
   const person = `Ján Novák ${tag}`;
   const company = `Autodoprava Kováč ${tag}`;
   const ico = newIco();
@@ -48,7 +49,7 @@ test('the admin finds a customer by a part of the name, the IČO, the e-mail or 
 
 test('the list is alphabetical, 25 to a page, and the pages of a search stay in the search', async ({ page }) => {
   test.slow(); // 26 customers are added through the form
-  const tag = randomBytes(3).toString('hex');
+  const tag = runTag();
   const names = Array.from({ length: 26 }, (_, i) => `Pager ${tag} ${String(i + 1).padStart(2, '0')}`);
   const main = page.locator('main');
   const rows = main.getByRole('link', { name: tag });
