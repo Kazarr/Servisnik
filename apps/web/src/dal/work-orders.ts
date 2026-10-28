@@ -3,6 +3,7 @@ import {
   canEdit,
   formatWorkOrderNumber,
   localYear,
+  mileageAtIntake,
   parseLabour,
   parseWorkOrder,
   totalsOf,
@@ -25,13 +26,17 @@ import { isUuid } from './uuid.ts';
 const rowsIfUuid = async <Row>(id: string, query: PromiseLike<Row[]>): Promise<Row[]> => (isUuid(id) ? await query : []);
 
 export type CreateWorkOrderResult =
-  | { ok: true; id: string; number: string }
+  /** `lowerMileage` is there when the kilometres are lower than the Stav km of the vehicle, which is then left as it is. */
+  | { ok: true; id: string; number: string; lowerMileage?: { vehicleMileageKm: number } }
   | { ok: false; errors: WorkOrderErrors & { vehicle?: 'unknown'; customer?: 'unknown' } };
 
 /**
  * Saves a Zákazka for a Vozidlo with the next number of the year in Europe/Bratislava. Its Zákazník is
  * `customerId`, or the Majiteľ of the vehicle now; the Zákazka keeps it from then on. The number is one
  * atomic upsert of the year's counter inside the same transaction as the Zákazka (see workOrderCounter).
+ * The kilometres at intake become the Stav km of the vehicle when higher (`mileageAtIntake`), in the same
+ * transaction; the vehicle row is locked from reading its Stav km to the commit, so two intakes at once
+ * cannot lose the higher one.
  */
 export async function createWorkOrder(
   user: User | null,
@@ -44,11 +49,21 @@ export async function createWorkOrder(
   if (!parsed.ok) return parsed;
 
   return db.transaction(async (tx) => {
-    const [found] = await rowsIfUuid(input.vehicleId, tx.select({ ownerId: vehicle.ownerId }).from(vehicle).where(eq(vehicle.id, input.vehicleId)));
+    // "No key update" is enough to serialize intakes on the vehicle, and leaves the key share lock the new Zákazka takes on it alone.
+    const [found] = await rowsIfUuid(
+      input.vehicleId,
+      tx.select({ ownerId: vehicle.ownerId, mileageKm: vehicle.mileageKm }).from(vehicle).where(eq(vehicle.id, input.vehicleId)).for('no key update'),
+    );
     if (!found) return { ok: false, errors: { vehicle: 'unknown' } };
     const customerId = input.customerId || found.ownerId;
     const [known] = await rowsIfUuid(customerId, tx.select({ id: customer.id }).from(customer).where(eq(customer.id, customerId)));
     if (!known) return { ok: false, errors: { customer: 'unknown' } };
+
+    // After every check that can refuse the Zákazka: a refusal returns, which commits, so a write before it would stay.
+    const atIntake = mileageAtIntake(found.mileageKm, parsed.workOrder.mileageKm);
+    if (atIntake.vehicleMileageKm !== found.mileageKm) {
+      await tx.update(vehicle).set({ mileageKm: atIntake.vehicleMileageKm }).where(eq(vehicle.id, input.vehicleId));
+    }
 
     const year = localYear(now);
     const [counter] = await tx
@@ -61,7 +76,8 @@ export async function createWorkOrder(
       .insert(workOrder)
       .values({ number, customerId, vehicleId: input.vehicleId, ...parsed.workOrder })
       .returning({ id: workOrder.id });
-    return { ok: true, id: saved!.id, number };
+    const lowerMileage = atIntake.lowerThanVehicle ? { lowerMileage: { vehicleMileageKm: atIntake.vehicleMileageKm } } : {};
+    return { ok: true, id: saved!.id, number, ...lowerMileage };
   });
 }
 
