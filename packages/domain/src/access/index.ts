@@ -36,7 +36,7 @@ export type Capability = (typeof capabilities)[number];
  * `work-orders.job-sheet` is printing the zákazkový list, the one form he prints (spec #95, Mechanik); the cenová ponuka
  * (`work-orders.quote`) and the odovzdávací protokol (`work-orders.handover`) are the admin's alone.
  * `work-orders.read-unpriced` is the detail of a Zákazka without a price, sum, VAT or margin: a Zákazka is read with them
- * under `work-orders.read`, which stays the admin's, and he changes nothing on it (`work-orders.write`, ledger question 11).
+ * under `work-orders.read`, which stays the admin's, and the mechanik changes nothing on it (`work-orders.write`, ledger question 11).
  */
 const mechanikCapabilities: readonly Capability[] = ['work-orders.list', 'work-orders.read-unpriced', 'work-orders.job-sheet', 'password.change', 'workshop.read'];
 
