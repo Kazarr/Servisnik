@@ -79,10 +79,10 @@ export const customersPerPage = 25;
 const contains = (column: AnyPgColumn, part: string) => sql`strpos(${column}, ${part}) > 0`;
 
 /**
- * A page of Zákazníci that match `query` (all of them when it is blank), alphabetically by name. The
- * query is a part of the name, IČO, e-mail or phone; the domain normalizes it the way the stored keys
- * are (packages/domain/src/customer). `page` counts from 1, one past the last page is the last, and
- * anything that is not a page number is the first. Admin only.
+ * A page of Zákazníci that match `query`, alphabetically by name. The query is a part of the name,
+ * IČO, e-mail or phone; the domain normalizes it the way the stored keys are (packages/domain/src/
+ * customer). A blank query has nothing to look for, so every Zákazník matches. `page` counts from 1:
+ * any page past the last is the last, and anything that is not a page number is the first. Admin only.
  */
 // ponytail: a scan of the table per search; a trigram index on the search columns if the table outgrows ~100k customers.
 export async function searchCustomers(
