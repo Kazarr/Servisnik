@@ -28,6 +28,15 @@ describe('Prístup', () => {
     expect(can('mechanik', 'vehicles.read')).toBe(false);
   });
 
+  // The rates in Nastavenia are prices (the hourly rate, the markup) and VAT: a mechanik gets none of them, and cannot change them.
+  test('the mechanik may neither read nor write Nastavenia, the admin does both', () => {
+    for (const capability of ['settings.read', 'settings.write'] as const) {
+      expect(capabilities, capability).toContain(capability);
+      expect(can('admin', capability), capability).toBe(true);
+      expect(can('mechanik', capability), capability).toBe(false);
+    }
+  });
+
   test('only the admin sees prices', () => {
     expect(canSeePrices('admin')).toBe(true);
     expect(canSeePrices('mechanik')).toBe(false);

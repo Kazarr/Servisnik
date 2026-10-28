@@ -1,8 +1,8 @@
 import { endSessionBehindThePage, expect, signIn, submitLogin, test } from './fixtures.ts';
 
-const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky'];
+const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky', 'Nastavenia'];
 
-for (const path of ['/', '/zakaznici', '/vozidla', '/zakazky']) {
+for (const path of ['/', '/zakaznici', '/vozidla', '/zakazky', '/nastavenia']) {
   test(`without a session ${path} leads to the login page`, async ({ page }) => {
     await page.goto(path);
 

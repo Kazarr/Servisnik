@@ -9,6 +9,7 @@ test('the admin sees the whole menu', () => {
     { href: '/zakaznici', label: 'Zákazníci' },
     { href: '/vozidla', label: 'Vozidlá' },
     { href: '/zakazky', label: 'Zákazky' },
+    { href: '/nastavenia', label: 'Nastavenia' },
   ]);
 });
 
