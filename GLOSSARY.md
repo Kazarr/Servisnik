@@ -123,6 +123,10 @@ _Avoid_: otvorená, aktívna
 Zákazka v stave Vyfakturovaná alebo Zrušená. Zrušená zákazka si ponechá svoje číslo.
 _Avoid_: ukončená, archivovaná
 
+**Dátum dokončenia** (`completedOn`):
+Deň, keď zákazka prešla do stavu Hotová, podľa kalendára v Europe/Bratislava.
+_Avoid_: delivery date
+
 **Termín** (`deadline`):
 Deň, do ktorého autoservis zákazníkovi sľúbil vozidlo opraviť. Rozpracovaná zákazka po termíne je oneskorená.
 _Avoid_: dátum odovzdania, splatnosť (tá patrí faktúre)

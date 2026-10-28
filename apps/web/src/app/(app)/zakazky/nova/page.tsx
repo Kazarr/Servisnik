@@ -7,7 +7,7 @@ import { WorkOrderForm } from './work-order-form.tsx';
 
 export const metadata: Metadata = { title: 'Nová zákazka' };
 
-/** A work order is opened from a vehicle's detail: `?vozidlo=<id>` names the Vozidlo. */
+/** A work order is added from a vehicle's detail: `?vozidlo=<id>` names the Vozidlo. */
 export default async function NewWorkOrderPage({ searchParams }: { searchParams: Promise<{ vozidlo?: string | string[] }> }) {
   const user = await currentUserWith('work-orders.write');
   const { vozidlo } = await searchParams;

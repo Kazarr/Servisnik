@@ -158,7 +158,7 @@ export const workOrder = pgTable(
     mileageKm: integer('mileage_km').notNull(),
     customerRequest: text('customer_request').notNull(),
     status: workOrderStatus('status').notNull().default('received'),
-    /** The delivery date, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
+    /** The Dátum dokončenia, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
     completedOn: date('completed_on', { mode: 'string' }),
     ...timestamps,
   },

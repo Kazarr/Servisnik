@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode } from 'react';
 
-type Common = { label: string; name: string; error?: ReactNode };
+/** What every kind of field takes besides the props of its own control. */
+type FieldProps = { label: string; name: string; error?: ReactNode };
 
 /** The reason a whole form was refused, above its fields. */
 export function FormError({ message }: { message?: string }) {
@@ -12,7 +13,7 @@ export function FormError({ message }: { message?: string }) {
 }
 
 /** A label above a control, and below it the reason the value was refused, tied to the control so a screen reader reads both. */
-function Shell({ label, name, error, children }: Common & { children: ReactNode }) {
+function FieldFrame({ label, name, error, children }: FieldProps & { children: ReactNode }) {
   return (
     <div className="field">
       <label htmlFor={name}>{label}</label>
@@ -26,35 +27,36 @@ function Shell({ label, name, error, children }: Common & { children: ReactNode 
   );
 }
 
-const describedBy = (name: string, error?: ReactNode) => ({
+/** What a control gets from its frame: the `id` the label points at, and the marks that tie it to its error. */
+const controlAttributes = (name: string, error?: ReactNode) => ({
   id: name,
   'aria-invalid': error ? true : undefined,
   'aria-describedby': error ? `${name}-error` : undefined,
 });
 
 /** A labelled input with the reason it was refused tied to it, so a screen reader reads both. */
-export function Field({ label, error, ...input }: Common & ComponentProps<'input'>) {
+export function Field({ label, error, ...input }: FieldProps & ComponentProps<'input'>) {
   return (
-    <Shell label={label} name={input.name} error={error}>
-      <input {...describedBy(input.name, error)} {...input} />
-    </Shell>
+    <FieldFrame label={label} name={input.name} error={error}>
+      <input {...controlAttributes(input.name, error)} {...input} />
+    </FieldFrame>
   );
 }
 
 /** Like Field, for text that runs over several lines. */
-export function TextAreaField({ label, error, ...textarea }: Common & ComponentProps<'textarea'>) {
+export function TextAreaField({ label, error, ...textarea }: FieldProps & ComponentProps<'textarea'>) {
   return (
-    <Shell label={label} name={textarea.name} error={error}>
-      <textarea {...describedBy(textarea.name, error)} {...textarea} />
-    </Shell>
+    <FieldFrame label={label} name={textarea.name} error={error}>
+      <textarea {...controlAttributes(textarea.name, error)} {...textarea} />
+    </FieldFrame>
   );
 }
 
 /** Like Field, for a choice from `children` (the options). */
-export function SelectField({ label, error, ...select }: Common & ComponentProps<'select'>) {
+export function SelectField({ label, error, ...select }: FieldProps & ComponentProps<'select'>) {
   return (
-    <Shell label={label} name={select.name} error={error}>
-      <select {...describedBy(select.name, error)} {...select} />
-    </Shell>
+    <FieldFrame label={label} name={select.name} error={error}>
+      <select {...controlAttributes(select.name, error)} {...select} />
+    </FieldFrame>
   );
 }

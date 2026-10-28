@@ -3,7 +3,7 @@ import {
   amountsOf,
   canAddItems,
   formatWorkOrderNumber,
-  isOpen,
+  isClosed,
   localDate,
   localYear,
   parseLabour,
@@ -62,7 +62,7 @@ describe('status transitions', () => {
   const every = workOrderStatuses.flatMap((from) => workOrderStatuses.flatMap((to) => triggers.map((by) => [from, to, by] as const)));
   const forbidden = every.filter(([from, to, by]) => !allowed.some(([f, t, b]) => f === from && t === to && b === by));
 
-  test('Prijatá becomes Hotová by the user, and the delivery date is the day in Europe/Bratislava', () => {
+  test('Prijatá becomes Hotová by the user, and the Dátum dokončenia is the day in Europe/Bratislava', () => {
     // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
     expect(transition('received', 'done', 'user', new Date('2026-12-31T23:30:00Z'))).toEqual({
       ok: true,
@@ -71,7 +71,7 @@ describe('status transitions', () => {
     });
   });
 
-  test('Hotová becomes Vyfakturovaná by the invoice, and the delivery date stays as it was', () => {
+  test('Hotová becomes Vyfakturovaná by the invoice, and the Dátum dokončenia stays as it was', () => {
     expect(transition('done', 'invoiced', 'invoice', new Date('2026-12-31T23:30:00Z'))).toEqual({ ok: true, status: 'invoiced' });
   });
 
@@ -83,18 +83,18 @@ describe('status transitions', () => {
     }
   });
 
-  test('Hotová cannot be reached again, so the delivery date is never overwritten', () => {
+  test('Hotová cannot be reached again, so the Dátum dokončenia is never overwritten', () => {
     expect(transition('done', 'done', 'user', new Date())).toEqual({ ok: false, error: 'not-allowed' });
   });
 });
 
 describe('what a status allows', () => {
   test.each([
-    ['received', true],
-    ['done', true],
-    ['invoiced', false],
-  ] as const)('%s is open: %s', (status, open) => {
-    expect(isOpen(status)).toBe(open);
+    ['received', false],
+    ['done', false],
+    ['invoiced', true],
+  ] as const)('%s is closed: %s', (status, closed) => {
+    expect(isClosed(status)).toBe(closed);
   });
 
   test.each([
@@ -108,9 +108,9 @@ describe('what a status allows', () => {
 
 // Money is whole cents and the quantity is in hundredths (150 = 1,5 h). Every expected value below
 // is worked out by hand: the exact amount, then rounded half up to the cent.
-describe('amounts of an item', () => {
-  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
+const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
 
+describe('amounts of an item', () => {
   test('1,5 h at 40 € without VAT, VAT 23 %', () => {
     expect(amountsOf(labour(150, 4000))).toEqual({ net: 6000, vat: 1380, gross: 7380 });
   });
@@ -138,8 +138,6 @@ describe('amounts of an item', () => {
 });
 
 describe('totals of a Zákazka', () => {
-  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
-
   test('a Zákazka with no item is worth nothing', () => {
     expect(totalsOf([])).toEqual({ net: 0, vat: 0, gross: 0 });
   });
@@ -162,19 +160,23 @@ describe('totals of a Zákazka', () => {
 });
 
 describe('a Zákazka as the admin types it', () => {
-  test('kilometres and the request are kept, trimmed', () => {
-    expect(parseWorkOrder({ mileageKm: '123456', customerRequest: ' Výmena oleja a filtrov ' })).toEqual({
+  test.each([
+    ['0', 0],
+    ['123456', 123456],
+    ['123 456', 123456],
+    [' 9999999 ', 9999999],
+  ])('kilometres "%s" are %i, and the Zákazka is these two values and nothing else', (typed, km) => {
+    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toEqual({
       ok: true,
-      workOrder: { mileageKm: 123456, customerRequest: 'Výmena oleja a filtrov' },
+      workOrder: { mileageKm: km, customerRequest: 'Servis' },
     });
   });
 
-  test.each([
-    ['0', 0],
-    ['123 456', 123456],
-    [' 9999999 ', 9999999],
-  ])('kilometres "%s" are %i', (typed, km) => {
-    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toMatchObject({ ok: true, workOrder: { mileageKm: km } });
+  test('the request is kept trimmed', () => {
+    expect(parseWorkOrder({ mileageKm: '0', customerRequest: ' Výmena oleja a filtrov ' })).toMatchObject({
+      ok: true,
+      workOrder: { customerRequest: 'Výmena oleja a filtrov' },
+    });
   });
 
   test.each(['', '-1', '1,5', '12a', '10000000', 'veľa'])('kilometres "%s" are refused', (typed) => {
