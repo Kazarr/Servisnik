@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
@@ -8,7 +8,7 @@ import {
   addLabour,
   createWorkOrder,
   getWorkOrder,
-  listOpenWorkOrdersOfVehicle,
+  listUnclosedWorkOrdersOfVehicle,
   listWorkOrders,
   markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
@@ -40,12 +40,12 @@ const intake = (overrides: { vehicleId?: string; customerId?: string; mileageKm?
 
 const oilChange = { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' };
 
-async function openWorkOrder(overrides: Parameters<typeof intake>[0] = {}, now = summer) {
+async function newWorkOrderId(overrides: Parameters<typeof intake>[0] = {}, now = summer) {
   return idOf(await createWorkOrder(admin, intake(overrides), ctx.db, now));
 }
 
 test('without a user every function rejects, and nothing is written', async () => {
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
   idOf(await addLabour(admin, id, oilChange, ctx.db));
   const before = { orders: await listWorkOrders(admin, ctx.db), detail: await getWorkOrder(admin, id, ctx.db) };
 
@@ -55,7 +55,7 @@ test('without a user every function rejects, and nothing is written', async () =
     markWorkOrderDone(null, id, ctx.db, summer),
     getWorkOrder(null, id, ctx.db),
     listWorkOrders(null, ctx.db),
-    listOpenWorkOrdersOfVehicle(null, vehicleId, ctx.db),
+    listUnclosedWorkOrdersOfVehicle(null, vehicleId, ctx.db),
   ];
   for (const call of rejected) await expect(call).rejects.toBeInstanceOf(UnauthenticatedError);
 
@@ -90,17 +90,17 @@ test('without a given moment the number carries the current year', async () => {
 test('a Zákazka for another customer than the owner keeps that customer', async () => {
   const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
 
-  const id = await openWorkOrder({ customerId: other });
+  const id = await newWorkOrderId({ customerId: other });
 
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ customer: { id: other, name: 'Ján Novák' } });
 });
 
 test('after the vehicle is transferred to a new owner the Zákazka stays with its customer', async () => {
   const buyer = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
 
   await ctx.db.execute(sql`update vehicle set owner_id = ${buyer} where id = ${vehicleId}`);
-  const next = await openWorkOrder();
+  const next = await newWorkOrderId();
 
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ customer: { id: ownerId, name: 'Firma s.r.o.' } });
   expect(await getWorkOrder(admin, next, ctx.db)).toMatchObject({ customer: { id: buyer, name: 'Ján Novák' } });
@@ -128,7 +128,7 @@ test('ten Zákazky created at once get ten different numbers, with no gap', asyn
 });
 
 test('the database itself refuses a second Zákazka with the same number', async () => {
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
 
   const duplicate = ctx.db.execute(sql`
     insert into work_order (number, customer_id, vehicle_id, mileage_km, customer_request)
@@ -154,7 +154,7 @@ test('a Zákazka that breaks a rule is not saved, uses up no number, and every r
 });
 
 test('work is added to a Zákazka and its amounts without VAT, VAT and with VAT are shown per item and in total', async () => {
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
 
   const first = await addLabour(admin, id, oilChange, ctx.db);
   const second = await addLabour(admin, id, { name: ' Kontrola bŕzd ', quantity: '0,25', unitPrice: '33,33', vatRate: '23' }, ctx.db);
@@ -170,7 +170,7 @@ test('work is added to a Zákazka and its amounts without VAT, VAT and with VAT 
 });
 
 test('work that breaks a rule is not added, and every reason comes back', async () => {
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
 
   const result = await addLabour(admin, id, { name: ' ', quantity: '0', unitPrice: '40,505', vatRate: '150' }, ctx.db);
 
@@ -179,10 +179,10 @@ test('work that breaks a rule is not added, and every reason comes back', async 
 });
 
 test('work is added to a Zákazka that exists and is still Prijatá, and to no other', async () => {
-  const done = await openWorkOrder();
+  const done = await newWorkOrderId();
   idOf(await addLabour(admin, done, oilChange, ctx.db));
   await markWorkOrderDone(admin, done, ctx.db, summer);
-  const invoiced = await openWorkOrder();
+  const invoiced = await newWorkOrderId();
   await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
   const before = await getWorkOrder(admin, done, ctx.db);
 
@@ -194,8 +194,8 @@ test('work is added to a Zákazka that exists and is still Prijatá, and to no o
   expect((await getWorkOrder(admin, invoiced, ctx.db))?.items).toEqual([]);
 });
 
-test('marking a Zákazka as done makes it Hotová and records the delivery date in Europe/Bratislava', async () => {
-  const id = await openWorkOrder();
+test('marking a Zákazka as done makes it Hotová and records the Dátum dokončenia in Europe/Bratislava', async () => {
+  const id = await newWorkOrderId();
 
   // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
   const result = await markWorkOrderDone(admin, id, ctx.db, new Date('2026-12-31T23:30:00Z'));
@@ -204,8 +204,8 @@ test('marking a Zákazka as done makes it Hotová and records the delivery date 
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'done', completedOn: '2027-01-01' });
 });
 
-test('a Zákazka that is already Hotová is not marked again, and its delivery date stays', async () => {
-  const id = await openWorkOrder();
+test('a Zákazka that is already Hotová is not marked again, and its Dátum dokončenia stays', async () => {
+  const id = await newWorkOrderId();
   await markWorkOrderDone(admin, id, ctx.db, new Date('2026-07-15T10:00:00Z'));
 
   const again = await markWorkOrderDone(admin, id, ctx.db, new Date('2026-07-20T10:00:00Z'));
@@ -215,7 +215,7 @@ test('a Zákazka that is already Hotová is not marked again, and its delivery d
 });
 
 test('a Vyfakturovaná Zákazka cannot be marked Hotová, and one that does not exist reads as unknown', async () => {
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
   await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${id}`);
 
   expect(await markWorkOrderDone(admin, id, ctx.db, summer)).toEqual({ ok: false, error: 'not-allowed' });
@@ -225,7 +225,7 @@ test('a Vyfakturovaná Zákazka cannot be marked Hotová, and one that does not 
 });
 
 test('a double click on "Označiť ako hotovú" marks the Zákazka once', async () => {
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
 
   const results = await Promise.all([markWorkOrderDone(admin, id, ctx.db, summer), markWorkOrderDone(admin, id, ctx.db, summer)]);
 
@@ -234,7 +234,7 @@ test('a double click on "Označiť ako hotovú" marks the Zákazka once', async 
 });
 
 test('work added while another request is marking the Zákazka as done waits for it and is then refused', async () => {
-  const id = await openWorkOrder();
+  const id = await newWorkOrderId();
   const marking = Promise.withResolvers<void>();
   const committed = Promise.withResolvers<void>();
   // The other request: its update holds the row lock until `committed` is resolved.
@@ -246,7 +246,14 @@ test('work added while another request is marking the Zákazka as done waits for
   await marking.promise;
 
   const adding = addLabour(admin, id, oilChange, ctx.db);
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // Not a timer: go on only once PostgreSQL shows a session of this database waiting for a lock.
+  await vi.waitFor(
+    async () => {
+      const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
+      expect(waiting.rows).toHaveLength(1);
+    },
+    { timeout: 10_000 },
+  );
   committed.resolve();
   await marked;
 
@@ -256,8 +263,8 @@ test('work added while another request is marking the Zákazka as done waits for
 
 test('Zákazky are listed from the newest with number, customer, vehicle and status', async () => {
   const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
-  await openWorkOrder();
-  const second = await openWorkOrder({ customerId: other });
+  await newWorkOrderId();
+  const second = await newWorkOrderId({ customerId: other });
   await markWorkOrderDone(admin, second, ctx.db, summer);
 
   const list = await listWorkOrders(admin, ctx.db);
@@ -268,22 +275,22 @@ test('Zákazky are listed from the newest with number, customer, vehicle and sta
   ]);
 });
 
-test('a vehicle lists its open Zákazky, Prijatá and Hotová, and not an invoiced one or another vehicle’s', async () => {
+test('a vehicle lists its Zákazky that are not Uzavretá, Prijatá and Hotová, and not an invoiced one or another vehicle’s', async () => {
   const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
-  const received = await openWorkOrder();
-  const done = await openWorkOrder();
+  const received = await newWorkOrderId();
+  const done = await newWorkOrderId();
   await markWorkOrderDone(admin, done, ctx.db, summer);
-  const invoiced = await openWorkOrder();
+  const invoiced = await newWorkOrderId();
   await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
-  await openWorkOrder({ vehicleId: otherVehicle });
+  await newWorkOrderId({ vehicleId: otherVehicle });
 
-  const open = await listOpenWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
+  const unclosed = await listUnclosedWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
 
-  expect(open).toEqual([
+  expect(unclosed).toEqual([
     { id: done, number: 'Z2026-0002', status: 'done' },
     { id: received, number: 'Z2026-0001', status: 'received' },
   ]);
-  expect(await listOpenWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
+  expect(await listUnclosedWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
 });
 
 test('a Zákazka that does not exist, or an id that is not one, reads as nothing', async () => {

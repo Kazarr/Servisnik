@@ -2,12 +2,13 @@
 
 import { useActionState } from 'react';
 import { Field, FormError, SelectField, TextAreaField } from '../../field.tsx';
-import { openWorkOrder } from '../actions.ts';
+import { valueIn } from '../../form-value.ts';
+import { addWorkOrder } from '../actions.ts';
 
 /** The customer is the vehicle's owner unless another is chosen. */
 export function WorkOrderForm({ vehicleId, ownerId, customers }: { vehicleId: string; ownerId: string; customers: { id: string; name: string }[] }) {
-  const [state, formAction, pending] = useActionState(openWorkOrder, null);
-  const value = (name: string) => state?.values[name];
+  const [state, formAction, pending] = useActionState(addWorkOrder, null);
+  const value = valueIn(state);
 
   return (
     <form action={formAction} className="form">
