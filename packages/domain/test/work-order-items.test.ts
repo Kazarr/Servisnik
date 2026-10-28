@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { defaultUnits, markupFromSalePrice, parseItem, parseMarkup, salePriceFromMarkup, type ItemInput } from '../src/work-order/index.ts';
+import { defaultUnits, marginOf, markupFromSalePrice, parseItem, parseMarkup, salePriceFromMarkup, type ItemInput } from '../src/work-order/index.ts';
 
 // Prirážka (GLOSSARY) is a percentage of the Nákupná cena. It is never stored: the form turns it into a
 // Predajná cena and back. It is counted in tenths of a percent (125 is 12,5 %), so no amount is a float.
@@ -216,5 +216,57 @@ describe('a Položka zákazky as the admin types it', () => {
       ok: false,
       errors: { name: 'required', quantity: 'invalid', unit: 'required', purchasePrice: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
     });
+  });
+});
+
+// Marža (GLOSSARY) is the sale without VAT less the Nákupná cena of the Diely, in euros and as a percentage of the sale.
+// Every expected value is worked out by hand; the quantity is in hundredths and a price in cents.
+describe('the Marža of a Zákazka', () => {
+  const labour = (quantityHundredths: number, unitPriceCents: number) => ({ kind: 'labour', quantityHundredths, unitPriceCents, vatRate: 23, purchasePriceCents: null }) as const;
+  const part = (quantityHundredths: number, purchasePriceCents: number | null, unitPriceCents: number) =>
+    ({ kind: 'part', quantityHundredths, unitPriceCents, vatRate: 23, purchasePriceCents }) as const;
+
+  test('a Zákazka with no Položka has no Marža and no percentage', () => {
+    expect(marginOf([])).toEqual({ purchaseNet: 0, cents: 0, percentTenths: null, partsWithoutPurchasePrice: 0 });
+  });
+
+  test('a Práca has no Nákupná cena, so the Marža of 1,5 h at 40 € is all of the 60 €, 100 %, and nothing is missing', () => {
+    expect(marginOf([labour(150, 4000)])).toEqual({ purchaseNet: 0, cents: 6000, percentTenths: 1000, partsWithoutPurchasePrice: 0 });
+  });
+
+  test('a Diel costs its quantity times its Nákupná cena: 60 € of work and 2 pieces at 12,50 € bought for 10 € leave 65 € of 85 €, 76,5 %', () => {
+    // 65 / 85 is 76,4705...: one decimal is 76,5.
+    expect(marginOf([labour(150, 4000), part(200, 1000, 1250)])).toEqual({ purchaseNet: 2000, cents: 6500, percentTenths: 765, partsWithoutPurchasePrice: 0 });
+  });
+
+  test('a Nákupná cena is rounded to cents once per item, like a Predajná cena: two items of 0,5 pieces at 0,01 € cost 2 cents, not 1', () => {
+    expect(marginOf([part(50, 1, 100), part(50, 1, 100)])).toEqual({ purchaseNet: 2, cents: 98, percentTenths: 980, partsWithoutPurchasePrice: 0 });
+  });
+
+  test('a Diel without a Nákupná cena costs 0 and is counted, a Diel bought for 0 € is not, and a Práca never is', () => {
+    const items = [labour(100, 500), part(100, null, 1000), part(100, 0, 500), part(100, 300, 700)];
+
+    expect(marginOf(items)).toEqual({ purchaseNet: 300, cents: 2400, percentTenths: 889, partsWithoutPurchasePrice: 1 });
+  });
+
+  test('two Diely without a Nákupná cena are two', () => {
+    expect(marginOf([part(100, null, 1000), part(300, null, 200)]).partsWithoutPurchasePrice).toBe(2);
+  });
+
+  test('a sale of 0 has a Marža in euros, a loss, and no percentage', () => {
+    expect(marginOf([part(100, 500, 0)])).toEqual({ purchaseNet: 500, cents: -500, percentTenths: null, partsWithoutPurchasePrice: 0 });
+  });
+
+  test('a Diel sold below its Nákupná cena is a loss, as a negative percentage', () => {
+    expect(marginOf([part(100, 1000, 800)])).toEqual({ purchaseNet: 1000, cents: -200, percentTenths: -250, partsWithoutPurchasePrice: 0 });
+  });
+
+  test('the percentage rounds a half up, 1 cent of 4,00 € is 0,25 %, so 0,3 %, and a negative half away from zero', () => {
+    expect(marginOf([part(100, 399, 400)]).percentTenths).toBe(3);
+    expect(marginOf([part(100, 401, 400)]).percentTenths).toBe(-3);
+  });
+
+  test('the percentage is of the sale without VAT, whatever the VAT rate is', () => {
+    expect(marginOf([{ ...part(100, 1000, 2000), vatRate: 0 }, { ...part(100, 1000, 2000), vatRate: 23 }]).percentTenths).toBe(500);
   });
 });
