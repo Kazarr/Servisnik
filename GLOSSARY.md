@@ -184,6 +184,10 @@ _Avoid_: mapovanie, profil importu
 Používateľ, ktorého admin deaktivoval: neprihlási sa a jeho prihlásenia sa hneď ukončia. Používateľ sa nikdy nemaže, admin ho môže znova aktivovať.
 _Avoid_: zmazaný, zablokovaný, neaktívny účet
 
+**Schopnosť** (`Capability`):
+Jedna vec, ktorú rola smie robiť, napríklad zobraziť zoznam zákaziek. `admin` smie všetky, `mechanik` len tie na svojom zozname; nová schopnosť je mechanikovi zakázaná, kým ju niekto výslovne nepovolí.
+_Avoid_: oprávnenie, právo, permission
+
 **Nastavenia** (`Settings`):
 Hodnoty pre celý autoservis, ktoré mení len admin: údaje autoservisu, logo, sadzby DPH, hodinová sadzba, prirážka na diely, používatelia a prepojenie s KROS.
 _Avoid_: konfigurácia, predvoľby

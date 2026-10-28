@@ -4,12 +4,13 @@ import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
 import { addLabour, createWorkOrder, markWorkOrderDone } from '../../../dal/work-orders.ts';
+import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 export type WorkOrderFormState = {
   values: Record<string, string>;
-  errors: { mileageKm?: string; customerRequest?: string };
+  errors: { mileageKm?: string; customerRequest?: string; form?: string };
 } | null;
 
 /**
@@ -21,7 +22,8 @@ export async function openWorkOrder(_state: WorkOrderFormState, formData: FormDa
   const user = await currentUser();
   const values = { mileageKm: field(formData, 'mileageKm'), customerRequest: field(formData, 'customerRequest') };
 
-  const result = await createWorkOrder(user, { vehicleId: field(formData, 'vehicleId'), customerId: field(formData, 'customerId'), ...values });
+  const result = await orForbidden(createWorkOrder(user, { vehicleId: field(formData, 'vehicleId'), customerId: field(formData, 'customerId'), ...values }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.vehicle || result.errors.customer) notFound();
     return {
@@ -51,7 +53,8 @@ export async function addWorkToOrder(_state: LabourFormState, formData: FormData
     vatRate: field(formData, 'vatRate'),
   };
 
-  const result = await addLabour(user, workOrderId, values);
+  const result = await orForbidden(addLabour(user, workOrderId, values));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     const { workOrder, name, quantity, unitPrice, vatRate } = result.errors;
     if (workOrder === 'unknown') notFound();
@@ -70,14 +73,18 @@ export async function addWorkToOrder(_state: LabourFormState, formData: FormData
   return null;
 }
 
+export type MarkDoneState = { error: string } | null;
+
 /**
  * Server Action of the "Označiť ako hotovú" button; it checks the session itself, like every action. A
  * second click on a Zákazka that is already Hotová changes nothing and just shows it as it is.
  */
-export async function markDone(formData: FormData) {
+export async function markDone(_state: MarkDoneState, formData: FormData): Promise<MarkDoneState> {
   const user = await currentUser();
   const id = field(formData, 'workOrderId');
-  const result = await markWorkOrderDone(user, id);
+  const result = await orForbidden(markWorkOrderDone(user, id));
+  if (result === 'forbidden') return { error: forbiddenMessage };
   if (!result.ok && result.error === 'unknown') notFound();
   revalidatePath(`/zakazky/${id}`);
+  return null;
 }

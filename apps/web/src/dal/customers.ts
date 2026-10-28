@@ -2,7 +2,7 @@ import { parseCustomer, type CustomerErrors, type CustomerInput } from '@servisn
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
-import { assertAdmin, type User } from './user.ts';
+import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
 /** What the domain finds wrong, or an IČO that another Firma already has. */
@@ -34,7 +34,7 @@ export async function createCustomer(
   input: CustomerInput,
   db: Database = getDb(),
 ): Promise<CreateCustomerResult> {
-  assertAdmin(user);
+  assertCan(user, 'customers.write');
   const parsed = parseCustomer(input);
   if (!parsed.ok) return parsed;
   try {
@@ -52,7 +52,7 @@ export async function updateCustomer(
   input: CustomerInput,
   db: Database = getDb(),
 ): Promise<UpdateCustomerResult> {
-  assertAdmin(user);
+  assertCan(user, 'customers.write');
   const parsed = parseCustomer(input);
   if (!parsed.ok) return parsed;
   if (!isUuid(id)) return { ok: false, errors: { customer: 'unknown' } };
@@ -66,13 +66,13 @@ export async function updateCustomer(
 
 /** Every Zákazník, newest first. */
 export async function listCustomers(user: User | null, db: Database = getDb()) {
-  assertAdmin(user);
+  assertCan(user, 'customers.read');
   return db.select().from(customer).orderBy(desc(customer.createdAt));
 }
 
 /** One Zákazník with the Vozidlá they own (newest first), or null when there is none with this id. */
 export async function getCustomer(user: User | null, id: string, db: Database = getDb()) {
-  assertAdmin(user);
+  assertCan(user, 'customers.read');
   if (!isUuid(id)) return null;
   const [found] = await db.select().from(customer).where(eq(customer.id, id));
   if (!found) return null;
