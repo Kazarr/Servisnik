@@ -62,7 +62,10 @@ const calls: Record<string, Call> = {
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
   // The list reads the database it is given; the creation goes through Better Auth, which has the real database of the test, so only what it wrote shows (`everything`).
   listUsers: (user, db) => users.listUsers(user, db),
+  getUser: (user, db) => users.getUser(user, 'user-3', db),
   createUser: (user) => users.createUser(user, { name: 'Nový Mechanik', email: 'novy@autoservis.test', role: 'mechanik', password: 'pociatocne-heslo-1234' }, auth),
+  // The ones that change a user take the headers of the admin's session, which the plugin reads the session from: these carry none.
+  updateUser: (user) => users.updateUser(user, new Headers(), 'user-3', { name: 'Premenovaný', email: 'premenovany@autoservis.test', role: 'admin' }, auth),
   // Takes no user: it is the one the session in the headers names, so the row has none (the headers carry no session, as for a missing user).
   changeOwnPassword: () =>
     password.changeOwnPassword(new Headers(), { currentPassword: 'povodne-heslo-1234', newPassword: 'nove-heslo-5678', confirmation: 'nove-heslo-5678' }, auth),

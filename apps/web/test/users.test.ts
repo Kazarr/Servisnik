@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createAuth } from '../src/auth.ts';
-import { createUser, listUsers } from '../src/dal/users.ts';
+import { createUser, getUser, listUsers } from '../src/dal/users.ts';
 import { account, user } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
@@ -124,4 +124,18 @@ test('the list is ordered by name, the Slovak way, and holds the name, e-mail, R
   expect(listed.map(({ name }) => name)).toEqual(['adam', 'Branislav', 'Cyril', 'Štefan', 'Zuzana']);
   expect(listed.find(({ name }) => name === 'Cyril')).toEqual({ id: expect.any(String), name: 'Cyril', email: 'cyril@autoservis.test', role: 'mechanik', banned: true });
   expect(listed.find(({ name }) => name === 'Zuzana')).toEqual({ id: expect.any(String), name: 'Zuzana', email: 'zuzana@autoservis.test', role: 'admin', banned: false });
+});
+
+test('one user is read by his id, with what the list shows of him, and an id nobody has gives none', async () => {
+  const created = await create({ name: 'Cyril', email: 'cyril@autoservis.test' });
+  await ctx.db.update(user).set({ banned: true, banReason: 'No reason' }).where(eq(user.name, 'Cyril'));
+
+  expect(await getUser(admin, created.ok ? created.id : '', ctx.db)).toEqual({
+    id: created.ok && created.id,
+    name: 'Cyril',
+    email: 'cyril@autoservis.test',
+    role: 'mechanik',
+    banned: true,
+  });
+  expect(await getUser(admin, 'nikto', ctx.db)).toBeNull();
 });
