@@ -1,5 +1,5 @@
-import type { Locator, Page } from '@playwright/test';
-import { addCustomer, addVehicleAndOpen, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
+import type { Page } from '@playwright/test';
+import { addCustomer, addVehicleAndOpen, detail, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
 
 /** Today in Europe/Bratislava as the app writes it, e.g. "26. 10. 2026". */
 const today = () => new Date().toLocaleDateString('sk-SK', { timeZone: 'Europe/Bratislava' });
@@ -26,9 +26,6 @@ async function numberOnTheDetail(page: Page) {
 
 /** The running number of a work order number, e.g. 12 for "Z2026-0012". */
 const sequenceOf = (number: string) => Number(number.split('-')[1]);
-
-/** The value next to a label in the detail list of a page. */
-const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
 async function addLabour(page: Page, fields: { name: string; quantity: string; unitPrice: string }) {
   await page.getByLabel('Názov', { exact: true }).fill(fields.name);

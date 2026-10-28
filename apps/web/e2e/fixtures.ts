@@ -1,4 +1,4 @@
-import { expect, test as base, type Browser, type Page } from '@playwright/test';
+import { expect, test as base, type Browser, type Locator, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
 import { watchPage } from './watch-page.ts';
 
@@ -105,6 +105,9 @@ export const searchCustomers = (page: Page, text: string) => searchList(page, 'H
 
 /** Searches the list of vehicles for `text` (see searchList). */
 export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);
+
+/** The value next to a label in the detail list of a page. */
+export const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
 export async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {

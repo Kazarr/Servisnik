@@ -33,6 +33,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
   await expect(row.getByRole('cell')).toHaveText([order.number, order.customerName, new RegExp(order.vin), 'Prijatá']);
   await expect(row.getByRole('link')).toHaveCount(0);
   await expect(main).not.toContainText('€');
+  await expect(main.getByRole('link', { name: 'Nová zákazka' })).toHaveCount(0);
 
   const elsewhere = [
     '/zakaznici',
@@ -44,7 +45,11 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/vozidla/novy?zakaznik=${order.customerId}`,
     `/vozidla/${order.vehicleId}`,
     `/vozidla/${order.vehicleId}/upravit`,
+    '/zakazky/nova',
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
+    '/zakazky/nova/nove-vozidlo',
+    `/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`,
+    '/zakazky/nova/nove-vozidlo?novy=zakaznik',
     `/zakazky/${order.orderId}`,
     '/nastavenia',
   ];
@@ -77,6 +82,13 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await orderPage.goto(`/zakazky/nova?vozidlo=${order.vehicleId}`);
   await orderPage.getByLabel('Kilometre pri príjme').fill('500');
   await orderPage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
+  const intakePage = await context.newPage();
+  await intakePage.goto(`/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`);
+  await intakePage.getByLabel('VIN').fill(vinOf(tag, 'YYY00000000'));
+  await intakePage.getByLabel('Značka').fill('Škoda');
+  await intakePage.getByLabel('Model').fill('Fabia');
+  await intakePage.getByLabel('Kilometre pri príjme').fill('500');
+  await intakePage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
   const detailPage = await context.newPage();
   await detailPage.goto(`/zakazky/${order.orderId}`);
   await detailPage.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
@@ -103,6 +115,9 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(editPage.locator('main').getByRole('alert')).toHaveText(message);
   await orderPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(orderPage.locator('main').getByRole('alert')).toHaveText(message);
+  await intakePage.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await expect(intakePage.locator('main').getByRole('alert')).toHaveText(message);
+  await expect(intakePage.getByLabel('Model')).toHaveValue('Fabia');
   await detailPage.getByRole('button', { name: 'Pridať prácu' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText(message);
   await detailPage.getByRole('button', { name: 'Označiť ako hotovú' }).click();

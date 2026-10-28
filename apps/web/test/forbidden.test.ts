@@ -52,6 +52,22 @@ const actions = {
     call: () => workOrderActions.addWorkOrder(null, form({ vehicleId: id, customerId: id, mileageKm: '1', customerRequest: 'Brzdy' })),
     answer: formRefused,
   },
+  addIntake: {
+    call: () =>
+      workOrderActions.addIntake(
+        null,
+        form({
+          'customer.type': 'person',
+          'customer.name': 'Ján Novák',
+          'vehicle.vin': 'TMBZZZ5JZ3W000101',
+          'vehicle.make': 'Škoda',
+          'vehicle.model': 'Octavia',
+          mileageKm: '1',
+          customerRequest: 'Brzdy',
+        }),
+      ),
+    answer: formRefused,
+  },
   addLabourToWorkOrder: {
     call: () => workOrderActions.addLabourToWorkOrder(null, form({ workOrderId: id, name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' })),
     answer: formRefused,
