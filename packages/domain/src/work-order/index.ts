@@ -20,9 +20,9 @@ export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoic
 /**
  * The one lock of a Zákazka: its items change only while it is Rozpracovaná, because from Hotová on an
  * invoice is made from them. `lockForItems` of the Data Access Layer checks it under the row lock for
- * `addItem`, `updateItem` and `deleteItem`; every later write of the discount or the header (kilometres,
- * request, deadline, note) must call `canEdit` the same way, since a hidden button is not enough. Hotová
- * stays locked until ledger question 9 is answered.
+ * every way of adding an item (`addItem`, `addItemFromPriceList`), `updateItem` and `deleteItem`; every
+ * later write of the discount or the header (kilometres, request, deadline, note) must call `canEdit`
+ * the same way, since a hidden button is not enough. Hotová stays locked until ledger question 9 is answered.
  */
 export const canEdit = (status: WorkOrderStatus): boolean => isActive(status);
 
@@ -179,6 +179,13 @@ function parseDay(typed: string): string | null {
   const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   return parsed.toISOString().slice(0, 10) === day ? day : null;
 }
+/**
+ * The Sadzby DPH an item that is edited may choose from: those of Nastavenia, and after them the one the item already
+ * has when they no longer offer it, so that an old item can still be edited. A rate any other than these is refused.
+ */
+export const vatRatesKeeping = (vatRates: readonly number[], vatRate: number): number[] =>
+  vatRates.includes(vatRate) ? [...vatRates] : [...vatRates, vatRate];
+
 /** What `marginOf` needs of an item: what it sells for, and what a Diel was bought for. */
 export type Costed = Priced & { kind: ItemKind; purchasePriceCents: number | null };
 

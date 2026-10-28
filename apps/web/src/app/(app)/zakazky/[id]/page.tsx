@@ -1,3 +1,4 @@
+import { can } from '@servisnik/domain/access';
 import { canEdit, userTransitions } from '@servisnik/domain/work-order';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -6,16 +7,25 @@ import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getRates } from '../../../../dal/settings.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
 import { formatDate, formatEuro, formatPartCount, formatPercent, formatQuantity, formatWhole } from '../../../../format.ts';
+import { first, pageOf } from '../../search-params.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { DeleteItemForm } from './delete-item-form.tsx';
 import { ItemForm } from './item-form.tsx';
+import { PriceListSearch } from './price-list-search.tsx';
 import { StatusForm } from './status-form.tsx';
 
 export const metadata: Metadata = { title: 'Zákazka' };
 
-export default async function WorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WorkOrderPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ q?: string | string[]; strana?: string | string[] }>;
+}) {
   const user = await currentUserWith('work-orders.read');
   const order = await getWorkOrder(user, (await params).id);
+  const { q, strana } = await searchParams;
   if (!order) notFound();
   const transitions = userTransitions(order.status);
   const rates = canEdit(order.status) ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
@@ -84,7 +94,7 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
       ) : (
         <>
           <div className="table-wrap">
-            <table>
+            <table aria-label="Položky zákazky">
               <thead>
                 <tr>
                   <th scope="col">Kód</th>
@@ -161,6 +171,7 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
 
       {rates && (
         <>
+          {can(user.role, 'price-list.read') && <PriceListSearch user={user} workOrderId={order.id} query={first(q)} page={pageOf(strana)} />}
           <h2>Pridať prácu</h2>
           <ItemForm rates={rates} target={{ workOrderId: order.id, kind: 'labour' }} />
           <h2>Pridať diel</h2>

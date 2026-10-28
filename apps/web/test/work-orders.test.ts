@@ -1,12 +1,15 @@
+import type { PriceListItemInput } from '@servisnik/domain/price-list';
 import { workOrderStatuses, type ItemInput, type WorkOrderStatus } from '@servisnik/domain/work-order';
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
+import { createPriceListItem, deletePriceListItem, updatePriceListItem } from '../src/dal/price-list.ts';
 import { UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle, transferOwnership } from '../src/dal/vehicles.ts';
 import {
   addItem,
+  addItemFromPriceList,
   changeWorkOrderStatus,
   createWorkOrder,
   deleteItem,
@@ -34,7 +37,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
+  await ctx.db.execute(sql`truncate customer, work_order_counter, price_list_item cascade`);
   await ctx.db.execute(sql`update workshop set vat_rates = '{23,19,5}', default_vat_rate = 23`); // the rates the migration starts with; some tests change them
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
@@ -110,6 +113,7 @@ test('without a user every function rejects, and nothing is written', async () =
   const rejected = [
     createWorkOrder(null, intake(), ctx.db, summer),
     addItem(null, id, oilChange, ctx.db),
+    addItemFromPriceList(null, id, randomUUID(), ctx.db),
     updateWorkOrderHeader(null, id, newHeader, ctx.db),
     updateItem(null, itemId, { name: 'Iný názov', quantity: '1', unitPrice: '1' }, ctx.db),
     deleteItem(null, itemId, ctx.db),
@@ -1044,4 +1048,183 @@ test.each([
 
   expect(changing).toEqual(refusal);
   expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ id: kept, name: 'Zostane' }]);
+});
+
+// Pridanie z cenníka: the Položka cenníka is copied onto the Zákazka, which then owes the Cenník nothing.
+
+const brake: PriceListItemInput = { kind: 'part', code: 'BR-123', name: 'Brzdová doštička', unit: 'ks', purchasePrice: '20', unitPrice: '30', vatRate: '19' };
+const labourFromList: PriceListItemInput = { kind: 'labour', name: 'Výmena oleja', unit: 'h', unitPrice: '45,50', vatRate: '23' };
+
+async function priceListItemId(input: PriceListItemInput) {
+  return idOf(await createPriceListItem(admin, input, ctx.db));
+}
+
+/** The rows of the items of every Zákazka as the database holds them, in a fixed order. */
+const storedItems = async () => (await ctx.db.execute(sql`select * from work_order_item order by id`)).rows;
+
+test('a Diel of the Cenník is added to a Zákazka as an item of quantity 1 with its kind, code, name, unit, both prices and VAT rate, and the totals and the Marža follow', async () => {
+  const id = await newWorkOrderId();
+  const fromList = await priceListItemId(brake);
+
+  const added = await addItemFromPriceList(admin, id, fromList, ctx.db);
+
+  expect(added).toEqual({ ok: true, id: expect.any(String) });
+  const order = await getWorkOrder(admin, id, ctx.db);
+  expect(order?.items).toEqual([
+    {
+      id: idOf(added),
+      workOrderId: id,
+      kind: 'part',
+      code: 'BR-123',
+      name: 'Brzdová doštička',
+      quantityHundredths: 100,
+      unit: 'ks',
+      purchasePriceCents: 2000,
+      unitPriceCents: 3000,
+      vatRate: 19,
+      createdAt: expect.any(Date),
+      updatedAt: expect.any(Date),
+      amounts: { net: 3000, vat: 570, gross: 3570 },
+    },
+  ]);
+  expect(order?.totals).toEqual({ net: 3000, vat: 570, gross: 3570 });
+  expect(order?.margin).toMatchObject({ purchaseNet: 2000, cents: 1000 });
+});
+
+test('a Práca of the Cenník is added with its hour, its price and no Nákupná cena', async () => {
+  const id = await newWorkOrderId();
+
+  await addItemFromPriceList(admin, id, await priceListItemId(labourFromList), ctx.db);
+
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([
+    { kind: 'labour', code: null, name: 'Výmena oleja', quantityHundredths: 100, unit: 'h', purchasePriceCents: null, unitPriceCents: 4550, vatRate: 23 },
+  ]);
+});
+
+test('the same item of the Cenník added twice is two items, each of quantity 1', async () => {
+  const id = await newWorkOrderId();
+  const fromList = await priceListItemId(brake);
+
+  await addItemFromPriceList(admin, id, fromList, ctx.db);
+  await addItemFromPriceList(admin, id, fromList, ctx.db);
+
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ quantityHundredths: 100 }, { quantityHundredths: 100 }]);
+});
+
+test('changing or deleting an item of the Cenník changes no Zákazka and none of its items', async () => {
+  const first = await newWorkOrderId();
+  const second = await newWorkOrderId();
+  const fromList = await priceListItemId(brake);
+  await addItemFromPriceList(admin, first, fromList, ctx.db);
+  await addItemFromPriceList(admin, second, fromList, ctx.db);
+  await addItem(admin, second, oilChange, ctx.db);
+  const before = { first: await getWorkOrder(admin, first, ctx.db), second: await getWorkOrder(admin, second, ctx.db), stored: await storedItems() };
+
+  const changed = await updatePriceListItem(admin, fromList, { code: 'XX-9', name: 'Iný názov', unit: 'sada', purchasePrice: '1', unitPrice: '2', vatRate: '5' }, ctx.db);
+  expect(changed).toEqual({ ok: true });
+  expect({ first: await getWorkOrder(admin, first, ctx.db), second: await getWorkOrder(admin, second, ctx.db), stored: await storedItems() }).toEqual(before);
+
+  expect(await deletePriceListItem(admin, fromList, ctx.db)).toEqual({ ok: true });
+  expect({ first: await getWorkOrder(admin, first, ctx.db), second: await getWorkOrder(admin, second, ctx.db), stored: await storedItems() }).toEqual(before);
+});
+
+test('a copy of an item of the Cenník is edited like any item, and the Cenník keeps its own values', async () => {
+  const id = await newWorkOrderId();
+  const fromList = await priceListItemId(brake);
+  const itemId = idOf(await addItemFromPriceList(admin, id, fromList, ctx.db));
+
+  await updateItem(admin, itemId, { name: 'Brzdová doštička predná', quantity: '2', unit: 'ks', purchasePrice: '22', unitPrice: '35', vatRate: '19' }, ctx.db);
+
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ name: 'Brzdová doštička predná', quantityHundredths: 200, unitPriceCents: 3500 }]);
+  expect((await ctx.db.execute(sql`select name, unit_price_cents from price_list_item`)).rows).toEqual([{ name: 'Brzdová doštička', unit_price_cents: 3000 }]);
+});
+
+test('an item of the Cenník with a VAT rate Nastavenia no longer offer is refused, nothing is added, and it is added once the item of the Cenník has a rate they offer', async () => {
+  const id = await newWorkOrderId();
+  const fromList = await priceListItemId({ ...brake, vatRate: '5' });
+  await ctx.db.execute(sql`update workshop set vat_rates = '{23,19}', default_vat_rate = 23`);
+  const before = await getWorkOrder(admin, id, ctx.db);
+
+  expect(await addItemFromPriceList(admin, id, fromList, ctx.db)).toEqual({ ok: false, errors: { vatRate: 'not-offered' } });
+
+  expect(await getWorkOrder(admin, id, ctx.db)).toEqual(before);
+  expect(await updatePriceListItem(admin, fromList, { ...brake, vatRate: '19' }, ctx.db)).toEqual({ ok: true });
+  expect(await addItemFromPriceList(admin, id, fromList, ctx.db)).toMatchObject({ ok: true });
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ vatRate: 19 }]);
+});
+
+test('an item of the Cenník with a rate that Nastavenia offer but do not default to is added with that rate', async () => {
+  const id = await newWorkOrderId();
+  const fromList = await priceListItemId({ ...brake, vatRate: '5' });
+
+  expect(await addItemFromPriceList(admin, id, fromList, ctx.db)).toMatchObject({ ok: true });
+
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ vatRate: 5 }]);
+});
+
+test('an item of the Cenník that does not exist, or an id that is not one, is unknown, and nothing is added', async () => {
+  const id = await newWorkOrderId();
+  const before = await getWorkOrder(admin, id, ctx.db);
+
+  for (const unknown of [randomUUID(), 'polozka-1']) {
+    expect(await addItemFromPriceList(admin, id, unknown, ctx.db)).toEqual({ ok: false, errors: { priceListItem: 'unknown' } });
+  }
+
+  expect(await getWorkOrder(admin, id, ctx.db)).toEqual(before);
+});
+
+test('a Zákazka that does not exist, or an id that is not one, is unknown', async () => {
+  const fromList = await priceListItemId(brake);
+
+  for (const unknown of [randomUUID(), 'zakazka-1']) {
+    expect(await addItemFromPriceList(admin, unknown, fromList, ctx.db)).toEqual({ ok: false, errors: { workOrder: 'unknown' } });
+  }
+});
+
+// The order of the reasons: an item that is not in the Cenník, then a VAT rate Nastavenia no longer offer, then the Zákazka.
+
+test('an item of the Cenník that does not exist is reported before the state of a Zákazka that is Hotová, and before a Zákazka that does not exist', async () => {
+  const done = await workOrderIn('done');
+
+  expect(await addItemFromPriceList(admin, done, randomUUID(), ctx.db)).toEqual({ ok: false, errors: { priceListItem: 'unknown' } });
+  expect(await addItemFromPriceList(admin, randomUUID(), randomUUID(), ctx.db)).toEqual({ ok: false, errors: { priceListItem: 'unknown' } });
+});
+
+test('a VAT rate Nastavenia no longer offer is reported before the state of a Zákazka that is Hotová', async () => {
+  const done = await workOrderIn('done');
+  const fromList = await priceListItemId({ ...brake, vatRate: '5' });
+  await ctx.db.execute(sql`update workshop set vat_rates = '{23,19}', default_vat_rate = 23`);
+
+  expect(await addItemFromPriceList(admin, done, fromList, ctx.db)).toEqual({ ok: false, errors: { vatRate: 'not-offered' } });
+});
+
+test.each([
+  ['received', true],
+  ['inProgress', true],
+  ['waitingForParts', true],
+  ['done', false],
+  ['invoiced', false],
+  ['cancelled', false],
+] as const)('an item of the Cenník is added to a Zákazka that is %s only if it is Rozpracovaná, as any item is: %s', async (status, allowed) => {
+  const id = await workOrderIn(status);
+  const fromList = await priceListItemId(brake);
+
+  const added = await addItemFromPriceList(admin, id, fromList, ctx.db);
+
+  if (allowed) expect(added).toMatchObject({ ok: true });
+  else expect(added).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toHaveLength(allowed ? 1 : 0);
+});
+
+test('an item of the Cenník added while another request is marking the Zákazka as done waits for it and is then refused', async () => {
+  const id = await newWorkOrderId();
+  const fromList = await priceListItemId(brake);
+
+  const adding = await whileHeld(
+    (tx) => tx.execute(sql`update work_order set status = 'done', completed_on = '2026-07-15' where id = ${id}`),
+    () => addItemFromPriceList(admin, id, fromList, ctx.db),
+  );
+
+  expect(adding).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toEqual([]);
 });

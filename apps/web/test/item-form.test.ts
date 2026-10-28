@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
 import { ItemForm, type EditedItem } from '../src/app/(app)/zakazky/[id]/item-form.tsx';
+import { input, options } from './support/form-markup.ts';
 
 // The page of a Zákazka is an async Server Component, which Vitest cannot run (docs/adr/0001-stack.md).
 // The form for an item is a plain component, rendered here over the rates the page hands it and the item it edits.
@@ -14,19 +15,6 @@ const addTo = (kind: 'labour' | 'part', rates: Partial<Rates> = {}) =>
   renderToStaticMarkup(createElement(ItemForm, { rates: { ...startingRates, ...rates }, target: { workOrderId: orderId, kind } }));
 const edit = (item: EditedItem, rates: Partial<Rates> = {}) =>
   renderToStaticMarkup(createElement(ItemForm, { rates: { ...startingRates, ...rates }, target: { item } }));
-
-/** The `<input>` of the field with this name, as markup, or null when the form has none. */
-function input(html: string, name: string) {
-  return new RegExp(`<input[^>]*\\sname="${name}"[^>]*>`).exec(html)?.[0] ?? null;
-}
-
-/** The options of the `<select>` of the field with this name: their values in order, and which one is selected. */
-function options(html: string, name: string) {
-  const select = new RegExp(`<select[^>]*\\sname="${name}"[^>]*>(.*?)</select>`).exec(html)?.[1];
-  if (select === undefined) throw new Error(`No select named ${name}.`);
-  const all = [...select.matchAll(/<option([^>]*)>/g)].map(([, attributes]) => attributes!);
-  return { values: all.map((attributes) => /value="([^"]*)"/.exec(attributes)![1]), selected: all.filter((attributes) => /selected/.test(attributes)).map((attributes) => /value="([^"]*)"/.exec(attributes)![1]) };
-}
 
 const oilCan: EditedItem = {
   id: '7d1c0a3e-0000-4000-8000-0000000000aa',

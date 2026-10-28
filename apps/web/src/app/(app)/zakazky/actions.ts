@@ -6,8 +6,18 @@ import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
 import type { ExistingCustomer } from '../../../dal/customers.ts';
 import type { ExistingVehicle } from '../../../dal/vehicles.ts';
-import { addItem, changeWorkOrderStatus, createIntake, createWorkOrder, deleteItem, updateItem, updateWorkOrderHeader } from '../../../dal/work-orders.ts';
+import {
+  addItem,
+  addItemFromPriceList,
+  changeWorkOrderStatus,
+  createIntake,
+  createWorkOrder,
+  deleteItem,
+  updateItem,
+  updateWorkOrderHeader,
+} from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
+import { itemMessages } from '../item-messages.ts';
 import { customerMessages, intakeCustomerPrefix, readCustomer, type CustomerFormErrors, type CustomerFormValues } from '../zakaznici/customer-input.ts';
 import { intakeVehiclePrefix, readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from '../vozidla/vehicle-input.ts';
 import { orderMessages, readOrder, type OrderFormErrors, type OrderFormValues } from './order-input.ts';
@@ -133,15 +143,7 @@ const notEditableMessage = 'Položky sa dajú meniť len na rozpracovanej zákaz
 
 /** The messages for the reasons an item was refused, at the fields; `notEditable` is the reason for the whole form. */
 function itemErrors(errors: ItemErrors, notEditable: boolean): NonNullable<ItemFormState>['errors'] {
-  return {
-    name: errors.name && 'Vyplňte názov',
-    quantity: errors.quantity && 'Množstvo musí byť väčšie ako 0, najviac na 2 desatinné miesta',
-    unit: errors.unit && 'Vyplňte jednotku',
-    purchasePrice: errors.purchasePrice && 'Nákupná cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
-    unitPrice: errors.unitPrice && 'Cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
-    vatRate: errors.vatRate && 'Vyberte sadzbu DPH zo sadzieb v Nastaveniach',
-    form: notEditable ? notEditableMessage : undefined,
-  };
+  return { ...itemMessages(errors), form: notEditable ? notEditableMessage : undefined };
 }
 
 /** Server Action of the form that adds a Práca or a Diel; it checks the session itself, like every action. */
@@ -189,6 +191,28 @@ export async function deleteItemOfWorkOrder(_state: DeleteItemState, formData: F
   if (result === 'forbidden') return { error: forbiddenMessage };
   if (!result.ok && result.error === 'not-editable') return { error: notEditableMessage };
   revalidatePath(`/zakazky/${result.ok ? result.workOrderId : field(formData, 'workOrderId')}`);
+  return null;
+}
+
+export type AddFromPriceListState = { error: string } | null;
+
+/**
+ * Server Action of the "Pridať" button of an item found in the Cenník (`priceListItemId`); it checks the session itself,
+ * like every action. The item is added as a copy of quantity 1. An item deleted from the Cenník in the meantime is
+ * told so, and a Zákazka that is no longer rozpracovaná takes none.
+ */
+export async function addPriceListItemToWorkOrder(_state: AddFromPriceListState, formData: FormData): Promise<AddFromPriceListState> {
+  const user = await currentUser();
+  const workOrderId = field(formData, 'workOrderId');
+  const result = await orForbidden(addItemFromPriceList(user, workOrderId, field(formData, 'priceListItemId')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if (result.errors.workOrder === 'unknown') notFound();
+    if (result.errors.workOrder === 'not-editable') return { error: notEditableMessage };
+    if (result.errors.vatRate) return { error: 'Sadzba DPH tejto položky cenníka už nie je v Nastaveniach. Upravte položku cenníka.' };
+    return { error: 'Položka už v cenníku nie je' };
+  }
+  revalidatePath(`/zakazky/${workOrderId}`);
   return null;
 }
 

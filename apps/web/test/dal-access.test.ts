@@ -8,6 +8,7 @@ import * as customers from '../src/dal/customers.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
+import * as priceList from '../src/dal/price-list.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
@@ -17,7 +18,18 @@ import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
-import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
+import {
+  account,
+  customer,
+  priceListItem,
+  user as userTable,
+  vehicle,
+  workOrder,
+  workOrderCounter,
+  workOrderItem,
+  workshop,
+  workshopLogo,
+} from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
@@ -36,6 +48,7 @@ let idleCustomerId: string;
 let idleVehicleId: string;
 let orderId: string;
 let itemId: string;
+let priceListItemId: string;
 beforeAll(async () => {
   ctx = await createTestDb();
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123' }); // on the real db, so that building it is not a touch of the watched one
@@ -46,6 +59,7 @@ beforeAll(async () => {
   idleVehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
   itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  priceListItemId = idOf(await priceList.createPriceListItem(admin, { kind: 'part', code: 'FIL-1', name: 'Olejový filter', purchasePrice: '5', unitPrice: '9' }, ctx.db));
   await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
@@ -85,6 +99,12 @@ const calls: Record<string, Call> = {
   addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
   updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', unitPrice: '12' }, db),
   deleteItem: (user, db) => workOrders.deleteItem(user, itemId, db),
+  addItemFromPriceList: (user, db) => workOrders.addItemFromPriceList(user, orderId, priceListItemId, db),
+  createPriceListItem: (user, db) => priceList.createPriceListItem(user, { kind: 'part', code: 'FIL-2', name: 'Vzduchový filter', unitPrice: '12' }, db),
+  updatePriceListItem: (user, db) => priceList.updatePriceListItem(user, priceListItemId, { code: 'FIL-1', name: 'Olejový filter', unitPrice: '10' }, db),
+  deletePriceListItem: (user, db) => priceList.deletePriceListItem(user, priceListItemId, db),
+  searchPriceList: (user, db) => priceList.searchPriceList(user, { query: 'filter' }, db),
+  getPriceListItem: (user, db) => priceList.getPriceListItem(user, priceListItemId, db),
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, { status: 'all', from: '2026-01-01', page: 1 }, db),
@@ -126,6 +146,7 @@ const dataAccess = {
   'customers.ts': customers,
   'logo.ts': logo,
   'password.ts': password,
+  'price-list.ts': priceList,
   'settings.ts': settings,
   'users.ts': users,
   'vehicles.ts': vehicles,
@@ -173,6 +194,7 @@ const everything = async () => ({
   vehicles: await ctx.db.select().from(vehicle),
   workOrders: await ctx.db.select().from(workOrder),
   items: await ctx.db.select().from(workOrderItem),
+  priceListItems: await ctx.db.select().from(priceListItem),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
   workshopLogo: await ctx.db.select().from(workshopLogo),

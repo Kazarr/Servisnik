@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'vitest';
-import { defaultUnits, marginOf, markupFromSalePrice, parseItem, parseMarkup, salePriceFromMarkup, type ItemInput } from '../src/work-order/index.ts';
+import {
+  defaultUnits,
+  marginOf,
+  markupFromSalePrice,
+  parseItem,
+  parseMarkup,
+  salePriceFromMarkup,
+  vatRatesKeeping,
+  type ItemInput,
+} from '../src/work-order/index.ts';
 
 // Prirážka (GLOSSARY) is a percentage of the Nákupná cena. It is never stored: the form turns it into a
 // Predajná cena and back. It is counted in tenths of a percent (125 is 12,5 %), so no amount is a float.
@@ -221,6 +230,30 @@ describe('a Položka zákazky as the admin types it', () => {
 
 // Marža (GLOSSARY) is the sale without VAT less the Nákupná cena of the Diely, in euros and as a percentage of the sale.
 // Every expected value is worked out by hand; the quantity is in hundredths and a price in cents.
+describe('the Sadzby DPH an item that is edited may choose from', () => {
+  test('the rates of Nastavenia, in their order, when the item has one of them', () => {
+    expect(vatRatesKeeping([23, 19, 5], 19)).toEqual([23, 19, 5]);
+    expect(vatRatesKeeping([23, 19, 5], 5)).toEqual([23, 19, 5]);
+  });
+
+  test('the rates of Nastavenia and, after them, the rate the item has when they no longer offer it', () => {
+    expect(vatRatesKeeping([23, 19, 5], 7)).toEqual([23, 19, 5, 7]);
+    expect(vatRatesKeeping([23], 0)).toEqual([23, 0]);
+  });
+
+  test('a rate of 0 that Nastavenia offer is not added twice', () => {
+    expect(vatRatesKeeping([23, 0], 0)).toEqual([23, 0]);
+  });
+
+  test('the list of Nastavenia is left as it is', () => {
+    const offered = [23, 19];
+
+    vatRatesKeeping(offered, 7);
+
+    expect(offered).toEqual([23, 19]);
+  });
+});
+
 describe('the Marža of a Zákazka', () => {
   const labour = (quantityHundredths: number, unitPriceCents: number) => ({ kind: 'labour', quantityHundredths, unitPriceCents, vatRate: 23, purchasePriceCents: null }) as const;
   const part = (quantityHundredths: number, purchasePriceCents: number | null, unitPriceCents: number) =>

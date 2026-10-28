@@ -1,4 +1,5 @@
 import { parseCustomer, type CustomerInput } from '@servisnik/domain/customer';
+import { workOrderItemFromPriceListItem } from '@servisnik/domain/price-list';
 import { parseVehicle, type VehicleInput } from '@servisnik/domain/vehicle';
 import {
   amountsOf,
@@ -17,12 +18,14 @@ import {
   type ItemInput,
   type WorkOrderErrors,
   type WorkOrderInput,
+  type WorkOrderItem,
   type WorkOrderStatus,
+  vatRatesKeeping,
 } from '@servisnik/domain/work-order';
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database, type Executor } from '../db/index.ts';
-import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
+import { customer, priceListItem, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
 import { createCustomer, type CustomerSaveErrors, type ExistingCustomer } from './customers.ts';
 import { pageWindow } from './paging.ts';
 import { getRates } from './settings.ts';
@@ -204,6 +207,18 @@ export type AddItemResult =
   | { ok: true; id: string }
   | { ok: false; errors: ItemErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
+/** The one place an item is added to a Zákazka, for every way of adding one: under lockForItems, so a Zákazka that is no longer Rozpracovaná takes none. */
+async function insertItem(
+  tx: Transaction,
+  workOrderId: string,
+  item: WorkOrderItem,
+): Promise<{ ok: true; id: string } | { ok: false; errors: { workOrder: 'unknown' | 'not-editable' } }> {
+  const locked = await lockForItems(tx, workOrderId);
+  if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
+  const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...item }).returning({ id: workOrderItem.id });
+  return { ok: true, id: saved!.id };
+}
+
 /**
  * Adds a Práca or a Diel to a Zákazka that is still Rozpracovaná. The item keeps the VAT rate it has now: one of the
  * rates of Nastavenia, the default one when none is given (read with getRates, so a Rola that may write work but
@@ -214,11 +229,36 @@ export async function addItem(user: User | null, workOrderId: string, input: Ite
   const parsed = parseItem(input, await getRates(user, db));
   if (!parsed.ok) return parsed;
 
+  return db.transaction((tx) => insertItem(tx, workOrderId, parsed.item));
+}
+
+export type AddItemFromPriceListResult =
+  | { ok: true; id: string }
+  | { ok: false; errors: { workOrder?: 'unknown' | 'not-editable'; priceListItem?: 'unknown'; vatRate?: 'not-offered' } };
+
+/**
+ * Adds a Položka cenníka to a Zákazka that is still Rozpracovaná, under the lock of the other adds, as an item of
+ * quantity 1 (packages/domain/src/price-list). What is added is a copy of its values and refers back to nothing, so a
+ * later change or deletion in the Cenník leaves the Zákazka as it is. An item whose VAT rate Nastavenia no longer
+ * offer is refused (`vatRate: 'not-offered'`), as a new item with that rate would be; the admin changes the rate of the
+ * item in the Cenník and adds it again. The reasons are reported in this order: the item is not in the Cenník, its VAT
+ * rate is not offered, the Zákazka is unknown or not Rozpracovaná. Reading the Cenník and Nastavenia is the admin's alone.
+ */
+export async function addItemFromPriceList(
+  user: User | null,
+  workOrderId: string,
+  priceListItemId: string,
+  db: Database = getDb(),
+): Promise<AddItemFromPriceListResult> {
+  assertCan(user, 'work-orders.write');
+  assertCan(user, 'price-list.read');
+  const { vatRates } = await getRates(user, db);
+
   return db.transaction(async (tx) => {
-    const locked = await lockForItems(tx, workOrderId);
-    if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
-    const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...parsed.item }).returning({ id: workOrderItem.id });
-    return { ok: true, id: saved!.id };
+    const [source] = await rowsIfUuid(priceListItemId, tx.select().from(priceListItem).where(eq(priceListItem.id, priceListItemId)));
+    if (!source) return { ok: false, errors: { priceListItem: 'unknown' } };
+    if (!vatRates.includes(source.vatRate)) return { ok: false, errors: { vatRate: 'not-offered' } };
+    return insertItem(tx, workOrderId, workOrderItemFromPriceListItem(source));
   });
 }
 
@@ -240,7 +280,7 @@ export async function updateItem(user: User | null, itemId: string, input: Omit<
     if (!item) return { ok: false, errors: { item: 'unknown' } };
     const locked = await lockForItems(tx, item.workOrderId);
     if (locked !== 'ok') return { ok: false, errors: locked === 'unknown' ? { item: 'unknown' } : { workOrder: locked } };
-    const parsed = parseItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: [...vatRates, item.vatRate] });
+    const parsed = parseItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: vatRatesKeeping(vatRates, item.vatRate) });
     if (!parsed.ok) return parsed;
     const [saved] = await tx.update(workOrderItem).set(parsed.item).where(eq(workOrderItem.id, itemId)).returning({ id: workOrderItem.id });
     return saved ? { ok: true, workOrderId: item.workOrderId } : { ok: false, errors: { item: 'unknown' } }; // none: deleted while this waited for the lock

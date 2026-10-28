@@ -179,6 +179,9 @@ export const searchVehicles = (page: Page, text: string) => searchList(page, 'H�
 /** The value next to a label in the detail list of a page. */
 export const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
+/** Searches the Cenník, on its own page or in the section of a Zákazka, for `text` (see searchList). */
+export const searchPriceList = (page: Page, text: string) => searchList(page, 'Hľadať v cenníku', text);
+
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
 export async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {
   const elsewhere = await browser.newContext({ baseURL });

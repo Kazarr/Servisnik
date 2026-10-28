@@ -69,6 +69,9 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(detail(main, 'Požiadavka zákazníka')).toHaveText('Výmena oleja a kontrola bŕzd');
   await expect(main).not.toContainText('Dátum dokončenia');
 
+  // A Rozpracovaná Zákazka offers the search of the Cenník beside the forms for work and parts.
+  await expect(main.getByRole('search')).toHaveCount(1);
+
   // The VAT rate starts at 23 %. A work item that is not one stays on the form, with the reason at the field.
   const labourForm = formNamed(page, 'Pridať prácu');
   await expect(labourForm.getByLabel('Sadzba DPH (%)')).toHaveValue('23');
@@ -113,8 +116,9 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(detail(main, 'Stav')).toHaveText('Hotová');
   await expect(detail(main, 'Dátum dokončenia')).toHaveText(today());
   await expect(main.getByRole('button', { name: 'Označiť ako hotovú' })).toHaveCount(0);
-  // A Hotová Zákazka offers no way to add, edit or delete an item.
+  // A Hotová Zákazka offers no way to add, edit or delete an item, and no search of the Cenník to add one from.
   await expect(main.getByRole('form')).toHaveCount(0);
+  await expect(main.getByRole('search')).toHaveCount(0);
   await expect(main.getByRole('link', { name: 'Upraviť' })).toHaveCount(0);
   await expect(main.getByRole('button', { name: /^Zmazať/ })).toHaveCount(0);
   for (const name of ['Prijatá', 'V práci', 'Čaká na diely', 'Pridať prácu', 'Pridať diel']) await expect(button(name)).toHaveCount(0);
