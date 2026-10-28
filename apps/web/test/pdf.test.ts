@@ -1,21 +1,13 @@
-import { chromium, type Browser } from 'playwright-core';
-import { afterAll, expect, test, vi } from 'vitest';
+import { afterAll, expect, test } from 'vitest';
 import { printPdf } from '../src/print/pdf.ts';
+import { watchChromium } from './support/chromium.ts';
 import { readPdf } from './support/pdf.ts';
 
 // Printing (docs/adr/0001-stack.md, spec #95 Tlačivá): Chromium turns the HTML of a form into a PDF on A4. These
 // tests print with the real Chromium; `pnpm e2e:install` fetches it, and CI does the same before `pnpm verify`.
 
-// Every Chromium the code under test starts, in order. Vitest clears the calls of a spy before each test, and
-// these tests count the launches across tests, so the spy keeps its own list.
-const launched: Browser[] = [];
-const launch = chromium.launch.bind(chromium);
-vi.spyOn(chromium, 'launch').mockImplementation(async (options) => {
-  const browser = await launch(options);
-  launched.push(browser);
-  return browser;
-});
-afterAll(() => Promise.all(launched.map((browser) => browser.close())));
+const { launched, closeAll } = watchChromium();
+afterAll(closeAll);
 
 const page = (body: string) => `<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>Skúška</title></head><body>${body}</body></html>`;
 const millimetres = (mm: number) => (mm * 72) / 25.4;
