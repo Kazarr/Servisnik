@@ -4,8 +4,12 @@ import { workOrderStatuses } from '@servisnik/domain/work-order';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
-import { addLabour, changeWorkOrderStatus, createWorkOrder } from '../../../dal/work-orders.ts';
+import type { ExistingCustomer } from '../../../dal/customers.ts';
+import type { ExistingVehicle } from '../../../dal/vehicles.ts';
+import { addLabour, changeWorkOrderStatus, createIntake, createWorkOrder } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
+import { customerMessages, intakeCustomerPrefix, readCustomer, type CustomerFormErrors, type CustomerFormValues } from '../zakaznici/customer-input.ts';
+import { intakeVehiclePrefix, readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from '../vozidla/vehicle-input.ts';
 import { orderMessages, readOrder, type OrderFormErrors, type OrderFormValues } from './order-input.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
@@ -13,6 +17,8 @@ const field = (formData: FormData, name: string) => String(formData.get(name) ??
 export type WorkOrderFormState = {
   values: OrderFormValues;
   errors: OrderFormErrors & { form?: string };
+  /** The Zákazka was saved with kilometres lower than the Stav km of its Vozidlo, which stays: the form tells so instead of leaving it. */
+  saved?: { id: string; number: string; vehicleMileageKm: number };
 } | null;
 
 /**
@@ -29,6 +35,48 @@ export async function addWorkOrder(_state: WorkOrderFormState, formData: FormDat
   if (!result.ok) {
     if (result.errors.vehicle || result.errors.customer) notFound();
     return { values, errors: orderMessages(result.errors) };
+  }
+  if (result.lowerMileage) return { values, errors: {}, saved: { id: result.id, number: result.number, ...result.lowerMileage } };
+  redirect(`/zakazky/${result.id}`);
+}
+
+export type IntakeFormState = {
+  values: { customer: CustomerFormValues; vehicle: VehicleFormValues; order: OrderFormValues };
+  errors: { form?: string; customer?: CustomerFormErrors; vehicle?: VehicleFormErrors; order?: OrderFormErrors };
+  /** The Firma that has the IČO, and the Vozidlo that has the VIN, which the form was sent with: the form links to them. */
+  existingCustomer?: ExistingCustomer;
+  existingVehicle?: ExistingVehicle;
+} | null;
+
+/**
+ * Server Action of the form of an intake with a new Vozidlo: it saves the Vozidlo, the Zákazka and, when
+ * the form has no `ownerId`, the new Zákazník whose fields it carries, all or none (createIntake). It
+ * checks the session itself, like every action. An `ownerId` that is no Zákazník is a page that does not exist.
+ */
+export async function addIntake(_state: IntakeFormState, formData: FormData): Promise<IntakeFormState> {
+  const user = await currentUser();
+  const ownerId = field(formData, 'ownerId');
+  const customer = readCustomer(formData, intakeCustomerPrefix);
+  const vehicle = readVehicle(formData, intakeVehiclePrefix);
+  const order = readOrder(formData);
+  const values = { customer: customer.values, vehicle, order };
+
+  const owner = ownerId ? { id: ownerId } : { customer: { type: customer.type, ...customer.values } };
+  const result = await orForbidden(createIntake(user, { owner, vehicle, ...order }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
+  if (!result.ok) {
+    const { owner: unknownOwner, customer: customerErrors, vehicle: vehicleErrors, workOrder } = result.errors;
+    if (unknownOwner) notFound();
+    return {
+      values,
+      errors: {
+        customer: customerErrors && customerMessages(customerErrors),
+        vehicle: vehicleErrors && vehicleMessages(vehicleErrors),
+        order: workOrder && orderMessages(workOrder),
+      },
+      existingCustomer: result.existingCustomer,
+      existingVehicle: result.existingVehicle,
+    };
   }
   redirect(`/zakazky/${result.id}`);
 }

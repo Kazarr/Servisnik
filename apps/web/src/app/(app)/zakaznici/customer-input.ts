@@ -8,6 +8,9 @@ export type CustomerFormValues = Record<'name' | 'ico' | 'dic' | 'icDph' | 'stre
 
 export type CustomerFormErrors = Partial<Record<keyof CustomerFormValues, string>>;
 
+/** The prefix of the names of the fields of a Zákazník in the form of an intake, where the fields of a Vozidlo are in the same form. */
+export const intakeCustomerPrefix = 'customer.';
+
 const messages = {
   name: 'Vyplňte názov, pri osobe meno a priezvisko',
   ico: {
