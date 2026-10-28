@@ -57,6 +57,13 @@
       "when": 1793198983064,
       "tag": "0007_work_order_statuses",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793200317509,
+      "tag": "0008_workshop_details",
+      "breakpoints": true
     }
   ]
 }
