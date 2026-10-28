@@ -64,6 +64,13 @@
       "when": 1793200437355,
       "tag": "0008_users_admin_plugin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793204280406,
+      "tag": "0009_workshop_details",
+      "breakpoints": true
     }
   ]
 }
