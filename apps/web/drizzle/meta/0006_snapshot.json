@@ -1,5 +1,5 @@
 {
-  "id": "ca3ef3c6-9368-4794-9544-92f7b8729010",
+  "id": "76f7ec9a-a857-424f-8c50-606adafe6928",
   "prevId": "a4d33db1-a293-40b5-8b7c-b894d9c7abba",
   "version": "7",
   "dialect": "postgresql",
@@ -477,6 +477,31 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel": {
+          "name": "fuel",
+          "type": "vehicle_fuel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_km": {
+          "name": "mileage_km",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1012,6 +1037,19 @@
         "mechanik"
       ]
     },
+    "public.vehicle_fuel": {
+      "name": "vehicle_fuel",
+      "schema": "public",
+      "values": [
+        "petrol",
+        "diesel",
+        "hybrid",
+        "electric",
+        "lpg",
+        "cng",
+        "other"
+      ]
+    },
     "public.work_order_item_kind": {
       "name": "work_order_item_kind",
       "schema": "public",
@@ -1025,11 +1063,8 @@
       "schema": "public",
       "values": [
         "received",
-        "inProgress",
-        "waitingForParts",
         "done",
-        "invoiced",
-        "cancelled"
+        "invoiced"
       ]
     }
   },

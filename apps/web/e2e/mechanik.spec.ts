@@ -39,8 +39,10 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/zakaznici/${order.customerId}`,
     `/zakaznici/${order.customerId}/upravit`,
     '/vozidla',
+    '/vozidla/novy',
     `/vozidla/novy?zakaznik=${order.customerId}`,
     `/vozidla/${order.vehicleId}`,
+    `/vozidla/${order.vehicleId}/upravit`,
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
     `/zakazky/${order.orderId}`,
     '/nastavenia',
@@ -67,6 +69,9 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await vehiclePage.getByLabel('VIN').fill(vinOf(tag, 'ZZZ00000000'));
   await vehiclePage.getByLabel('Značka').fill('Škoda');
   await vehiclePage.getByLabel('Model').fill('Fabia');
+  const editPage = await context.newPage();
+  await editPage.goto(`/vozidla/${order.vehicleId}/upravit`);
+  await editPage.getByLabel('Model').fill('Fabia');
   const orderPage = await context.newPage();
   await orderPage.goto(`/zakazky/nova?vozidlo=${order.vehicleId}`);
   await orderPage.getByLabel('Kilometre pri príjme').fill('500');
@@ -88,6 +93,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(page.getByLabel('Názov')).toHaveValue(`Nemal by sa uložiť ${tag}`);
   await vehiclePage.getByRole('button', { name: 'Uložiť vozidlo' }).click();
   await expect(vehiclePage.locator('main').getByRole('alert')).toHaveText(message);
+  await editPage.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await expect(editPage.locator('main').getByRole('alert')).toHaveText(message);
   await orderPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(orderPage.locator('main').getByRole('alert')).toHaveText(message);
   await detailPage.getByRole('button', { name: 'Pridať prácu' }).click();
@@ -102,6 +109,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   expect(names).toEqual([order.customerName]);
   const vins = (await listVehicles(admin, db)).map((vehicle) => vehicle.vin).filter((vin) => vin.includes(tag.toUpperCase()));
   expect(vins).toEqual([order.vin]);
+  expect((await listVehicles(admin, db)).find((vehicle) => vehicle.vin === order.vin)).toMatchObject({ make: 'Škoda', model: 'Octavia' });
   const orders = (await listWorkOrders(admin, db)).filter((found) => found.customer.name === order.customerName);
   expect(orders.map(({ number }) => number)).toEqual([order.number]);
   expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [] });

@@ -4,24 +4,15 @@ import { currentUserWith } from '../../../dal/current-user.ts';
 import { searchCustomers } from '../../../dal/customers.ts';
 import { Field } from '../field.tsx';
 import { Pager } from '../pager.tsx';
+import { first, pageOf, searchHref } from '../search-params.ts';
 import { customerTypeLabels } from './type-labels.ts';
 
 export const metadata: Metadata = { title: 'Zákazníci' };
 
-/** The list at `?q=` (what is searched for) and `?strana=` (the page, from 1); the address of page `n` of a search. */
-function pageHref(query: string, n: number) {
-  const params = new URLSearchParams();
-  if (query) params.set('q', query);
-  if (n > 1) params.set('strana', String(n));
-  return params.size ? `/zakaznici?${params}` : '/zakaznici';
-}
-
-const first = (value: string | string[] | undefined) => (typeof value === 'string' ? value : '');
-
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string | string[]; strana?: string | string[] }> }) {
   const { q, strana } = await searchParams;
   const query = first(q);
-  const { customers, page, pageCount } = await searchCustomers(await currentUserWith('customers.read'), { query, page: Number(first(strana) || 1) });
+  const { customers, page, pageCount } = await searchCustomers(await currentUserWith('customers.read'), { query, page: pageOf(strana) });
   return (
     <>
       <div className="page-header">
@@ -64,7 +55,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           </table>
         </div>
       )}
-      <Pager page={page} pageCount={pageCount} href={(n) => pageHref(query, n)} />
+      <Pager page={page} pageCount={pageCount} href={(n) => searchHref('/zakaznici', query, n)} />
     </>
   );
 }
