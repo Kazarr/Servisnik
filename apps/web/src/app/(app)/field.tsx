@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 
-type Common = { label: string; name: string; error?: string };
+type Common = { label: string; name: string; error?: ReactNode };
 
 /** A label above a control, and below it the reason the value was refused, tied to the control so a screen reader reads both. */
 function Shell({ label, name, error, children }: Common & { children: ReactNode }) {
@@ -17,7 +17,7 @@ function Shell({ label, name, error, children }: Common & { children: ReactNode 
   );
 }
 
-const describedBy = (name: string, error?: string) => ({
+const describedBy = (name: string, error?: ReactNode) => ({
   id: name,
   'aria-invalid': error ? true : undefined,
   'aria-describedby': error ? `${name}-error` : undefined,

@@ -1,4 +1,4 @@
-import { addCustomer, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
+import { addCustomer, endSessionBehindThePage, expect, newIco, runTag, signIn, test, vinOf } from './fixtures.ts';
 
 test('the admin adds a company and its vehicle, and a second vehicle with the same VIN is refused', async ({ page }) => {
   test.slow(); // one long walk through the forms; under --repeat-each the workers share one server and it took 25 s
@@ -6,6 +6,7 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
   const tag = runTag();
   const company = `Autodoprava Kováč ${tag} s.r.o.`;
   const vin = vinOf(tag, 'WVWZZZ1JZ3W');
+  const ico = newIco();
   await signIn(page);
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
   await page.getByRole('link', { name: 'Pridať zákazníka' }).click();
@@ -17,7 +18,7 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
   for (const label of ['IČO', 'DIČ', 'IČ DPH']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
 
   await page.getByLabel('Názov').fill(company);
-  await page.getByLabel('IČO', { exact: true }).fill('12345678');
+  await page.getByLabel('IČO', { exact: true }).fill(ico);
   await page.getByLabel('DIČ', { exact: true }).fill('2020123456');
   await page.getByLabel('IČ DPH', { exact: true }).fill('SK2020123456');
   await page.getByLabel('Ulica').fill('Hlavná 1');
@@ -29,7 +30,7 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
   const main = page.locator('main');
   await expect(page).toHaveURL(/\/zakaznici\/[0-9a-f-]{36}$/);
   await expect(main.locator('h1')).toHaveText(company);
-  for (const shown of ['12345678', '2020123456', 'SK2020123456', 'Hlavná 1', 'Bratislava', '81101', 'info@kovac.sk']) {
+  for (const shown of [ico, '2020123456', 'SK2020123456', 'Hlavná 1', 'Bratislava', '81101', 'info@kovac.sk']) {
     await expect(main).toContainText(shown);
   }
   const customerUrl = page.url();

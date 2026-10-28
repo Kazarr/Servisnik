@@ -1,5 +1,5 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { watchPage } from './watch-page.ts';
 
 export { expect };
@@ -38,11 +38,15 @@ export async function signIn(page: Page) {
   await expect(page).toHaveURL(/\/zakazky$/);
 }
 
-/** Adds a customer through the form and waits for its detail page. */
-export async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba') {
+/** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */
+export const newIco = () => String(randomInt(10_000_000, 100_000_000));
+
+/** Adds a customer through the form and waits for its detail page. A Firma gets `ico`, a new one unless given. */
+export async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba', ico = newIco()) {
   await page.goto('/zakaznici/novy');
   await page.getByLabel(type, { exact: true }).check();
   await page.getByLabel('Názov', { exact: false }).fill(name);
+  if (type === 'Firma') await page.getByLabel('IČO', { exact: true }).fill(ico);
   await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
   await expect(page.locator('main h1')).toHaveText(name);
 }
