@@ -3,8 +3,9 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer, listCustomers, updateCustomer } from '../src/dal/customers.ts';
 import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
-import { admin, idOf, mechanic } from './support/dal.ts';
+import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { idOf } from './support/id-of.ts';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => {

@@ -22,6 +22,7 @@ export default async function globalSetup(config: FullConfig) {
 
   const container = await startPostgres();
   const databaseUrl = container.getConnectionUri();
+  process.env.E2E_DATABASE_URL = databaseUrl; // specs create users and records straight in the database
   const db = createDb(databaseUrl);
   await migrateDatabase(db);
   const adminPassword = randomBytes(12).toString('base64url');

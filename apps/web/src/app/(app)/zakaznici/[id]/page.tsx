@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { currentUser } from '../../../../dal/current-user.ts';
+import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getCustomer } from '../../../../dal/customers.ts';
 import { VehicleCells } from '../../vozidla/vehicle-cells.tsx';
 import { customerTypeLabels } from '../type-labels.ts';
@@ -9,7 +9,7 @@ import { customerTypeLabels } from '../type-labels.ts';
 export const metadata: Metadata = { title: 'Zákazník' };
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
-  const customer = await getCustomer(await currentUser(), (await params).id);
+  const customer = await getCustomer(await currentUserWith('customers.read'), (await params).id);
   if (!customer) notFound();
 
   const details: [label: string, value: string | null][] = [

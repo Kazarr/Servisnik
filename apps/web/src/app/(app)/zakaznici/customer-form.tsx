@@ -3,7 +3,7 @@
 import { customerTypes, type CustomerType } from '@servisnik/domain/customer';
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
-import { Field, TextAreaField } from '../field.tsx';
+import { Field, FormError, TextAreaField } from '../field.tsx';
 import type { CustomerFormState } from './actions.ts';
 import { customerTypeLabels } from './type-labels.ts';
 
@@ -34,6 +34,7 @@ export function CustomerForm({
   return (
     <form action={formAction} className="form" noValidate>
       {customer && <input type="hidden" name="id" value={customer.id} />}
+      <FormError message={errors.form} />
       <fieldset>
         <legend>Typ zákazníka</legend>
         {customerTypes.map((option) => (

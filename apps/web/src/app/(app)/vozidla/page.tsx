@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
-import { currentUser } from '../../../dal/current-user.ts';
+import { currentUserWith } from '../../../dal/current-user.ts';
 import { listVehicles } from '../../../dal/vehicles.ts';
 import { VehicleCells } from './vehicle-cells.tsx';
 
 export const metadata: Metadata = { title: 'Vozidlá' };
 
 export default async function VehiclesPage() {
-  const vehicles = await listVehicles(await currentUser());
+  const vehicles = await listVehicles(await currentUserWith('vehicles.read'));
   return (
     <>
       <h1>Vozidlá</h1>

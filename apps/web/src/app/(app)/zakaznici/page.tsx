@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { currentUser } from '../../../dal/current-user.ts';
+import { currentUserWith } from '../../../dal/current-user.ts';
 import { listCustomers } from '../../../dal/customers.ts';
 import { customerTypeLabels } from './type-labels.ts';
 
 export const metadata: Metadata = { title: 'Zákazníci' };
 
 export default async function CustomersPage() {
-  const customers = await listCustomers(await currentUser());
+  const customers = await listCustomers(await currentUserWith('customers.read'));
   return (
     <>
       <div className="page-header">

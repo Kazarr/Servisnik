@@ -2,17 +2,17 @@ import { canAddItems } from '@servisnik/domain/work-order';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { currentUser } from '../../../../dal/current-user.ts';
+import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
 import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
-import { markDone } from '../actions.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { LabourForm } from './labour-form.tsx';
+import { MarkDoneForm } from './mark-done-form.tsx';
 
 export const metadata: Metadata = { title: 'Zákazka' };
 
 export default async function WorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
-  const order = await getWorkOrder(await currentUser(), (await params).id);
+  const order = await getWorkOrder(await currentUserWith('work-orders.read'), (await params).id);
   if (!order) notFound();
 
   return (
@@ -104,10 +104,7 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
         <>
           <h2>Pridať prácu</h2>
           <LabourForm workOrderId={order.id} />
-          <form action={markDone} className="actions">
-            <input type="hidden" name="workOrderId" value={order.id} />
-            <button type="submit">Označiť ako hotovú</button>
-          </form>
+          <MarkDoneForm workOrderId={order.id} />
         </>
       )}
     </>

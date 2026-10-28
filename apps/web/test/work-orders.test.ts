@@ -12,8 +12,9 @@ import {
   listWorkOrders,
   markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
-import { admin, idOf } from './support/dal.ts';
+import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { idOf } from './support/id-of.ts';
 
 const summer = new Date('2026-07-15T10:00:00Z');
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { currentUser } from '../../../../dal/current-user.ts';
+import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getVehicle } from '../../../../dal/vehicles.ts';
 import { listOpenWorkOrdersOfVehicle } from '../../../../dal/work-orders.ts';
 import { workOrderStatusLabels } from '../../zakazky/status-labels.ts';
@@ -9,7 +9,7 @@ import { workOrderStatusLabels } from '../../zakazky/status-labels.ts';
 export const metadata: Metadata = { title: 'Vozidlo' };
 
 export default async function VehiclePage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await currentUser();
+  const user = await currentUserWith('vehicles.read');
   const vehicle = await getVehicle(user, (await params).id);
   if (!vehicle) notFound();
   const openOrders = await listOpenWorkOrdersOfVehicle(user, vehicle.id);

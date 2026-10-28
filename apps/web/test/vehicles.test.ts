@@ -4,8 +4,9 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer } from '../src/dal/customers.ts';
 import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle, getVehicle, listVehicles } from '../src/dal/vehicles.ts';
-import { admin, idOf, mechanic } from './support/dal.ts';
+import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { idOf } from './support/id-of.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
 
