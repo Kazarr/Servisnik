@@ -30,6 +30,8 @@ let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let auth: ReturnType<typeof createAuth>;
 let ownerId: string;
 let vehicleId: string;
+let idleCustomerId: string;
+let idleVehicleId: string;
 let orderId: string;
 let itemId: string;
 beforeAll(async () => {
@@ -37,6 +39,8 @@ beforeAll(async () => {
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123' }); // on the real db, so that building it is not a touch of the watched one
   ownerId = idOf(await customers.createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
+  idleCustomerId = idOf(await customers.createCustomer(admin, { type: 'person', name: 'Bez väzieb' }, ctx.db)); // nothing links to these two, so an admin may delete them
+  idleVehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
   itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
   await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
@@ -49,12 +53,14 @@ type Call = (user: User | null, db: Database) => Promise<unknown>;
 const calls: Record<string, Call> = {
   createCustomer: (user, db) => customers.createCustomer(user, { type: 'person', name: 'Ján Novák' }, db),
   updateCustomer: (user, db) => customers.updateCustomer(user, ownerId, { type: 'person', name: 'Premenovaný' }, db),
+  deleteCustomer: (user, db) => customers.deleteCustomer(user, idleCustomerId, db),
   listCustomers: (user, db) => customers.listCustomers(user, db),
   searchCustomers: (user, db) => customers.searchCustomers(user, { query: 'Firma' }, db),
   getCustomer: (user, db) => customers.getCustomer(user, ownerId, db),
   createVehicle: (user, db) => vehicles.createVehicle(user, { ownerId, vin: 'TMBZZZ5JZ3W000101', licensePlate: '', make: 'Škoda', model: 'Octavia' }, db),
   updateVehicle: (user, db) =>
     vehicles.updateVehicle(user, vehicleId, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Passat' }, db),
+  deleteVehicle: (user, db) => vehicles.deleteVehicle(user, idleVehicleId, db),
   searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
@@ -110,7 +116,7 @@ const dataAccess = {
  * access file and in `calls`, anything else goes in this list.
  */
 const helpers = {
-  'constraint.ts': { module: constraintModule, exports: ['violates'] },
+  'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
