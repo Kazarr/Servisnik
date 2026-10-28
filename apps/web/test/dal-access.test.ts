@@ -9,7 +9,6 @@ import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
-import * as signIn from '../src/dal/sign-in.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
 import * as users from '../src/dal/users.ts';
@@ -120,8 +119,9 @@ const dataAccess = {
   'workshop.ts': workshopDetails,
 };
 /**
- * The files of src/dal that hold no data access, with their exports pinned by name: the refused
- * constraint, the paging of the lists, the user, the id check and the page-side wrapper. An export added to one of them fails
+ * The files of src/dal that hold no data access, with their exports pinned by name: the limit of
+ * the attempts to check a password, the refused constraint, the user of the pages (current-user),
+ * the paging of the lists, the user and the id check. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  */
@@ -130,7 +130,6 @@ const helpers = {
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
-  'sign-in.ts': { module: signIn, exports: ['signInWithPassword'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
 };
