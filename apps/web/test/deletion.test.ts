@@ -87,7 +87,7 @@ test('a Vozidlo with no Zákazka is deleted, and its Majiteľ stays', async () =
   expect(await getCustomer(admin, ownerId, ctx.db)).toMatchObject({ id: ownerId, vehicles: [] });
 });
 
-test('a Vozidlo with a Zákazka, whatever its Stav, is not deleted, and keeps the Zákazka', async () => {
+test('a Vozidlo with a cancelled Zákazka is not deleted, and keeps the Zákazka', async () => {
   const vehicleId = await newVehicle();
   const orderId = await newOrder(vehicleId);
   expect(await changeWorkOrderStatus(admin, orderId, { to: 'cancelled', confirmed: true }, ctx.db)).toEqual({ ok: true });
