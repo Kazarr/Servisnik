@@ -109,8 +109,8 @@ export async function searchCustomers(
     .select({ id: customer.id, type: customer.type, name: customer.name, ico: customer.ico, phone: customer.phone, email: customer.email })
     .from(customer)
     .where(matching)
-    // "C" collation: the order of the normalized names is the same on every server, whatever its locale.
-    .orderBy(sql`${customer.searchName} collate "C"`, customer.id)
+    // The Slovak alphabet (č after c, ch after h, case and diacritics only after the letters), the same on every server.
+    .orderBy(sql`${customer.name} collate "sk-x-icu"`, customer.id)
     .limit(customersPerPage)
     .offset((current - 1) * customersPerPage);
   return { customers, page: current, pageCount, total };
