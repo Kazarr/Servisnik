@@ -3,7 +3,7 @@ import { listCustomers } from '../src/dal/customers.ts';
 import { getRates } from '../src/dal/settings.ts';
 import { listUsers } from '../src/dal/users.ts';
 import { searchVehicles } from '../src/dal/vehicles.ts';
-import { getWorkOrder, listWorkOrders } from '../src/dal/work-orders.ts';
+import { getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
 import { expect, runTag, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
@@ -30,7 +30,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
   await expect(page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link')).toHaveText(['Zákazky']);
   await expect(main.locator('h1')).toHaveText('Zákazky');
   const row = main.getByRole('row', { name: new RegExp(order.number) });
-  await expect(row.getByRole('cell')).toHaveText([order.number, order.customerName, new RegExp(order.vin), 'Prijatá']);
+  await expect(row.getByRole('cell')).toHaveText([order.number, order.customerName, new RegExp(order.vin), 'Prijatá', '']);
   await expect(row.getByRole('link')).toHaveCount(0);
   await expect(main).not.toContainText('€');
 
@@ -46,6 +46,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/vozidla/${order.vehicleId}/upravit`,
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
     `/zakazky/${order.orderId}`,
+    `/zakazky/${order.orderId}/upravit`,
     '/nastavenia',
   ];
   for (const path of elsewhere) {
@@ -77,6 +78,9 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await orderPage.goto(`/zakazky/nova?vozidlo=${order.vehicleId}`);
   await orderPage.getByLabel('Kilometre pri príjme').fill('500');
   await orderPage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
+  const headerPage = await context.newPage();
+  await headerPage.goto(`/zakazky/${order.orderId}/upravit`);
+  await headerPage.getByLabel('Kilometre pri príjme').fill('777');
   const detailPage = await context.newPage();
   await detailPage.goto(`/zakazky/${order.orderId}`);
   await detailPage.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
@@ -103,6 +107,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(editPage.locator('main').getByRole('alert')).toHaveText(message);
   await orderPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(orderPage.locator('main').getByRole('alert')).toHaveText(message);
+  await headerPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await expect(headerPage.locator('main').getByRole('alert')).toHaveText(message);
   await detailPage.getByRole('button', { name: 'Pridať prácu' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText(message);
   await detailPage.getByRole('button', { name: 'Označiť ako hotovú' }).click();
@@ -119,9 +125,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const { vehicles } = await searchVehicles(admin, { query: tag }, db);
   expect(vehicles.map((vehicle) => vehicle.vin)).toEqual([order.vin]);
   expect(vehicles[0]).toMatchObject({ make: 'Škoda', model: 'Octavia' });
-  const orders = (await listWorkOrders(admin, db)).filter((found) => found.customer.name === order.customerName);
-  expect(orders.map(({ number }) => number)).toEqual([order.number]);
-  expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [] });
+  expect((await listWorkOrdersOfVehicle(admin, order.vehicleId, db)).map(({ number }) => number)).toEqual([order.number]);
+  expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [], mileageKm: 1000 });
   expect(await getRates(admin, db)).toMatchObject({ markupPercent: 0 });
   expect((await listUsers(admin, db)).filter(({ email }) => email.includes(tag)).map(({ email }) => email)).toEqual([user.email]);
 });
