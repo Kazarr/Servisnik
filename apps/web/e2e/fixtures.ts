@@ -36,8 +36,9 @@ const hasOwnAddress = new WeakSet<BrowserContext>();
 /**
  * Gives the browser context a client address that no other has. The server limits the attempts to sign in and to
  * change the password by the address of the client (src/dal/attempt-limit.ts), and every browser here connects
- * from 127.0.0.1, so without it all tests would share the 3 attempts in 10 seconds. The server takes a single
- * `x-forwarded-for` as the client's address; 24 random bits make two contexts meeting rare.
+ * from 127.0.0.1, so without it all tests would share the 3 attempts in 10 seconds. The e2e server is started with
+ * `CLIENT_IP_HEADER=x-forwarded-for` (global-setup.ts), where Better Auth takes a single address as the client's;
+ * on DigitalOcean the header is do-connecting-ip (.do/app.yaml). 24 random bits make two contexts meeting rare.
  */
 async function useNewAddress(context: BrowserContext) {
   const [a, b, c] = randomBytes(3);
