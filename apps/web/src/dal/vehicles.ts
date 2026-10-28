@@ -93,12 +93,6 @@ export async function updateVehicle(user: User | null, id: string, input: Vehicl
   }
 }
 
-/** Every Vozidlo with its Majiteľ, newest first. */
-export async function listVehicles(user: User | null, db: Database = getDb()) {
-  assertCan(user, 'vehicles.read');
-  return vehiclesWithOwner(db).orderBy(desc(vehicle.createdAt));
-}
-
 /**
  * A page of Vozidlá with their Majiteľ that match `query`, the newest first. The query is a part of
  * the VIN, of the ŠPZ or of the name of the Majiteľ; the domain normalizes it the way the stored
