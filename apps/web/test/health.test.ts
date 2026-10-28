@@ -1,5 +1,5 @@
 import { createServer, type AddressInfo } from 'node:net';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { createDb } from '../src/db/index.ts';
 import { healthResponse } from '../src/health.ts';
 import { createTestDb } from './support/db.ts';
@@ -17,14 +17,30 @@ test('health is 200 while the database answers', async () => {
   expect(await response.json()).toEqual({ status: 'ok' });
 });
 
+// The deploy workflow's smoke asks the live app which commit it was built from (GIT_SHA, set by the image build).
+test('health names the commit the image was built from', async () => {
+  const response = await healthResponse(ctx.db, 'abc123');
+
+  expect(await response.json()).toEqual({ status: 'ok', sha: 'abc123' });
+});
+
+test('health reads the commit from GIT_SHA, and names none when the image was built without one', async () => {
+  vi.stubEnv('GIT_SHA', 'def456');
+  expect(await (await healthResponse(ctx.db)).json()).toEqual({ status: 'ok', sha: 'def456' });
+
+  vi.stubEnv('GIT_SHA', ''); // what `ENV GIT_SHA=$GIT_SHA` leaves when the build had no --build-arg
+  expect(await (await healthResponse(ctx.db)).json()).toEqual({ status: 'ok' });
+  vi.unstubAllEnvs();
+});
+
 test('health is 503 when the database is unreachable, without leaking why', async () => {
   const unreachable = createDb('postgres://servisnik:tajne-heslo@127.0.0.1:1/servisnik');
 
-  const response = await healthResponse(unreachable);
+  const response = await healthResponse(unreachable, 'abc123');
   await unreachable.$client.end();
 
   expect(response.status).toBe(503);
-  expect(await response.json()).toEqual({ status: 'unavailable' });
+  expect(await response.json()).toEqual({ status: 'unavailable' }); // no sha either: a 503 says nothing about the build
 });
 
 // A host that drops packets neither refuses nor answers. A local socket that accepts and stays

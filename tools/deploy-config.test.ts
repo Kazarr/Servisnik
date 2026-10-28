@@ -1,5 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join, posix } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { parse } from 'yaml';
 
@@ -19,8 +22,9 @@ type Spec = {
 };
 const spec = () => parse(read('.do/app.yaml')) as Spec;
 
-type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
-type Workflow = { on: Record<string, unknown>; jobs: Record<string, { if?: string; environment?: string; steps: Step[] }> };
+type Step = { id?: string; name?: string; if?: string; shell?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
+type Job = { if?: string; environment?: string; defaults?: { run?: { shell?: string } }; steps: Step[] };
+type Workflow = { on: Record<string, unknown>; jobs: Record<string, Job> };
 const workflow = () => parse(read('.github/workflows/deploy.yml')) as Workflow;
 const steps = () => workflow().jobs.deploy!.steps;
 const stepIndex = (match: (step: Step) => boolean) => {
@@ -33,6 +37,10 @@ const isGate = (step: Step) => (step.run ?? '').includes('tools/deploy-gate.ts')
 const isBuild = (step: Step) => /docker build/.test(step.run ?? '');
 const isDeploy = (step: Step) => step.uses?.startsWith('digitalocean/app_action/deploy@') ?? false;
 const isSmoke = (step: Step) => /pnpm smoke/.test(step.run ?? '');
+const isLogBefore = (step: Step) => /doctl apps logs/.test(step.run ?? '') && !isLogDiff(step);
+const isLogDiff = (step: Step) => (step.run ?? '').includes('tools/log-diff.ts');
+const isRetention = (step: Step) => (step.run ?? '').includes('tools/registry-retention.ts');
+const isGcWait = (step: Step) => (step.run ?? '').includes('garbage-collection get-active');
 const step = (match: (step: Step) => boolean) => steps()[stepIndex(match)]!;
 
 // What DigitalOcean fills in itself: bindable variables of a component (`${db.DATABASE_URL}`) and the app URL.
@@ -56,6 +64,44 @@ test('the migration tooling is a workspace install, not `pnpm deploy`, whose cop
 
   expect(dockerfile).not.toMatch(/pnpm[^\n]*\bdeploy\b/);
   expect(dockerfile).toMatch(/pnpm install[^\n]*--prod/);
+});
+
+test('the app and the migration tooling belong to root: the user node can write to .next/cache only', () => {
+  // A runtime user that owns the code can change the code it runs.
+  const dockerfile = read('Dockerfile');
+
+  expect(dockerfile).not.toMatch(/--chown/);
+  expect([...dockerfile.matchAll(/\bchown\s+(?:-R\s+)?node(?::node)?\s+(\S+)/g)].map((match) => match[1])).toEqual(['/app/apps/web/.next/cache']);
+});
+
+// What /migrate carries is what apps/web/scripts/migrate.ts and seed.ts import, found by following their relative imports.
+const importsOf = (file: string) => [...read(file).matchAll(/(?:from|import)\s+'(\.{1,2}\/[^']+)'/g)].map((match) => posix.join(posix.dirname(file), match[1]!));
+const reached = (files: string[], seen = new Set<string>()): Set<string> => {
+  for (const file of files) if (!seen.has(file)) reached(importsOf(file), seen.add(file));
+  return seen;
+};
+const covers = (source: string, file: string) => file === source || file.startsWith(`${source}/`);
+
+test('/migrate holds the dependencies, the domain, the SQL migrations and the sources the scripts import, not the rest of apps/web', () => {
+  const dockerfile = read('Dockerfile');
+  const sources = [...dockerfile.matchAll(/^COPY --from=migrate\s+(.+)$/gm)].flatMap((match) => match[1]!.trim().split(/\s+/).slice(0, -1)).map((source) => source.replace(/^\/migrate\//, ''));
+  const files = [...reached(['apps/web/scripts/migrate.ts', 'apps/web/scripts/seed.ts'])];
+  // Not imported, but read by Node or the migrator: the links to the dependencies, the package.json that makes the scripts modules, the SQL files.
+  const data = ['apps/web/node_modules', 'apps/web/package.json', 'apps/web/drizzle'];
+
+  expect(files.filter((file) => !sources.some((source) => covers(source, file)))).toEqual([]);
+  expect(sources.filter((source) => source.startsWith('apps/web/') && !data.includes(source) && !files.some((file) => covers(source, file)))).toEqual([]);
+  expect(sources).toEqual(expect.arrayContaining(['node_modules', 'packages/domain', ...data]));
+  expect(sources.filter((source) => !/^(node_modules|packages\/domain|apps\/web\/.+)$/.test(source))).toEqual([]);
+});
+
+test('the pnpm store of the migration install is pruned by tools/prune-migrate.sh, which fails when a pattern matches nothing', () => {
+  expect(read('Dockerfile')).toMatch(/pnpm install[^\n]*--prod[^\n]*\\\n\s*&& sh tools\/prune-migrate\.sh node_modules\/\.pnpm\n/);
+  expect(read('Dockerfile')).not.toMatch(/rm -rf/);
+});
+
+test('the Dockerfile mentions public/ only while apps/web has one: nothing copies a directory that is not there', () => {
+  expect(/\bpublic\b/.test(read('Dockerfile'))).toBe(existsSync(new URL('../apps/web/public', import.meta.url)));
 });
 
 test('.dockerignore lists .env files at any depth', () => {
@@ -113,6 +159,17 @@ test('the App Spec names the environment variables of spec #77 and keeps the sec
   expect(secrets(jobs[1]!)).toEqual(['ADMIN_EMAIL', 'ADMIN_PASSWORD']);
 });
 
+test('what the service and the jobs share is written once in the App Spec: the image and the two database variables', () => {
+  // The other tests read the spec through a YAML parser, which expands the anchors: they prove the reuse changes nothing.
+  // DigitalOcean's deploy action reads it the same way (sigs.k8s.io/yaml in digitalocean/app_action, deploy/main.go).
+  const text = read('.do/app.yaml');
+  const written = (block: string) => text.split(block).length - 1;
+
+  expect(written('registry_type: DOCR')).toBe(1);
+  expect(written('value: ${db.DATABASE_URL}')).toBe(1);
+  expect(written('value: ${db.CA_CERT}')).toBe(1);
+});
+
 test('the App Spec holds no value, only placeholders', () => {
   const { services, jobs } = spec();
   const literals = [...services, ...jobs].flatMap(({ envs }) => envs).filter(({ value }) => !value?.includes('${'));
@@ -164,16 +221,156 @@ test('the deploy does not print the deployment logs of a public repository', () 
   expect(step(isDeploy).with?.print_deploy_logs).toBe(false);
 });
 
-test('the deploy workflow checks secrets, then the ticket check, then builds, deploys and runs the smoke, in that order', () => {
-  const order = [isSecretCheck, isGate, isBuild, isDeploy, isSmoke].map(stepIndex);
+test('the deploy workflow checks secrets, then the ticket check, waits for the registry, builds, records the log, deploys, smokes, compares the log and cleans the registry, in that order', () => {
+  const order = [isSecretCheck, isGate, isGcWait, isBuild, isLogBefore, isDeploy, isSmoke, isLogDiff, isRetention].map(stepIndex);
 
   expect(order).toEqual([...order].sort((a, b) => a - b));
   expect(new Set(order).size).toBe(order.length);
 });
 
+// The runner runs `bash -e {0}` for a step without `shell:`, which lets a pipe pass when its first command fails.
+const shellOf = (step: Step) => step.shell ?? workflow().jobs.deploy!.defaults?.run?.shell;
+const piping = (step: Step) => /(^|[^|])\|([^|]|$)/.test(step.run ?? '');
+
+test('every step that pipes runs under `shell: bash`, which adds pipefail: a failing first command of a pipe fails the step', () => {
+  expect(steps().filter(piping).map(({ name }) => name)).toEqual(expect.arrayContaining([step(isGate).name, step(isRetention).name]));
+  for (const piped of steps().filter(piping)) expect(shellOf(piped), piped.name).toBe('bash');
+});
+
+test('the registry is cleaned after a failed deploy too, as long as the image was pushed: a streak of failed deploys must not fill it', () => {
+  expect(step(isBuild).id).toBe('push');
+  expect(step(isRetention).if).toBe("always() && steps.push.outcome == 'success'");
+});
+
 test('the deploy workflow tags the image with the commit SHA and smokes the URL of the deployed app', () => {
   expect(step(isBuild).run).toContain(':$GITHUB_SHA');
   expect(Object.values(step(isSmoke).env ?? {}).join()).toContain('live_url');
+});
+
+test('the commit travels from the workflow into the image and back into the smoke: the app is asked which commit it runs', () => {
+  const dockerfile = read('Dockerfile');
+
+  expect(step(isBuild).run).toMatch(/--build-arg GIT_SHA="\$GITHUB_SHA"/);
+  expect(dockerfile).toMatch(/^ARG GIT_SHA=$/m);
+  expect(dockerfile.indexOf('ENV GIT_SHA=$GIT_SHA')).toBeGreaterThan(dockerfile.indexOf('ARG GIT_SHA'));
+  expect(step(isSmoke).run).toMatch(/pnpm smoke "\$LIVE_URL" "\$GITHUB_SHA"/);
+});
+
+// The log and registry steps run as they are, the way the runner runs them (bash with -e, and pipefail under `shell: bash`),
+// in a temporary directory, against a `doctl` that records its calls and answers from the files there: `logs`, `tags`,
+// `apps` (a missing file makes that call fail, as an app that does not exist or an API that is down would) and
+// `gc-active`, the number of times `garbage-collection get-active` still finds a collection running.
+const repoRoot = fileURLToPath(new URL('..', import.meta.url)).replaceAll('\\', '/');
+const fakeDoctl = [
+  '#!/bin/sh',
+  'echo "$*" >> "$DIR/calls"',
+  'case "$1 $2 $3" in',
+  '  "apps logs"*) cat "$DIR/logs" || exit 1 ;;',
+  '  "apps list"*) cat "$DIR/apps" ;;',
+  '  "registry repository list-tags") cat "$DIR/tags" ;;',
+  '  "registry garbage-collection get-active")',
+  '    left=$(cat "$DIR/gc-active" 2>/dev/null || echo 0)',
+  '    [ "$left" -gt 0 ] || exit 1',
+  '    echo $((left - 1)) > "$DIR/gc-active" ;;',
+  'esac',
+  '',
+].join('\n');
+type Given = { logs?: string; tags?: string; files?: Record<string, string>; env?: Record<string, string> };
+function execute(workflowStep: Step, { logs, tags, files = {}, env = {} }: Given) {
+  const dir = mkdtempSync(join(tmpdir(), 'deploy-step-')).replaceAll('\\', '/');
+  mkdirSync(`${dir}/bin`);
+  writeFileSync(`${dir}/bin/doctl`, fakeDoctl, { mode: 0o755 });
+  for (const [file, content] of Object.entries({ ...files, ...(logs === undefined ? {} : { logs }), ...(tags === undefined ? {} : { tags }) })) writeFileSync(`${dir}/${file}`, content);
+  const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+  const environment = { ...process.env, ...env, DIR: dir, RUNNER_TEMP: dir, [pathKey]: `${dir}/bin${delimiter}${process.env[pathKey]}` };
+  const flags = shellOf(workflowStep) === 'bash' ? ['-eo', 'pipefail'] : ['-e'];
+  const { status, stdout, stderr } = spawnSync('bash', [...flags, '-c', workflowStep.run!], { cwd: repoRoot, env: environment, encoding: 'utf8' });
+  const saved = (file: string) => (existsSync(`${dir}/${file}`) ? readFileSync(`${dir}/${file}`, 'utf8') : undefined);
+  const result = { status, output: stdout + stderr, calls: saved('calls')?.split('\n').filter(Boolean) ?? [], saved: saved('run-before.log') };
+  rmSync(dir, { recursive: true, force: true });
+  return result;
+}
+
+test('before the deploy the workflow saves the run log of the service the spec names, and an empty one while the app does not exist', () => {
+  const { name, services } = spec();
+  const logs = 'Error: connect ECONNREFUSED\n';
+
+  const running = execute(step(isLogBefore), { logs });
+  expect(running).toMatchObject({ status: 0, saved: logs, calls: [`apps logs ${name} ${services[0]!.name} --type run --tail 2000`] });
+
+  const first = execute(step(isLogBefore), {}); // doctl fails: there is no app yet
+  expect(first).toMatchObject({ status: 0, saved: '' });
+  expect(first.output).toContain('::notice');
+});
+
+test('after the smoke the workflow fails on an error the run log gained, and passes when it gained none', () => {
+  const known = '2026-10-28T10:00:00Z Error: connect ECONNREFUSED\n';
+  const compare = (after: string) => execute(step(isLogDiff), { files: { 'run-before.log': known }, logs: after, env: { APP_ID: 'app-id-1' } });
+
+  const same = compare('2026-10-28T11:00:00Z Error: connect ECONNREFUSED\n');
+  expect(same).toMatchObject({ status: 0, calls: [`apps logs app-id-1 ${spec().services[0]!.name} --type run --tail 2000`] });
+
+  const gained = compare(`${known}2026-10-28T11:00:01Z TypeError: x is not a function\n`);
+  expect(gained.status).toBe(1);
+  expect(gained.output).toContain('::error title=Nové chyby v logu služby');
+});
+
+// Registry cleanup: the tags of the registry (a..e, e the newest) and the apps of the account, one of them ours.
+const tagged = (name: string, day: number) => ({ tag: name, updated_at: `2026-10-0${day}T10:00:00Z` });
+const registryTags = JSON.stringify([tagged('a', 1), tagged('b', 2), tagged('c', 3), tagged('d', 4), tagged('e', 5)]);
+const runningApps = (liveTag?: string) =>
+  JSON.stringify([{ spec: { name: spec().name }, ...(liveTag && { active_deployment: { spec: { services: [{ image: { tag: liveTag } }], jobs: [{ image: { tag: liveTag } }] } } }) }]);
+const listApps = 'apps list --output json';
+const listTags = 'registry repository list-tags servisnik --output json';
+const collect = 'registry garbage-collection start --include-untagged-manifests --force';
+const cleanup = (given: Given & { sha?: string } = {}) => execute(step(isRetention), { tags: registryTags, ...given, env: { GITHUB_SHA: given.sha ?? 'e', ...given.env } });
+
+test('after the push the registry keeps the newest tags, the one just pushed and the live one, deletes the rest and collects the garbage', () => {
+  expect(cleanup({ files: { apps: runningApps('d') } })).toMatchObject({
+    status: 0,
+    calls: [listApps, listTags, 'registry repository delete-tag servisnik --force b a', collect],
+  });
+  // The live version is the oldest tag: it stays, beside the one just pushed and the newest other.
+  expect(cleanup({ files: { apps: runningApps('a') } })).toMatchObject({
+    status: 0,
+    calls: [listApps, listTags, 'registry repository delete-tag servisnik --force c b', collect],
+  });
+});
+
+test('after the push the registry deletes no tag while it holds few, or while the app has no live version yet, and still collects the garbage', () => {
+  const few = JSON.stringify([tagged('a', 1)]);
+
+  expect(cleanup({ tags: few, sha: 'a', files: { apps: runningApps() } })).toMatchObject({ status: 0, calls: [listApps, listTags, collect] });
+});
+
+test('the registry is left alone, and the step fails, when the live version cannot be told: the apps call fails, or the deployment shows no image tag', () => {
+  const noTag = JSON.stringify([{ spec: { name: spec().name }, active_deployment: { spec: { services: [] } } }]);
+
+  expect(cleanup({})).toMatchObject({ status: 1, calls: [listApps] }); // no `apps` file: doctl fails
+  expect(cleanup({ files: { apps: noTag } })).toMatchObject({ status: 1, calls: [listApps, listTags] });
+});
+
+test('the registry is left alone, and the step fails, when listing its tags fails or its output is no JSON: a pipe does not hide the failure', () => {
+  const apps = { apps: runningApps('d') };
+  const listingFails = execute(step(isRetention), { files: apps, env: { GITHUB_SHA: 'e' } }); // no `tags` file: doctl fails
+  const notJson = cleanup({ tags: 'doctl: unauthorized', files: apps });
+
+  expect(listingFails).toMatchObject({ status: 1, calls: [listApps, listTags] });
+  expect(notJson).toMatchObject({ status: 1, calls: [listApps, listTags] });
+});
+
+test('before the build the workflow waits while the registry collects garbage, which keeps it read-only, and gives up after ten minutes', () => {
+  // The step polls 30 times, 20 seconds apart, unless told otherwise; the test shortens both.
+  const wait = (collections: number) => execute(step(isGcWait), { files: { 'gc-active': String(collections) }, env: { GC_POLL_SECONDS: '0', GC_POLL_ATTEMPTS: '3' } });
+  const poll = 'registry garbage-collection get-active';
+
+  expect(step(isGcWait).run).toMatch(/GC_POLL_ATTEMPTS:-30[\s\S]*GC_POLL_SECONDS:-20/);
+  expect(wait(0)).toMatchObject({ status: 0, calls: [poll] });
+  expect(wait(2)).toMatchObject({ status: 0, calls: [poll, poll, poll] });
+  const stuck = wait(99);
+  expect(stuck.status).toBe(1);
+  expect(stuck.calls).toEqual([poll, poll, poll]);
+  expect(stuck.output).toContain('::error');
 });
 
 test('the deploy workflow stops with a clear error naming each secret that is missing, before it builds', () => {
@@ -197,6 +394,16 @@ test('the deploy workflow stops with a clear error naming each secret that is mi
     // Only the missing one is named.
     for (const other of names.filter((name) => name !== missing)) expect(refused.output).not.toContain(other);
   }
+});
+
+test('the README does not list the deploy secrets again: the secret check of the workflow and the App Spec are the one list', () => {
+  const readme = read('README.md');
+  const local = new Set([...read('.env.example').matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]));
+  const deployOnly = [...Object.keys(step(isSecretCheck).env ?? {}), ...placeholders(read('.do/app.yaml')).filter((name) => !boundByDigitalOcean(name))].filter((name) => !local.has(name));
+
+  // A name that .env.example also has is the local variable, which the README explains in its own part.
+  expect(deployOnly).toContain('DIGITALOCEAN_ACCESS_TOKEN');
+  expect(deployOnly.filter((name) => readme.includes(name))).toEqual([]);
 });
 
 test('the deploy requires the secrets the skeleton needs, and KROS_* stay optional until the KROS tickets', () => {
