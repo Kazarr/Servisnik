@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs';
 import { readPdf } from '../test/support/pdf.ts';
-import { expect, runTag, seedMechanik, signIn, signInAs, test } from './fixtures.ts';
+import { downloadPdf, expect, runTag, seedMechanik, signIn, signInAs, test } from './fixtures.ts';
 import { openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -24,16 +23,12 @@ test('the admin downloads the zákazkový list from the detail of a Zákazka, an
 
   await signIn(page);
   await page.goto(`/zakazky/${order.orderId}`);
-  const downloading = page.waitForEvent('download');
-  const answered = page.waitForResponse((response) => response.url().endsWith(path));
-  await page.locator('main').getByRole('link', { name: 'Zákazkový list' }).click();
-  const download = await downloading;
+  const { filename, text } = await downloadPdf(page, 'Zákazkový list', path);
 
   // What the build that ships has to get right: the name, the type and a line of the data. The page, the letters and
   // the footer are checked where the PDF is made cheaply (test/pdf.test.ts, test/job-sheet-response.test.ts).
-  expect(download.suggestedFilename()).toBe(`${order.number}-zakazkovy-list.pdf`);
-  expect((await answered).headers()['content-type']).toBe('application/pdf');
-  expect(readPdf(readFileSync((await download.path())!))[0]!.text).toContain(order.customerName);
+  expect(filename).toBe(`${order.number}-zakazkovy-list.pdf`);
+  expect(text).toContain(order.customerName);
 
   // The mechanik prints it too, from the detail of a Zákazka he has (e2e/mechanik.spec.ts): here the address answers him directly.
   const elsewhere = await browser.newContext({ baseURL });

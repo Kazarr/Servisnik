@@ -1,6 +1,8 @@
 import { expect, test as base, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { Database } from '../src/db/index.ts';
+import { readPdf } from '../test/support/pdf.ts';
 import { seedUser } from '../test/support/users.ts';
 import { watchPage } from './watch-page.ts';
 
@@ -175,6 +177,19 @@ export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľa
 
 /** Searches the list of vehicles for `text` (see searchList). */
 export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);
+
+/**
+ * On a page with a link in `main` to a printed form: clicks `linkName`, waits for the download and for the answer of `path` (the end of
+ * the address of the Route Handler), checks that it is a PDF, and gives the name the browser saves it under and the text of its first page.
+ */
+export async function downloadPdf(page: Page, linkName: string, path: string) {
+  const downloading = page.waitForEvent('download');
+  const answered = page.waitForResponse((response) => response.url().endsWith(path));
+  await page.locator('main').getByRole('link', { name: linkName }).click();
+  const download = await downloading;
+  expect((await answered).headers()['content-type'], linkName).toBe('application/pdf');
+  return { filename: download.suggestedFilename(), text: readPdf(readFileSync((await download.path())!))[0]!.text };
+}
 
 /** The value next to a label in the detail list of a page. */
 export const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
