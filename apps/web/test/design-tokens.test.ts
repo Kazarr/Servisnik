@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
+import { footerTemplate, printTokens } from '../src/print/styles.ts';
 
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
 
@@ -113,4 +114,27 @@ test('icon.svg paints with the accent tokens of globals.css', () => {
   const fills = [...read('icon.svg').matchAll(/fill="([^"]+)"/g)].map(([, fill]) => fill);
 
   expect(fills).toEqual([token('--color-accent'), token('--color-accent-text')]);
+});
+
+// The printed forms are HTML that Chromium prints from a string, outside the page of the app, so they cannot
+// read globals.css: they carry a :root of their own (src/print/styles.ts), and it must be the app's. As with
+// icon.svg, what they share by name must equal the tokens, and a colour, font, weight or line height they
+// have must be one the app has too.
+const tokensOf = (css: string) => Object.fromEntries([...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name!, value!.trim()]));
+
+test('the tokens of a printed form that the app has too have the same value, and a form invents no colour, font, weight or line height', () => {
+  const app = tokensOf(read('globals.css'));
+  const print = tokensOf(printTokens);
+  const shared = Object.keys(print).filter((name) => name in app);
+
+  expect(shared).toEqual(expect.arrayContaining(['--color-text', '--color-text-muted', '--font-family']));
+  for (const name of shared) expect(print[name], name).toBe(app[name]);
+  expect(Object.keys(print).filter((name) => /^--(color|font-family|font-weight|line-height)/.test(name) && !(name in app))).toEqual([]);
+});
+
+test('the footer of a printed page keeps its design values in :root', () => {
+  const style = /<style>([\s\S]*)<\/style>/.exec(footerTemplate)![1]!;
+
+  expect(style).toContain('var(--');
+  expect(rawValues(style)).toEqual([]);
 });
