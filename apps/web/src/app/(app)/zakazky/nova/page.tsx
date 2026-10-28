@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { listCustomers } from '../../../../dal/customers.ts';
 import { getVehicle } from '../../../../dal/vehicles.ts';
-import { WorkOrderForm } from './work-order-form.tsx';
+import { WorkOrderForm } from '../work-order-form.tsx';
 
 export const metadata: Metadata = { title: 'Nová zákazka' };
 
