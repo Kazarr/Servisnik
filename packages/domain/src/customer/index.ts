@@ -51,6 +51,25 @@ const formats = {
   email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
 };
 
+/** The fields that have a format: the identification and the contact of a Zákazník, and of the Autoservis. */
+export type FormatField = keyof typeof formats;
+
+/**
+ * The fields of `values` whose value is in the wrong shape. A field that is missing, null or blank
+ * has no value to be wrong; trimming is the caller's, so is taking the spaces out of a PSČ (normalizePostalCode).
+ */
+export function formatErrors(values: Partial<Record<FormatField, string | null | undefined>>): Partial<Record<FormatField, 'format'>> {
+  const errors: Partial<Record<FormatField, 'format'>> = {};
+  for (const field of Object.keys(formats) as FormatField[]) {
+    const value = values[field];
+    if (value?.trim() && !formats[field].test(value)) errors[field] = 'format';
+  }
+  return errors;
+}
+
+/** A PSČ is stored without a space: "811 01" is "81101". */
+export const normalizePostalCode = (typed: string) => typed.replace(/\s/g, '');
+
 /**
  * A Zákazník ready to store, or every reason it is not one. A company has an IČO (required), DIČ and
  * IČ DPH; a person has none of them, so they are dropped before they are checked. A PSČ is stored
@@ -66,19 +85,15 @@ export function parseCustomer(input: CustomerInput): { ok: true; customer: Custo
     icDph: isCompany ? blankToNull(input.icDph) : null,
     street: blankToNull(input.street),
     city: blankToNull(input.city),
-    postalCode: blankToNull(input.postalCode)?.replace(/\s/g, '') ?? null,
+    postalCode: normalizePostalCode(input.postalCode ?? '') || null,
     phone: blankToNull(input.phone),
     email: blankToNull(input.email),
     note: blankToNull(input.note),
   };
 
-  const errors: CustomerErrors = {};
+  const errors: CustomerErrors = formatErrors(customer);
   if (!customer.name) errors.name = 'required';
   if (isCompany && !customer.ico) errors.ico = 'required';
-  for (const field of ['ico', 'dic', 'icDph', 'postalCode', 'email'] as const) {
-    const value = customer[field];
-    if (value && !formats[field].test(value)) errors[field] = 'format';
-  }
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, customer };
 }
 
