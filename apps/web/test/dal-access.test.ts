@@ -21,7 +21,7 @@ let vehicleId: string;
 let orderId: string;
 beforeAll(async () => {
   ctx = await createTestDb();
-  ownerId = idOf(await customers.createCustomer(admin, { type: 'company', name: 'Firma s.r.o.' }, ctx.db));
+  ownerId = idOf(await customers.createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
   idOf(await workOrders.addLabour(admin, orderId, { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
@@ -38,6 +38,7 @@ type Call = (user: User | null, db: Database) => Promise<unknown>;
 /** One row per exported function of the DAL, called with arguments that would succeed for an admin. A new function needs its row, or the first test fails. */
 const calls: Record<string, Call> = {
   createCustomer: (user, db) => customers.createCustomer(user, { type: 'person', name: 'Ján Novák' }, db),
+  updateCustomer: (user, db) => customers.updateCustomer(user, ownerId, { type: 'person', name: 'Premenovaný' }, db),
   listCustomers: (user, db) => customers.listCustomers(user, db),
   getCustomer: (user, db) => customers.getCustomer(user, ownerId, db),
   createVehicle: (user, db) => vehicles.createVehicle(user, { ownerId, vin: 'TMBZZZ5JZ3W000101', licensePlate: '', make: 'Škoda', model: 'Octavia' }, db),
