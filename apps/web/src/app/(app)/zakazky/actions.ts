@@ -178,7 +178,9 @@ export async function addPriceListItemToWorkOrder(_state: AddFromPriceListState,
   if (result === 'forbidden') return { error: forbiddenMessage };
   if (!result.ok) {
     if (result.errors.workOrder === 'unknown') notFound();
-    return { error: result.errors.workOrder === 'not-editable' ? notEditableMessage : 'Položka už v cenníku nie je' };
+    if (result.errors.workOrder === 'not-editable') return { error: notEditableMessage };
+    if (result.errors.vatRate) return { error: 'Sadzba DPH tejto položky cenníka už nie je v Nastaveniach. Upravte položku cenníka.' };
+    return { error: 'Položka už v cenníku nie je' };
   }
   revalidatePath(`/zakazky/${workOrderId}`);
   return null;

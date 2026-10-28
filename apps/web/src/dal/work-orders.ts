@@ -111,7 +111,11 @@ export type AddItemResult =
   | { ok: false; errors: ItemErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
 /** The one place an item is added to a Zákazka, for every way of adding one: under lockForItems, so a Zákazka that is no longer Rozpracovaná takes none. */
-async function insertItem(tx: Transaction, workOrderId: string, item: WorkOrderItem): Promise<AddItemResult> {
+async function insertItem(
+  tx: Transaction,
+  workOrderId: string,
+  item: WorkOrderItem,
+): Promise<{ ok: true; id: string } | { ok: false; errors: { workOrder: 'unknown' | 'not-editable' } }> {
   const locked = await lockForItems(tx, workOrderId);
   if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
   const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...item }).returning({ id: workOrderItem.id });
@@ -133,14 +137,15 @@ export async function addItem(user: User | null, workOrderId: string, input: Ite
 
 export type AddItemFromPriceListResult =
   | { ok: true; id: string }
-  | { ok: false; errors: { workOrder?: 'unknown' | 'not-editable'; priceListItem?: 'unknown' } };
+  | { ok: false; errors: { workOrder?: 'unknown' | 'not-editable'; priceListItem?: 'unknown'; vatRate?: 'not-offered' } };
 
 /**
  * Adds a Položka cenníka to a Zákazka that is still Rozpracovaná, under the lock of the other adds, as an item of
  * quantity 1 (packages/domain/src/price-list). What is added is a copy of its values and refers back to nothing, so a
- * later change or deletion in the Cenník leaves the Zákazka as it is. The item keeps the VAT rate it has, even
- * one Nastavenia no longer offer. Reading the Cenník is the admin's alone. An item that is not in the Cenník is
- * reported before the state of the Zákazka is looked at.
+ * later change or deletion in the Cenník leaves the Zákazka as it is. An item whose VAT rate Nastavenia no longer
+ * offer is refused (`vatRate: 'not-offered'`), as a new item with that rate would be; the admin changes the rate of the
+ * item in the Cenník and adds it again. The reasons are reported in this order: the item is not in the Cenník, its VAT
+ * rate is not offered, the Zákazka is unknown or not Rozpracovaná. Reading the Cenník and Nastavenia is the admin's alone.
  */
 export async function addItemFromPriceList(
   user: User | null,
@@ -150,10 +155,12 @@ export async function addItemFromPriceList(
 ): Promise<AddItemFromPriceListResult> {
   assertCan(user, 'work-orders.write');
   assertCan(user, 'price-list.read');
+  const { vatRates } = await getRates(user, db);
 
   return db.transaction(async (tx) => {
     const [source] = await rowsIfUuid(priceListItemId, tx.select().from(priceListItem).where(eq(priceListItem.id, priceListItemId)));
     if (!source) return { ok: false, errors: { priceListItem: 'unknown' } };
+    if (!vatRates.includes(source.vatRate)) return { ok: false, errors: { vatRate: 'not-offered' } };
     return insertItem(tx, workOrderId, workOrderItemFromPriceListItem(source));
   });
 }
