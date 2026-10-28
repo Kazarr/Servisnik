@@ -140,7 +140,7 @@ export const vehicle = pgTable(
   (table) => [uniqueIndex('vehicle_vin_idx').on(table.vin), index('vehicle_owner_id_idx').on(table.ownerId)],
 );
 
-/** Prijatá, Hotová or Vyfakturovaná; the allowed changes are the domain's table (packages/domain/src/work-order). */
+/** The Stav zákazky, by its code names; the allowed changes are the domain's table (packages/domain/src/work-order). */
 export const workOrderStatus = pgEnum('work_order_status', workOrderStatuses);
 
 /**

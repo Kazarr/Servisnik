@@ -1,5 +1,5 @@
 {
-  "id": "8b2d1678-1197-428c-ae85-f778ec6fea32",
+  "id": "ee6eb918-85d2-45da-a284-a3f8884533aa",
   "prevId": "76f7ec9a-a857-424f-8c50-606adafe6928",
   "version": "7",
   "dialect": "postgresql",
@@ -975,81 +975,6 @@
           "notNull": true,
           "default": 0
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "street": {
-          "name": "street",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "city": {
-          "name": "city",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "postal_code": {
-          "name": "postal_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ico": {
-          "name": "ico",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dic": {
-          "name": "dic",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ic_dph": {
-          "name": "ic_dph",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vat_payer_type": {
-          "name": "vat_payer_type",
-          "type": "vat_payer_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'payer'"
-        },
-        "iban": {
-          "name": "iban",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "commercial_register": {
-          "name": "commercial_register",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1112,15 +1037,6 @@
         "mechanik"
       ]
     },
-    "public.vat_payer_type": {
-      "name": "vat_payer_type",
-      "schema": "public",
-      "values": [
-        "payer",
-        "nonPayer",
-        "section7"
-      ]
-    },
     "public.vehicle_fuel": {
       "name": "vehicle_fuel",
       "schema": "public",
@@ -1147,8 +1063,11 @@
       "schema": "public",
       "values": [
         "received",
+        "inProgress",
+        "waitingForParts",
         "done",
-        "invoiced"
+        "invoiced",
+        "cancelled"
       ]
     }
   },
