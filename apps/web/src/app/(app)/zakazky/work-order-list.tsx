@@ -13,7 +13,7 @@ export function WorkOrderList({
   role,
   without,
 }: {
-  orders: Awaited<ReturnType<typeof listWorkOrders>>;
+  orders: Awaited<ReturnType<typeof listWorkOrders>>['orders'];
   role: Role;
   without?: 'vehicle';
 }) {

@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Zákazky' };
 
 export default async function WorkOrdersPage() {
   const user = await currentUserWith('work-orders.list');
-  const orders = await listWorkOrders(user);
+  const { orders } = await listWorkOrders(user);
   return (
     <>
       <h1>Zákazky</h1>
