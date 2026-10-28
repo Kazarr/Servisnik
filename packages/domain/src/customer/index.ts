@@ -51,7 +51,12 @@ const formats = {
   email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
 };
 
-/** Whether `value` has the shape of an e-mail, the one rule of every e-mail in Servisník (the access area asks it for a Používateľ). */
+/**
+ * Whether `value` has the shape of an e-mail: the rule for the e-mail of a Zákazník, and the first rule
+ * for the e-mail of a Používateľ (the access area asks it). Better Auth then checks a user's e-mail with
+ * a stricter rule of its own, which refuses a one-letter ending like `jan@autoservis.t`; the DAL tells
+ * the admin that is a wrong format too.
+ */
 export const isEmail = (value: string) => formats.email.test(value);
 
 /**
