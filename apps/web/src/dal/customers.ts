@@ -1,5 +1,5 @@
 import { parseCustomer, parseCustomerSearch, searchKeys, type Customer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
-import { count, desc, eq, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ne, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
@@ -80,24 +80,29 @@ const contains = (column: AnyPgColumn, part: string) => sql`strpos(${column}, ${
  * A page of Zákazníci that match `query`, alphabetically by name. The query is a part of the name,
  * IČO, e-mail or phone; the domain normalizes it the way the stored keys are (packages/domain/src/
  * customer). A blank query has nothing to look for, so every Zákazník matches. `page` counts from 1:
- * any page past the last is the last, and anything that is not a page number is the first. Admin only.
+ * any page past the last is the last, and anything that is not a page number is the first. `except` is
+ * the id of a Zákazník that is never found, for the search of a new Majiteľ that leaves out the
+ * current one; anything that is not an id leaves nobody out. Admin only.
  */
 // ponytail: a scan of the table per search; a trigram index on the search columns if the table outgrows ~100k customers.
 export async function searchCustomers(
   user: User | null,
-  { query = '', page = 1 }: { query?: string; page?: number } = {},
+  { query = '', page = 1, except }: { query?: string; page?: number; except?: string } = {},
   db: Database = getDb(),
 ) {
   assertCan(user, 'customers.read');
   const { text, ico, phone } = parseCustomerSearch(query);
-  const matching = text
-    ? or(
-        contains(customer.searchName, text),
-        contains(customer.searchEmail, text),
-        contains(customer.ico, ico),
-        phone ? contains(customer.searchPhone, phone) : undefined,
-      )
-    : undefined;
+  const matching = and(
+    text
+      ? or(
+          contains(customer.searchName, text),
+          contains(customer.searchEmail, text),
+          contains(customer.ico, ico),
+          phone ? contains(customer.searchPhone, phone) : undefined,
+        )
+      : undefined,
+    except && isUuid(except) ? ne(customer.id, except) : undefined,
+  );
 
   const [counted] = await db.select({ total: count() }).from(customer).where(matching);
   const total = counted!.total;
