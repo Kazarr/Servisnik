@@ -14,10 +14,19 @@ describe('Prístup', () => {
     expect(can('admin', unknown)).toBe(true);
   });
 
-  test('the mechanik may do only what is on his list: the list of Zákazky, changing his own password and reading the details and logo of the autoservis for print', () => {
+  test('the mechanik may do only what is on his list: the list of Zákazky, printing the zákazkový list, changing his own password and reading the details and logo of the autoservis for print', () => {
     const allowed = capabilities.filter((capability) => can('mechanik', capability));
 
-    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.list', 'workshop.read']);
+    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.job-sheet', 'work-orders.list', 'workshop.read']);
+  });
+
+  // The zákazkový list has no price (spec #95, Mechanik): he prints it for the car, but still reads and changes no Zákazka.
+  test('the mechanik prints the zákazkový list without being able to read or change a Zákazka', () => {
+    expect(capabilities).toContain('work-orders.job-sheet');
+    expect(can('admin', 'work-orders.job-sheet')).toBe(true);
+    expect(can('mechanik', 'work-orders.job-sheet')).toBe(true);
+    expect(can('mechanik', 'work-orders.read')).toBe(false);
+    expect(can('mechanik', 'work-orders.write')).toBe(false);
   });
 
   test('a capability that is not on the mechanik list is forbidden to him, even one nobody has listed', () => {
