@@ -25,6 +25,7 @@ for (const role of ['admin', 'mechanik'] as const) {
     browser,
     baseURL,
   }) => {
+    test.slow(); // two sign-ins, five sends of the form and two more sign-ins, each hashing a password
     // A user of its own: the shared admin's password must not change under the other specs.
     const account = { email: `heslo-${role}-${runTag()}@autoservis.test`, password: randomBytes(12).toString('base64url') };
     await seedUser(db, { ...account, role });
