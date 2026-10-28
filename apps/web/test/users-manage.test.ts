@@ -1,10 +1,11 @@
 import type { Role } from '@servisnik/domain/access';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { signInWithPassword } from '../src/app/login/sign-in.ts';
 import { createAuth } from '../src/auth.ts';
-import { ForbiddenError, requireUser } from '../src/dal/user.ts';
-import { listUsers, updateUser } from '../src/dal/users.ts';
-import { user } from '../src/db/schema.ts';
+import { ForbiddenError, requireUser, UnauthenticatedError } from '../src/dal/user.ts';
+import { activateUser, deactivateUser, listUsers, updateUser } from '../src/dal/users.ts';
+import { session, user } from '../src/db/schema.ts';
 import { createTestDb } from './support/db.ts';
 import { raceForUserWrites } from './support/race.ts';
 import { signInHeaders } from './support/sessions.ts';
@@ -179,4 +180,73 @@ test('the admin does not change his own Rola, and nothing of that edit is saved,
   expect(await edit(boss, boss.id, { name: 'Iné meno', role: 'mechanik' })).toEqual({ ok: false, errors: { role: 'own' } });
 
   expect(await rowOf(boss.id)).toEqual({ name: boss.name, email: boss.email, role: 'admin' });
+});
+
+const deactivate = (by: Account, targetId: string) => deactivateUser(by.user, by.headers, targetId, auth);
+const activate = (by: Account, targetId: string) => activateUser(by.user, by.headers, targetId, auth);
+const signIn = (email: string, withPassword = password) => signInWithPassword(auth, new Headers(), email, withPassword);
+const stateOf = async (id: string) =>
+  (await ctx.db.select({ banned: user.banned, banReason: user.banReason, banExpires: user.banExpires }).from(user).where(eq(user.id, id)))[0];
+const sessionsOf = (id: string) => ctx.db.$count(session, eq(session.userId, id));
+
+test('the admin deactivates a user: every sign-in of his ends at once, and the sign-ins of others stay', async () => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+  const otherTab = await signInHeaders(auth, worker.email, password);
+  const colleague = await newUser('mechanik');
+  expect(await sessionsOf(worker.id)).toBe(2);
+
+  expect(await deactivate(boss, worker.id)).toEqual({ ok: true });
+
+  expect(await sessionsOf(worker.id)).toBe(0);
+  await expect(requireUser(worker.headers, auth)).rejects.toBeInstanceOf(UnauthenticatedError);
+  await expect(requireUser(otherTab, auth)).rejects.toBeInstanceOf(UnauthenticatedError);
+  await expect(requireUser(boss.headers, auth)).resolves.toMatchObject({ id: boss.id });
+  await expect(requireUser(colleague.headers, auth)).resolves.toMatchObject({ id: colleague.id });
+  // Deactivated for good until the admin says otherwise: no date when it ends.
+  expect(await stateOf(worker.id)).toMatchObject({ banned: true, banExpires: null });
+});
+
+test('a Deaktivovaný používateľ cannot sign in: the right password is told his account is deactivated, a wrong one gets the ordinary message', async () => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+  await deactivate(boss, worker.id);
+
+  expect(await signIn(worker.email)).toEqual({ ok: false, message: 'Účet je deaktivovaný. Obráťte sa na admina.' });
+  expect(await signIn(worker.email, 'nespravne-heslo-1')).toEqual({ ok: false, message: 'Nesprávny e-mail alebo heslo.' });
+  expect(await sessionsOf(worker.id)).toBe(0);
+});
+
+test('deactivating a user who is deactivated already changes nothing', async () => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+  await deactivate(boss, worker.id);
+
+  expect(await deactivate(boss, worker.id)).toEqual({ ok: true });
+
+  expect(await stateOf(worker.id)).toMatchObject({ banned: true });
+});
+
+test('the admin activates a Deaktivovaný používateľ again, who signs in with the password he had, and nothing of the deactivation is left', async () => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+  await deactivate(boss, worker.id);
+
+  expect(await activate(boss, worker.id)).toEqual({ ok: true });
+
+  expect(await stateOf(worker.id)).toEqual({ banned: false, banReason: null, banExpires: null });
+  expect(await signIn(worker.email)).toEqual({ ok: true });
+  expect(await rowOf(worker.id)).toEqual({ name: worker.name, email: worker.email, role: 'mechanik' });
+});
+
+test('the admin does not deactivate himself, and his sign-in stays', async () => {
+  const boss = await newUser('admin');
+  const other = await newUser('admin');
+
+  expect(await deactivate(boss, boss.id)).toEqual({ ok: false, reason: 'self' });
+
+  expect(await stateOf(boss.id)).toMatchObject({ banned: false });
+  await expect(requireUser(boss.headers, auth)).resolves.toMatchObject({ id: boss.id });
+  // Another admin is not himself.
+  expect(await deactivate(boss, other.id)).toEqual({ ok: true });
 });
