@@ -5,6 +5,7 @@ export const menu: readonly { href: string; label: string; capability: Capabilit
   { href: '/zakaznici', label: 'Zákazníci', capability: 'customers.read' },
   { href: '/vozidla', label: 'Vozidlá', capability: 'vehicles.read' },
   { href: '/zakazky', label: 'Zákazky', capability: 'work-orders.list' },
+  { href: '/cennik', label: 'Cenník', capability: 'price-list.read' },
   { href: '/nastavenia', label: 'Nastavenia', capability: 'settings.read' },
 ];
 

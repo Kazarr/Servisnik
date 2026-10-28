@@ -4,7 +4,7 @@ import { itemKinds, workOrderStatuses, type ItemErrors } from '@servisnik/domain
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
-import { addItem, changeWorkOrderStatus, createWorkOrder, deleteItem, updateItem } from '../../../dal/work-orders.ts';
+import { addItem, addItemFromPriceList, changeWorkOrderStatus, createWorkOrder, deleteItem, updateItem } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import { itemMessages } from '../item-messages.ts';
 
@@ -115,6 +115,26 @@ export async function deleteItemOfWorkOrder(_state: DeleteItemState, formData: F
   if (result === 'forbidden') return { error: forbiddenMessage };
   if (!result.ok && result.error === 'not-editable') return { error: notEditableMessage };
   revalidatePath(`/zakazky/${result.ok ? result.workOrderId : field(formData, 'workOrderId')}`);
+  return null;
+}
+
+export type AddFromPriceListState = { error: string } | null;
+
+/**
+ * Server Action of the "Pridať" button of an item found in the Cenník (`priceListItemId`); it checks the session itself,
+ * like every action. The item is added as a copy of quantity 1. An item deleted from the Cenník in the meantime is
+ * told so, and a Zákazka that is no longer rozpracovaná takes none.
+ */
+export async function addPriceListItemToWorkOrder(_state: AddFromPriceListState, formData: FormData): Promise<AddFromPriceListState> {
+  const user = await currentUser();
+  const workOrderId = field(formData, 'workOrderId');
+  const result = await orForbidden(addItemFromPriceList(user, workOrderId, field(formData, 'priceListItemId')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if (result.errors.workOrder === 'unknown') notFound();
+    return { error: result.errors.workOrder === 'not-editable' ? notEditableMessage : 'Položka už v cenníku nie je' };
+  }
+  revalidatePath(`/zakazky/${workOrderId}`);
   return null;
 }
 
