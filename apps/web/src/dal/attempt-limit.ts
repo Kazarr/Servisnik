@@ -2,7 +2,9 @@ import { authBasePath, getAuth, type Auth } from '../auth.ts';
 
 /**
  * The Better Auth routes whose rate-limit rule limits the attempts that check a password. The rule is
- * Better Auth's own default: 3 requests in 10 seconds per client address and route, kept in memory.
+ * Better Auth's own default: 3 requests in 10 seconds per client address and route, kept in the memory of
+ * the process. That is enough while the app runs as one instance (docs/adr/0001-stack.md, .do/app.yaml);
+ * with more, the counts would be per instance until Better Auth gets a `secondaryStorage` or the database.
  */
 const limitedPaths = { 'sign-in': '/sign-in/email', 'change-password': '/change-password' } as const;
 
