@@ -36,7 +36,9 @@ async function newUser(role: Role) {
   return account;
 }
 
-const cookieHeader = (cookies: Map<string, string>) => new Headers({ cookie: [...cookies].map(([name, value]) => `${name}=${value}`).join('; ') });
+/** The Cookie header the browser sends back: Next.js URL-encodes a value when it writes the cookie. */
+const cookieHeader = (cookies: Map<string, string>) =>
+  new Headers({ cookie: [...cookies].map(([name, value]) => `${name}=${encodeURIComponent(value)}`).join('; ') });
 
 /** The request headers of a new sign-in, as the browser would send them with its cookie. */
 async function signIn({ email, password }: { email: string; password: string }) {
@@ -66,11 +68,12 @@ test.each(['admin', 'mechanik'] as const)(
     sent.clear();
 
     const result = await change(here);
+    const cookieSent = cookieHeader(sent); // taken now: a request with an ended session makes Better Auth send a cookie that clears it
 
     expect(result).toEqual({ ok: true });
     await expect(requireUser(elsewhere, auth)).rejects.toBeInstanceOf(UnauthenticatedError);
     // Better Auth swaps the session he is in for a new one and sends its cookie; with that cookie he is still signed in.
-    await expect(requireUser(cookieHeader(sent), auth)).resolves.toMatchObject({ email: account.email, role });
+    await expect(requireUser(cookieSent, auth)).resolves.toMatchObject({ email: account.email, role });
     await expect(requireUser(othersSignIn, auth)).resolves.toMatchObject({ email: other.email });
   },
 );
