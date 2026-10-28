@@ -9,7 +9,12 @@ export default async function VehiclesPage() {
   const vehicles = await listVehicles(await currentUserWith('vehicles.read'));
   return (
     <>
-      <h1>Vozidlá</h1>
+      <div className="page-header">
+        <h1>Vozidlá</h1>
+        <Link href="/vozidla/novy" className="button">
+          Pridať vozidlo
+        </Link>
+      </div>
       {vehicles.length === 0 ? (
         <p>Zatiaľ tu nič nie je.</p>
       ) : (

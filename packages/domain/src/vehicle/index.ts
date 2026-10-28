@@ -26,8 +26,8 @@ export type Fuel = (typeof fuels)[number];
 export const firstVehicleYear = 1950;
 export const lastVehicleYear = (currentYear: number) => currentYear + 1;
 
-// Keeps the kilometres inside a PostgreSQL integer.
-const maxMileageKm = 9_999_999;
+// The most kilometres a vehicle may show; keeps them inside a PostgreSQL integer.
+export const maxMileageKm = 9_999_999;
 
 export type VehicleInput = {
   vin: string;

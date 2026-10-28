@@ -1,21 +1,78 @@
 'use client';
 
+import { fuels, type Fuel } from '@servisnik/domain/vehicle';
+import Link from 'next/link';
 import { useActionState } from 'react';
-import { Field, FormError } from '../../field.tsx';
-import { addVehicle } from '../actions.ts';
+import { Field, FormError, SelectField, TextAreaField } from '../field.tsx';
+import type { VehicleFormState } from './actions.ts';
+import { fuelLabels } from './fuel-labels.ts';
 
-export function VehicleForm({ ownerId }: { ownerId: string }) {
-  const [state, formAction, pending] = useActionState(addVehicle, null);
-  const value = (name: string) => state?.values[name];
+type Saved = {
+  id: string;
+  vin: string;
+  licensePlate: string | null;
+  make: string;
+  model: string;
+  year: number | null;
+  fuel: Fuel | null;
+  mileageKm: number | null;
+  note: string | null;
+};
+
+/**
+ * The form of a new Vozidlo for the Majiteľ `ownerId`, or with `vehicle` the form that edits it, where
+ * the Majiteľ stays as it is. `action` is addVehicle or editVehicle.
+ */
+export function VehicleForm({
+  action,
+  ownerId,
+  vehicle,
+}: {
+  action: (state: VehicleFormState, formData: FormData) => Promise<VehicleFormState>;
+  ownerId?: string;
+  vehicle?: Saved;
+}) {
+  const [state, formAction, pending] = useActionState(action, null);
+  const saved = {
+    vin: vehicle?.vin ?? '',
+    licensePlate: vehicle?.licensePlate ?? '',
+    make: vehicle?.make ?? '',
+    model: vehicle?.model ?? '',
+    year: String(vehicle?.year ?? ''),
+    fuel: vehicle?.fuel ?? '',
+    mileageKm: String(vehicle?.mileageKm ?? ''),
+    note: vehicle?.note ?? '',
+  };
+  const value = (name: keyof typeof saved) => (state ? state.values[name] : saved[name]);
+  const errors = state?.errors ?? {};
+  const existing = state?.existing;
+  const taken = existing && (
+    <>
+      {errors.vin}: <Link href={`/vozidla/${existing.id}`}>{existing.make} {existing.model}</Link>, majiteľ{' '}
+      <Link href={`/zakaznici/${existing.owner.id}`}>{existing.owner.name}</Link>
+    </>
+  );
 
   return (
     <form action={formAction} className="form">
-      <input type="hidden" name="ownerId" value={ownerId} />
-      <FormError message={state?.errors.form} />
-      <Field label="VIN" name="vin" defaultValue={value('vin')} error={state?.errors.vin} autoComplete="off" required />
+      {ownerId && <input type="hidden" name="ownerId" value={ownerId} />}
+      {vehicle && <input type="hidden" name="id" value={vehicle.id} />}
+      <FormError message={errors.form} />
+      <Field label="VIN" name="vin" defaultValue={value('vin')} error={taken || errors.vin} autoComplete="off" required />
       <Field label="ŠPZ" name="licensePlate" defaultValue={value('licensePlate')} autoComplete="off" />
-      <Field label="Značka" name="make" defaultValue={value('make')} error={state?.errors.make} required />
-      <Field label="Model" name="model" defaultValue={value('model')} error={state?.errors.model} required />
+      <Field label="Značka" name="make" defaultValue={value('make')} error={errors.make} required />
+      <Field label="Model" name="model" defaultValue={value('model')} error={errors.model} required />
+      <Field label="Rok výroby" name="year" defaultValue={value('year')} error={errors.year} inputMode="numeric" autoComplete="off" />
+      <SelectField label="Palivo" name="fuel" defaultValue={value('fuel')} error={errors.fuel}>
+        <option value="">—</option>
+        {fuels.map((fuel) => (
+          <option key={fuel} value={fuel}>
+            {fuelLabels[fuel]}
+          </option>
+        ))}
+      </SelectField>
+      <Field label="Najazdené km" name="mileageKm" defaultValue={value('mileageKm')} error={errors.mileageKm} inputMode="numeric" autoComplete="off" />
+      <TextAreaField label="Poznámka" name="note" defaultValue={value('note')} />
       <button type="submit" disabled={pending}>
         Uložiť vozidlo
       </button>
