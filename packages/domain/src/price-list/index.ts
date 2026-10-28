@@ -1,5 +1,7 @@
 // Price list area (GLOSSARY: Ceny, Cenník, Položka cenníka). Pure rules: no framework, database or network.
 
+// normalizeText names no term of the glossary, so AGENTS.md would give it a package of its own; the domain may have no
+// dependency (ADR 0001) until #131 decides, so it stays where the search of Zákazníci put it, as for the search of Vozidlá.
 import { normalizeText } from '../customer/index.ts';
 import { parseItem, type ItemErrors, type ItemInput, type WorkOrderItem } from '../work-order/index.ts';
 
