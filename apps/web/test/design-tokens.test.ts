@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { footerTemplate, printTokens } from '../src/print/styles.ts';
+import { documentCss, footerTemplate, printTokens } from '../src/print/styles.ts';
 
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
 
@@ -137,4 +137,9 @@ test('the footer of a printed page keeps its design values in :root', () => {
 
   expect(style).toContain('var(--');
   expect(rawValues(style)).toEqual([]);
+});
+
+test('the style of a printed document keeps its design values in :root', () => {
+  expect(documentCss).toContain('var(--');
+  expect(rawValues(documentCss)).toEqual([]);
 });
