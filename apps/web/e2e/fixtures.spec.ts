@@ -32,16 +32,23 @@ function runProbe() {
   );
 }
 
+/** The probe test failed once, with the fixture's message and exactly the one problem `line`. */
+function expectFailedOn({ status, errors }: { status: string; errors: string[] }, line: string) {
+  expect(status).toBe('failed');
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toContain('a page reported errors');
+  expect(errors[0]!.match(/^\+ {3}".*",$/gm)).toEqual([`+   "${line}",`]);
+}
+
 test('the page fixture passes a clean page and fails a test on a console error, naming it', () => {
   const outcomes = runProbe();
 
   expect(outcomes['clean page']).toEqual({ status: 'passed', errors: [] });
-  const failed = outcomes['page with a console error']!;
-  expect(failed.status).toBe('failed');
-  expect(failed.errors).toHaveLength(1);
-  const message = failed.errors[0]!;
-  expect(message).toContain('the page reported errors');
-  expect(message.match(/^\+ {3}".*",$/gm)).toEqual(['+   "console.error: boom",']);
+  expectFailedOn(outcomes['page with a console error']!, 'console.error: boom');
+});
+
+test('the page fixture fails a test on a console error of any other page of its context too', () => {
+  expectFailedOn(runProbe()['second page of the context with a console error']!, 'console.error: boom on the second page');
 });
 
 test.describe('watchPage reports', () => {
