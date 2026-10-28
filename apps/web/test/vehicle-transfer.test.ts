@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer } from '../src/dal/customers.ts';
-import { createVehicle, getVehicle, listVehicles, transferOwnership } from '../src/dal/vehicles.ts';
+import { createVehicle, getVehicle, searchVehicles, transferOwnership } from '../src/dal/vehicles.ts';
 import { createWorkOrder, getWorkOrder, listWorkOrdersOfCustomer, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
@@ -52,12 +52,9 @@ test('after a Prepis the vehicle is among the vehicles of the new owner and gone
 
   expect((await getCustomer(admin, ownerId, ctx.db))?.vehicles.map(({ id }) => id)).toEqual([staying]);
   expect((await getCustomer(admin, buyerId, ctx.db))?.vehicles.map(({ id }) => id)).toEqual([vehicleId]);
-  expect((await listVehicles(admin, ctx.db)).map(({ id, owner }) => [id, owner.id])).toEqual(
-    expect.arrayContaining([
-      [vehicleId, buyerId],
-      [staying, ownerId],
-    ]),
-  );
+  const idsOf = async (query: string) => (await searchVehicles(admin, { query }, ctx.db)).vehicles.map(({ id }) => id);
+  expect(await idsOf('novak')).toEqual([vehicleId]); // found by the name of the new owner
+  expect(await idsOf('firma')).toEqual([staying]); // and no longer by the name of the old one
 });
 
 test('after a Prepis every Zákazka of the vehicle is still its Zákazka, unchanged and with the customer it was made for', async () => {
