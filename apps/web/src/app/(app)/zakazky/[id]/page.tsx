@@ -1,4 +1,4 @@
-import { canAddItems } from '@servisnik/domain/work-order';
+import { canEdit, userTransitions } from '@servisnik/domain/work-order';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -7,13 +7,14 @@ import { getWorkOrder } from '../../../../dal/work-orders.ts';
 import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { LabourForm } from './labour-form.tsx';
-import { MarkDoneForm } from './mark-done-form.tsx';
+import { StatusForm } from './status-form.tsx';
 
 export const metadata: Metadata = { title: 'Zákazka' };
 
 export default async function WorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const order = await getWorkOrder(await currentUserWith('work-orders.read'), (await params).id);
   if (!order) notFound();
+  const transitions = userTransitions(order.status);
 
   return (
     <>
@@ -100,13 +101,13 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {canAddItems(order.status) && (
+      {canEdit(order.status) && (
         <>
           <h2>Pridať prácu</h2>
           <LabourForm workOrderId={order.id} />
-          <MarkDoneForm workOrderId={order.id} />
         </>
       )}
+      {transitions.length > 0 && <StatusForm workOrderId={order.id} transitions={transitions} />}
     </>
   );
 }

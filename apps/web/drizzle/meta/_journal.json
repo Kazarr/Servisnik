@@ -36,6 +36,13 @@
       "when": 1793188011606,
       "tag": "0004_customer_search_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793196330604,
+      "tag": "0005_work_order_statuses",
+      "breakpoints": true
     }
   ]
 }
