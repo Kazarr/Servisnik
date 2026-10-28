@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { UnauthenticatedError, type User } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
@@ -246,7 +246,14 @@ test('work added while another request is marking the Zákazka as done waits for
   await marking.promise;
 
   const adding = addLabour(admin, id, oilChange, ctx.db);
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  // Not a timer: go on only once PostgreSQL shows a session of this database waiting for a lock.
+  await vi.waitFor(
+    async () => {
+      const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
+      expect(waiting.rows).toHaveLength(1);
+    },
+    { timeout: 10_000 },
+  );
   committed.resolve();
   await marked;
 
