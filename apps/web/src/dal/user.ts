@@ -13,7 +13,10 @@ export class UnauthenticatedError extends Error {
   }
 }
 
-/** The user's Rola may not do this: pages send the user to Zákazky, Server Actions answer with a message. */
+/**
+ * The user's Rola may not do this. Pages redirect first, through currentUserWith, so one thrown in
+ * a page shows the error page; a Server Action turns it into a message (app/(app)/forbidden.ts).
+ */
 export class ForbiddenError extends Error {
   constructor(capability: Capability) {
     super(`Zakázané: ${capability}`);

@@ -19,8 +19,8 @@ export const currentUser = cache(async () => {
 
 /**
  * For a page that needs a capability: like currentUser, and a Používateľ whose Rola may not do it is
- * sent to Zákazky, the page every Rola may open. The DAL checks the same capability again, so a page
- * that names the wrong one shows an error page and no data.
+ * sent to Zákazky, the page every Rola may open. The DAL functions the page then calls check their own
+ * capability again; one that throws ForbiddenError shows the error page, never data.
  */
 export async function currentUserWith(capability: Capability) {
   const user = await currentUser();
