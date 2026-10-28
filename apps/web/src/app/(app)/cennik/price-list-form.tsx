@@ -1,7 +1,7 @@
 'use client';
 
 import type { Rates } from '@servisnik/domain/settings';
-import type { ItemKind } from '@servisnik/domain/work-order';
+import { vatRatesKeeping, type ItemKind } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
 import { FormError } from '../field.tsx';
 import { valueIn } from '../form-value.ts';
@@ -34,7 +34,7 @@ export function PriceListForm({ rates, target }: { rates: Rates; target: { kind:
 
   const value = valueIn(state, item ? valuesOfItem(item) : startingValues(kind, rates));
   // An item keeps a VAT rate that Nastavenia no longer offer, so that editing its name does not change it.
-  const vatRates = item && !rates.vatRates.includes(item.vatRate) ? [...rates.vatRates, item.vatRate] : rates.vatRates;
+  const vatRates = item ? vatRatesKeeping(rates.vatRates, item.vatRate) : rates.vatRates;
   const title = item ? 'Upraviť položku cenníka' : kind === 'part' ? 'Pridať diel do cenníka' : 'Pridať prácu do cenníka';
 
   return (

@@ -17,6 +17,7 @@ import {
   type WorkOrderInput,
   type WorkOrderItem,
   type WorkOrderStatus,
+  vatRatesKeeping,
 } from '@servisnik/domain/work-order';
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
@@ -175,7 +176,7 @@ export async function updateItem(user: User | null, itemId: string, input: Omit<
     if (!item) return { ok: false, errors: { item: 'unknown' } };
     const locked = await lockForItems(tx, item.workOrderId);
     if (locked !== 'ok') return { ok: false, errors: locked === 'unknown' ? { item: 'unknown' } : { workOrder: locked } };
-    const parsed = parseItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: [...vatRates, item.vatRate] });
+    const parsed = parseItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: vatRatesKeeping(vatRates, item.vatRate) });
     if (!parsed.ok) return parsed;
     const [saved] = await tx.update(workOrderItem).set(parsed.item).where(eq(workOrderItem.id, itemId)).returning({ id: workOrderItem.id });
     return saved ? { ok: true, workOrderId: item.workOrderId } : { ok: false, errors: { item: 'unknown' } }; // none: deleted while this waited for the lock

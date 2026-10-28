@@ -1,7 +1,7 @@
 'use client';
 
 import type { Rates } from '@servisnik/domain/settings';
-import type { ItemKind } from '@servisnik/domain/work-order';
+import { vatRatesKeeping, type ItemKind } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
 import { formatQuantityInput } from '../../../../format.ts';
 import { Field, FormError } from '../../field.tsx';
@@ -38,7 +38,7 @@ export function ItemForm({ rates, target }: { rates: Rates; target: { workOrderI
   const initial = item ? { ...valuesOfItem(item), quantity: formatQuantityInput(item.quantityHundredths) } : startingValues(kind, rates);
   const value = valueIn(state, initial);
   // An item keeps a VAT rate that Nastavenia no longer offer, so that editing its name does not change it.
-  const vatRates = item && !rates.vatRates.includes(item.vatRate) ? [...rates.vatRates, item.vatRate] : rates.vatRates;
+  const vatRates = item ? vatRatesKeeping(rates.vatRates, item.vatRate) : rates.vatRates;
   const title = item ? 'Upraviť položku' : kind === 'part' ? 'Pridať diel' : 'Pridať prácu';
   const prefix = item ? 'edit' : kind; // the ids of the fields, since a page has the form of a Práca and the form of a Diel
 

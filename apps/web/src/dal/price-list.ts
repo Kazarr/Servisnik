@@ -6,6 +6,7 @@ import {
   type PriceListItemErrors,
   type PriceListItemInput,
 } from '@servisnik/domain/price-list';
+import { vatRatesKeeping } from '@servisnik/domain/work-order';
 import { count, eq, or, sql } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { priceListItem } from '../db/schema.ts';
@@ -91,7 +92,7 @@ export async function updatePriceListItem(
   const [item] = await db.select({ kind: priceListItem.kind, vatRate: priceListItem.vatRate }).from(priceListItem).where(eq(priceListItem.id, id));
   if (!item) return { ok: false, errors: { item: 'unknown' } };
 
-  const parsed = parsePriceListItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: [...vatRates, item.vatRate] });
+  const parsed = parsePriceListItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: vatRatesKeeping(vatRates, item.vatRate) });
   if (!parsed.ok) return parsed;
   try {
     const [saved] = await db.update(priceListItem).set(stored(parsed.item)).where(eq(priceListItem.id, id)).returning({ id: priceListItem.id });
