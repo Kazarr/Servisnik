@@ -118,18 +118,27 @@ test('icon.svg paints with the accent tokens of globals.css', () => {
 
 // The printed forms are HTML that Chromium prints from a string, outside the page of the app, so they cannot
 // read globals.css: they carry a :root of their own (src/print/styles.ts), and it must be the app's. As with
-// icon.svg, what they share by name must equal the tokens, and a colour, font, weight or line height they
-// have must be one the app has too.
+// icon.svg, what they share by name must equal the tokens, and a colour, weight or line height they have must
+// be one the app has too. The one thing a form takes from no token of the app is its font: the app's own is
+// `system-ui`, which is whatever the machine says, and the machine of the image says a Chinese font.
 const tokensOf = (css: string) => Object.fromEntries([...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name!, value!.trim()]));
 
-test('the tokens of a printed form that the app has too have the same value, and a form invents no colour, font, weight or line height', () => {
+test('the tokens of a printed form that the app has too have the same value, and a form invents no colour, weight or line height', () => {
   const app = tokensOf(read('globals.css'));
   const print = tokensOf(printTokens);
   const shared = Object.keys(print).filter((name) => name in app);
 
-  expect(shared).toEqual(expect.arrayContaining(['--color-text', '--color-text-muted', '--font-family']));
+  expect(shared).toEqual(expect.arrayContaining(['--color-text', '--color-text-muted', '--font-weight-bold', '--line-height-base']));
   for (const name of shared) expect(print[name], name).toBe(app[name]);
-  expect(Object.keys(print).filter((name) => /^--(color|font-family|font-weight|line-height)/.test(name) && !(name in app))).toEqual([]);
+  expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app))).toEqual([]);
+});
+
+test('a printed form names its own fonts, and none of them is the font of the system', () => {
+  const print = tokensOf(printTokens);
+
+  expect(print['--font-family']).toBeUndefined();
+  expect(print['--font-family-print']).toBeDefined();
+  expect(print['--font-family-print']).not.toContain('system-ui');
 });
 
 test('the footer of a printed page keeps its design values in :root', () => {

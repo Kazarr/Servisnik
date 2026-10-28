@@ -65,6 +65,11 @@ function marginsOf(content: string, pageWidth: number, pageHeight: number) {
   return { top, left, right: pageWidth - left - width * factor, bottom: pageHeight - top - height * factor };
 }
 
+/** The fonts a PDF embeds, each once, by the name the font has itself: `ArialMT`, `LiberationSans-Bold`. */
+export const fontsOf = (bytes: Uint8Array) => [
+  ...new Set([...Buffer.from(bytes).toString('latin1').matchAll(/\/BaseFont \/(?:[A-Z]{6}\+)?([\w-]+)/g)].map(([, name]) => name!)),
+];
+
 export function readPdf(bytes: Uint8Array): PdfPage[] {
   const objects = objectsOf(Buffer.from(bytes));
   const get = (id: number) => objects.get(id) ?? (() => { throw new Error(`The PDF has no object ${id}.`); })();

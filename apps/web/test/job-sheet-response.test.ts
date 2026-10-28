@@ -13,7 +13,7 @@ import { watchChromium } from './support/chromium.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { png } from './support/logo-files.ts';
-import { readPdf } from './support/pdf.ts';
+import { fontsOf, readPdf } from './support/pdf.ts';
 
 // The Route Handler of the zákazkový list (spec #95, Tlačivá; ticket #100): a signed-in user gets the PDF of a
 // Zákazka as a download. The route file only finds the user in the session; the answers are here, printed by the
@@ -138,6 +138,17 @@ test('Slovak letters in the data print as letters, none of them as a missing gly
   expect(page!.text).toContain(`Pokazená ${letters}`);
   expect(page!.text).toContain('Ľubomír Škrabák');
   expect(page!.missingGlyphs).toBe(0);
+});
+
+// The font of the system is whatever the machine has: in the image Chromium took a Chinese font for it. The form names
+// Arial, which a machine without it answers with Liberation Sans (the image ships it, and so does the runner of CI).
+test('the form prints every letter in Arial or Liberation Sans, and in no other font', async () => {
+  const pdf = await bytesOf(await get(admin, await newWorkOrder('Žltá ľavá ťažká ôsma')));
+
+  const fonts = fontsOf(pdf);
+
+  expect(fonts.length).toBeGreaterThan(0);
+  for (const font of fonts) expect(font, font).toMatch(/^(Arial|LiberationSans)/);
 });
 
 test('a long request continues on the next page, every line of it printed, with the number of the page in the footer', async () => {
