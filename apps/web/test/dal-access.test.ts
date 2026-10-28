@@ -73,7 +73,7 @@ const mechanikMay = ['listWorkOrders', 'changeOwnPassword'];
 const dataAccess = { 'customers.ts': customers, 'password.ts': password, 'settings.ts': settings, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders };
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the refused
- * constraint, the user, the id check and the page-side wrapper. An export added to one of them fails
+ * constraint, the paging of the lists, the user, the id check and the page-side wrapper. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  */
