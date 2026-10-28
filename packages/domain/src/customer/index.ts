@@ -1,4 +1,4 @@
-// Customer area (GLOSSARY: Zákazníci a vozidlá). Pure rules: no framework, database or network.
+// Customer area (GLOSSARY: Zákazníci). Pure rules: no framework, database or network.
 
 /** Osoba is a private person, Firma has an IČO (and may be a self-employed one). */
 export const customerTypes = ['person', 'company'] as const;

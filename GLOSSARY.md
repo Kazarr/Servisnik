@@ -20,7 +20,7 @@ _Avoid_: účet, pracovník
 Určuje, čo používateľ v Servisníku vidí: `admin` vidí všetko, `mechanik` len zákazky a bez cien.
 _Avoid_: oprávnenie, typ používateľa
 
-### Zákazníci a vozidlá
+### Zákazníci
 
 **Zákazník** (`Customer`):
 Osoba alebo firma, ktorej autoservis opravuje vozidlá a vystavuje faktúry. Je to buď osoba, alebo firma.
@@ -33,6 +33,8 @@ _Avoid_: fyzická osoba, súkromník
 **Firma** (`company`):
 Zákazník s IČO, teda právnická osoba aj živnostník.
 _Avoid_: podnikateľ, organizácia, SZČO
+
+### Vozidlá
 
 **Vozidlo** (`Vehicle`):
 Auto, ktoré autoservis eviduje a opravuje, určené svojím VIN.
