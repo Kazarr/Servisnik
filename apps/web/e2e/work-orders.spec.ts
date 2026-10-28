@@ -1,5 +1,17 @@
 import type { Locator, Page } from '@playwright/test';
-import { addCustomer, addVehicleAndOpen, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
+import {
+  addCustomer,
+  addVehicleAndOpen,
+  endSessionBehindThePage,
+  expect,
+  fillIntake,
+  numberOnTheDetail,
+  runTag,
+  signIn,
+  startWorkOrder,
+  test,
+  vinOf,
+} from './fixtures.ts';
 import { openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -11,25 +23,6 @@ test.afterAll(() => db.$client.end());
 /** Today in Europe/Bratislava as the app writes it, e.g. "26. 10. 2026". */
 const today = () => new Date().toLocaleDateString('sk-SK', { timeZone: 'Europe/Bratislava' });
 const year = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava', year: 'numeric' });
-
-/** On a vehicle's detail: opens the form for a new work order. */
-async function startWorkOrder(page: Page) {
-  await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
-  await expect(page.locator('main h1')).toHaveText('Nová zákazka');
-}
-
-async function fillIntake(page: Page, mileage: string, request: string) {
-  await page.getByLabel('Kilometre pri príjme').fill(mileage);
-  await page.getByLabel('Požiadavka zákazníka').fill(request);
-  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
-}
-
-/** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
-async function numberOnTheDetail(page: Page) {
-  const heading = page.locator('main h1');
-  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
-  return (await heading.textContent())!;
-}
 
 /** The running number of a work order number, e.g. 12 for "Z2026-0012". */
 const sequenceOf = (number: string) => Number(number.split('-')[1]);
