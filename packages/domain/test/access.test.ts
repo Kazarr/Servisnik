@@ -14,7 +14,7 @@ describe('Prístup', () => {
     expect(can('admin', unknown)).toBe(true);
   });
 
-  test('the mechanik may do only what is on his list: the list of Zákazky, changing his own password and reading Údaje autoservisu', () => {
+  test('the mechanik may do only what is on his list: the list of Zákazky, changing his own password and reading the details and logo of the autoservis for print', () => {
     const allowed = capabilities.filter((capability) => can('mechanik', capability));
 
     expect([...allowed].sort()).toEqual(['password.change', 'work-orders.list', 'workshop.read']);

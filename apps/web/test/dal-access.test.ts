@@ -4,6 +4,7 @@ import { createAuth } from '../src/auth.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as logo from '../src/dal/logo.ts';
 import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
@@ -14,10 +15,11 @@ import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
-import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
+import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { jpeg, png } from './support/logo-files.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 
 // Every function of the Data Access Layer checks the Rola's capability, not only the sign-in
@@ -35,6 +37,7 @@ beforeAll(async () => {
   vehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
   idOf(await workOrders.addLabour(admin, orderId, { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
 
@@ -58,7 +61,8 @@ const calls: Record<string, Call> = {
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, db),
-  listUnclosedWorkOrdersOfVehicle: (user, db) => workOrders.listUnclosedWorkOrdersOfVehicle(user, vehicleId, db),
+  listWorkOrdersOfVehicle: (user, db) => workOrders.listWorkOrdersOfVehicle(user, vehicleId, db),
+  listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
   getRates: (user, db) => settings.getRates(user, db),
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
   getWorkshopDetails: (user, db) => workshopDetails.getWorkshopDetails(user, db),
@@ -69,6 +73,10 @@ const calls: Record<string, Call> = {
       { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
       db,
     ),
+  getLogo: (user, db) => logo.getLogo(user, db),
+  getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
+  saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
+  removeLogo: (user, db) => logo.removeLogo(user, db),
   // The list reads the database it is given; the creation goes through Better Auth, which has the real database of the test, so only what it wrote shows (`everything`).
   listUsers: (user, db) => users.listUsers(user, db),
   createUser: (user) => users.createUser(user, { name: 'Nový Mechanik', email: 'novy@autoservis.test', role: 'mechanik', password: 'pociatocne-heslo-1234' }, auth),
@@ -78,11 +86,12 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'getWorkshopDetails', 'getVatPayerType', 'changeOwnPassword'];
+const mechanikMay = ['listWorkOrders', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = {
   'customers.ts': customers,
+  'logo.ts': logo,
   'password.ts': password,
   'settings.ts': settings,
   'users.ts': users,
@@ -130,6 +139,7 @@ const everything = async () => ({
   items: await ctx.db.select().from(workOrderItem),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
+  workshopLogo: await ctx.db.select().from(workshopLogo),
   users: await ctx.db.select().from(userTable),
   accounts: await ctx.db.select().from(account),
 });

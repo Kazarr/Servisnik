@@ -1,5 +1,5 @@
 {
-  "id": "99223e4c-c8c3-40a2-a3fc-6835ee960dca",
+  "id": "d28e4361-be07-4175-ac66-5d3938a1b341",
   "prevId": "15eacf9e-5b6e-4517-82f0-cfe2bdeefc4d",
   "version": "7",
   "dialect": "postgresql",
@@ -1000,81 +1000,6 @@
           "notNull": true,
           "default": 0
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "street": {
-          "name": "street",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "city": {
-          "name": "city",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "postal_code": {
-          "name": "postal_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ico": {
-          "name": "ico",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dic": {
-          "name": "dic",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ic_dph": {
-          "name": "ic_dph",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vat_payer_type": {
-          "name": "vat_payer_type",
-          "type": "vat_payer_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'payer'"
-        },
-        "iban": {
-          "name": "iban",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "commercial_register": {
-          "name": "commercial_register",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1118,6 +1043,65 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.workshop_logo": {
+      "name": "workshop_logo",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workshop_logo_single_row_check": {
+          "name": "workshop_logo_single_row_check",
+          "value": "\"workshop_logo\".\"id\" = 1"
+        },
+        "workshop_logo_content_type_check": {
+          "name": "workshop_logo_content_type_check",
+          "value": "\"workshop_logo\".\"content_type\" in ('image/png', 'image/jpeg')"
+        },
+        "workshop_logo_size_check": {
+          "name": "workshop_logo_size_check",
+          "value": "octet_length(\"workshop_logo\".\"data\") between 1 and 1048576"
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -1135,15 +1119,6 @@
       "values": [
         "admin",
         "mechanik"
-      ]
-    },
-    "public.vat_payer_type": {
-      "name": "vat_payer_type",
-      "schema": "public",
-      "values": [
-        "payer",
-        "nonPayer",
-        "section7"
       ]
     },
     "public.vehicle_fuel": {
