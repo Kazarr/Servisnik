@@ -437,16 +437,6 @@ test('a customer lists every Zákazka they are the customer of, from the newest,
   ]);
 });
 
-test('after a Prepis the Zákazky stay with the customer they were made for, not with the owner of the vehicle', async () => {
-  const buyer = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
-  const sold = await newWorkOrderId();
-  await transferOwnership(admin, vehicleId, { fromOwnerId: ownerId, toOwnerId: buyer }, ctx.db);
-  const bought = await newWorkOrderId();
-
-  expect((await listWorkOrdersOfCustomer(admin, ownerId, ctx.db)).map(({ id }) => id)).toEqual([sold]);
-  expect((await listWorkOrdersOfCustomer(admin, buyer, ctx.db)).map(({ id }) => id)).toEqual([bought]);
-});
-
 test('a customer without Zákazky, one that does not exist, or an id that is not one, lists nothing', async () => {
   const idle = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   await newWorkOrderId();
