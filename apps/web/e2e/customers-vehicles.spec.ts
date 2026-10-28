@@ -48,7 +48,7 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
   await expect(vinField).toHaveValue(vin.slice(0, 16));
   await vinField.fill(`${vin.slice(0, 16)}O`);
   await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await expect(vinField).toHaveAccessibleDescription('VIN smie obsahovať len písmená A–Z a číslice 0–9, bez I, O a Q');
+  await expect(vinField).toHaveAccessibleDescription('VIN nemá písmená I, O ani Q: namiesto I patrí 1, namiesto O a Q patrí 0');
 
   // Typed the way it is read off a document, it is saved in capitals without spaces and hyphens.
   await vinField.fill(`${vin.slice(0, 3)} ${vin.slice(3, 9)}-${vin.slice(9)}`.toLowerCase());
@@ -71,7 +71,11 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
   // A second vehicle with the same VIN is refused, however it is typed.
   await fillVehicleForm(page, vin.toLowerCase());
   await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await expect(vinField).toHaveAccessibleDescription('Vozidlo s týmto VIN už existuje');
+  await expect(vinField).toHaveAccessibleDescription(`Vozidlo s týmto VIN už existuje: Volkswagen Golf, majiteľ ${company}`);
+  await expect(main.getByRole('alert').getByRole('link', { name: company })).toHaveAttribute('href', new URL(customerUrl).pathname);
+  await main.getByRole('alert').getByRole('link', { name: 'Volkswagen Golf' }).click();
+  await expect(main.locator('h1')).toHaveText('Volkswagen Golf');
+  await expect(main).toContainText(vin);
   await page.goto(customerUrl);
   await expect(main.getByRole('row', { name: new RegExp(vin) })).toHaveCount(1);
   await expect(main).not.toContainText('Octavia');

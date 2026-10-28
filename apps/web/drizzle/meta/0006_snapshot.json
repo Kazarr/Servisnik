@@ -1,5 +1,5 @@
 {
-  "id": "d6c4af7f-833f-444c-92f3-ee240e1c2ff3",
+  "id": "76f7ec9a-a857-424f-8c50-606adafe6928",
   "prevId": "a4d33db1-a293-40b5-8b7c-b894d9c7abba",
   "version": "7",
   "dialect": "postgresql",
@@ -478,6 +478,31 @@
           "primaryKey": false,
           "notNull": true
         },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel": {
+          "name": "fuel",
+          "type": "vehicle_fuel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_km": {
+          "name": "mileage_km",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -950,81 +975,6 @@
           "notNull": true,
           "default": 0
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "street": {
-          "name": "street",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "city": {
-          "name": "city",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "postal_code": {
-          "name": "postal_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ico": {
-          "name": "ico",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "dic": {
-          "name": "dic",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ic_dph": {
-          "name": "ic_dph",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "vat_payer_type": {
-          "name": "vat_payer_type",
-          "type": "vat_payer_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'payer'"
-        },
-        "iban": {
-          "name": "iban",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "commercial_register": {
-          "name": "commercial_register",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1087,13 +1037,17 @@
         "mechanik"
       ]
     },
-    "public.vat_payer_type": {
-      "name": "vat_payer_type",
+    "public.vehicle_fuel": {
+      "name": "vehicle_fuel",
       "schema": "public",
       "values": [
-        "payer",
-        "nonPayer",
-        "section7"
+        "petrol",
+        "diesel",
+        "hybrid",
+        "electric",
+        "lpg",
+        "cng",
+        "other"
       ]
     },
     "public.work_order_item_kind": {

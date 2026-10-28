@@ -1,5 +1,6 @@
 import { roles } from '@servisnik/domain/access';
 import { customerTypes } from '@servisnik/domain/customer';
+import { fuels } from '@servisnik/domain/vehicle';
 import { itemKinds, workOrderStatuses } from '@servisnik/domain/work-order';
 import { vatPayerTypes } from '@servisnik/domain/workshop';
 import { sql } from 'drizzle-orm';
@@ -112,7 +113,13 @@ export const customer = pgTable(
   (table) => [uniqueIndex('customer_ico_idx').on(table.ico)],
 );
 
-/** Vozidlo, identified by its VIN; `ownerId` is its Majiteľ. */
+/** Benzín, nafta, hybrid, elektro, LPG, CNG or iné. */
+export const vehicleFuel = pgEnum('vehicle_fuel', fuels);
+
+/**
+ * Vozidlo, identified by its VIN; `ownerId` is its Majiteľ. The VIN is unique, the ŠPZ is not
+ * (it passes from one car to another). `mileageKm` is the last known state of the odometer.
+ */
 export const vehicle = pgTable(
   'vehicle',
   {
@@ -124,6 +131,10 @@ export const vehicle = pgTable(
     licensePlate: text('license_plate'),
     make: text('make').notNull(),
     model: text('model').notNull(),
+    year: integer('year'),
+    fuel: vehicleFuel('fuel'),
+    mileageKm: integer('mileage_km'),
+    note: text('note'),
     ...timestamps,
   },
   (table) => [uniqueIndex('vehicle_vin_idx').on(table.vin), index('vehicle_owner_id_idx').on(table.ownerId)],
