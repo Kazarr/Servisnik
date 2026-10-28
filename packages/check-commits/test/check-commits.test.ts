@@ -50,6 +50,48 @@ test('lists every violation as "<sha> <subject>: <rule>"', () => {
   ]);
 });
 
+test('rule 3: a test commit that changes only test files, helpers included, passes', () => {
+  expect(
+    checkCommits([
+      commit('a1', 'test: totals', ['src/totals.test.ts', 'a/b.spec.tsx']),
+      commit('b2', 'test(web): login', ['apps/web/e2e/login.spec.ts', 'e2e/helpers.ts']),
+      commit('c3', 'test(web): seed', ['apps/web/test/support/db.ts', 'test/fixtures/users.json']),
+      commit('d4', 'test: nothing changed'),
+      // not the type `test`, so rule 3 does not apply
+      commit('e5', 'Test: capitalised is not a type', ['src/x.ts']),
+      commit('f6', 'tests: plural is not a type', ['src/y.ts']),
+      commit('g7', 'test: a merge with a production file', ['src/z.ts'], true),
+    ]),
+  ).toEqual([]);
+});
+
+test('rule 3: lists every non-test file of a test commit, a moved production file included', () => {
+  expect(
+    checkCommits([
+      // the shape of #71: a test commit that also moved a production file (a rename reads as delete + add)
+      commit('a1', 'test(web): vehicle form', [
+        'apps/web/src/vozidla/novy/vehicle-form.tsx',
+        'apps/web/src/vozidla/vehicle-form.tsx',
+        'apps/web/test/vehicle-form.test.tsx',
+      ]),
+      // test files and config side by side: only the config is named
+      commit('b2', 'test: totals', ['src/totals.test.ts', 'vitest.config.ts', 'README.md']),
+    ]),
+  ).toEqual([
+    'a1 test(web): vehicle form: test commit changes non-test files: apps/web/src/vozidla/novy/vehicle-form.tsx, apps/web/src/vozidla/vehicle-form.tsx',
+    'b2 test: totals: test commit changes non-test files: vitest.config.ts, README.md',
+  ]);
+});
+
+test('a test commit that breaks rule 3 still counts as the test before a feat: one violation, not two', () => {
+  expect(
+    checkCommits([
+      commit('a1', 'test: totals', ['test/totals.test.ts', 'src/totals.ts']),
+      commit('b2', 'feat: totals', ['src/more.ts']),
+    ]),
+  ).toEqual(['a1 test: totals: test commit changes non-test files: src/totals.ts']);
+});
+
 test('merge commits are skipped: no violation, not a test, and they do not reset an earlier test', () => {
   expect(
     checkCommits([
@@ -117,7 +159,7 @@ test('an allowlisted commit passes the state of its line on unchanged', () => {
   ).toEqual([]);
 });
 
-test('only feat and fix are held to the test file rule, only feat to the order rule', () => {
+test('rule 1 holds only feat and fix, rule 2 only feat, rule 3 only test', () => {
   expect(
     checkCommits([
       commit('a1', 'refactor: move totals', ['src/totals.ts', 'test/totals.test.ts']),

@@ -49,6 +49,16 @@ test('a price word next to a run of capitals is found, on either side of it', ()
   expect(findPriceKeys(Object.fromEntries(keys.map((key) => [key, 1])))).toEqual(keys.map((key) => `$.${key}`));
 });
 
+// The IČ DPH and the platiteľ DPH of the autoservis are printed on tlačivá, a mechanik prints them: they identify, they are no amount.
+test('icDph and vatPayerType are skipped, exactly those two keys: every other key with the same words is still found', () => {
+  expect(findPriceKeys({ name: 'Autoservis', icDph: 'SK2020123456', vatPayerType: 'payer' })).toEqual([]);
+  expect(findPriceKeys({ icDph: 'SK2020123456', vatPayerType: 'payer', vatRate: 23, icDphAmount: 1, customerVatPayerTypeCents: 2 })).toEqual([
+    '$.vatRate',
+    '$.icDphAmount',
+    '$.customerVatPayerTypeCents',
+  ]);
+});
+
 test('a key that holds a price word only inside another word, or only capitals that are none, passes', () => {
   const keys = ['feedback', 'europe', 'zakladna', 'format', 'internet', 'NETWORK', 'URLInfo', 'HTTPStatus', 'vehicleVIN'];
 
