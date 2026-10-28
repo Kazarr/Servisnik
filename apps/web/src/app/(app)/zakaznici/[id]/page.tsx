@@ -81,7 +81,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       )}
 
       <h2>Zákazky</h2>
-      <WorkOrderList orders={orders} role={user.role} />
+      <WorkOrderList orders={orders} role={user.role} now={new Date()} />
     </>
   );
 }

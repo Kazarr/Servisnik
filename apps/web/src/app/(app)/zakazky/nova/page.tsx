@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { listCustomers } from '../../../../dal/customers.ts';
 import { getVehicle } from '../../../../dal/vehicles.ts';
+import { addWorkOrder } from '../actions.ts';
 import { WorkOrderForm } from '../work-order-form.tsx';
 
 export const metadata: Metadata = { title: 'Nová zákazka' };
@@ -25,7 +26,10 @@ export default async function NewWorkOrderPage({ searchParams }: { searchParams:
         </strong>{' '}
         ({vehicle.vin})
       </p>
-      <WorkOrderForm vehicleId={vehicle.id} ownerId={vehicle.owner.id} customers={customers.map(({ id, name }) => ({ id, name }))} />
+      <WorkOrderForm
+        action={addWorkOrder}
+        intake={{ vehicleId: vehicle.id, ownerId: vehicle.owner.id, customers: customers.map(({ id, name }) => ({ id, name })) }}
+      />
     </>
   );
 }

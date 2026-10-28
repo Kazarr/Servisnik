@@ -54,7 +54,7 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
           Nová zákazka
         </Link>
       </div>
-      {orders.length === 0 ? <p>Zatiaľ žiadna zákazka.</p> : <WorkOrderList orders={orders} role={user.role} without="vehicle" />}
+      {orders.length === 0 ? <p>Zatiaľ žiadna zákazka.</p> : <WorkOrderList orders={orders} role={user.role} now={new Date()} without="vehicle" />}
     </>
   );
 }
