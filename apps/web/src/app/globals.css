@@ -153,6 +153,10 @@ button:disabled {
   margin: 0;
 }
 
+.user a {
+  color: inherit;
+}
+
 .content {
   padding: var(--space-4);
 }
