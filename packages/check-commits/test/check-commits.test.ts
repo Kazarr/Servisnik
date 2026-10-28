@@ -60,7 +60,7 @@ test('rule 3: a test commit that changes only test files, helpers included, pass
       // not the type `test`, so rule 3 does not apply
       commit('e5', 'Test: capitalised is not a type', ['src/x.ts']),
       commit('f6', 'tests: plural is not a type', ['src/y.ts']),
-      commit('g7', "Merge 'test' into ticket", ['src/z.ts'], true),
+      commit('g7', 'test: a merge with a production file', ['src/z.ts'], true),
     ]),
   ).toEqual([]);
 });
