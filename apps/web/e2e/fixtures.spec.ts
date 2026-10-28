@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
-import { watchPage } from './page-problems.ts';
+import { watchPage } from './watch-page.ts';
 
 // The `page` fixture of fixtures.ts is a check (testing-strategy), tested in two parts. The rules it
 // applies are tested below with plain `test`, because the fixture would fail those tests: each asserts

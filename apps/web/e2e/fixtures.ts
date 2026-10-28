@@ -1,6 +1,6 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
-import { watchPage } from './page-problems.ts';
+import { watchPage } from './watch-page.ts';
 
 export { expect };
 
@@ -13,7 +13,7 @@ export const runTag = () => randomBytes(3).toString('hex');
 /** A VIN no other test has used: the 11 characters of `prefix`, then the tag in capitals (hex digits are never I, O or Q). */
 export const vinOf = (tag: string, prefix = 'TMBZZZ5JZ3W') => `${prefix}${tag.toUpperCase()}`;
 
-/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see page-problems.ts). */
+/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see watch-page.ts). */
 export const test = base.extend({
   page: async ({ page }, use) => {
     const problems = watchPage(page);
