@@ -65,3 +65,10 @@ test('run exits 1 and lists the failures when the smoke fails', async () => {
 test('run exits 2 with the usage when no URL is given', async () => {
   expect(await run([])).toEqual({ exitCode: 2, output: ['Použitie: pnpm smoke <url>'] });
 });
+
+test('run prints the URLs it called: a path in the base URL does not move them', async () => {
+  const url = await app({ '/login': 200, '/api/health': 200 });
+
+  // new URL('/login', base) resolves from the origin, so the pages are called, and listed, at the root.
+  expect(await run([`${url}/some/prefix/`])).toEqual({ exitCode: 0, output: [`Smoke prešiel: ${url}/login 200, ${url}/api/health 200`] });
+});
