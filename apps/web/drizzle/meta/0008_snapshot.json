@@ -1,5 +1,5 @@
 {
-  "id": "3489c4a3-fedc-4b2e-af7c-4ff39fdc0197",
+  "id": "15eacf9e-5b6e-4517-82f0-cfe2bdeefc4d",
   "prevId": "ee6eb918-85d2-45da-a284-a3f8884533aa",
   "version": "7",
   "dialect": "postgresql",
@@ -302,6 +302,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "impersonated_by": {
+          "name": "impersonated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -405,6 +411,25 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'mechanik'"
+        },
+        "banned": {
+          "name": "banned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "ban_reason": {
+          "name": "ban_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ban_expires": {
+          "name": "ban_expires",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -843,12 +868,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -866,12 +885,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "purchase_price_cents": {
-          "name": "purchase_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         },
         "unit_price_cents": {
           "name": "unit_price_cents",
@@ -939,14 +952,6 @@
         "work_order_item_quantity_check": {
           "name": "work_order_item_quantity_check",
           "value": "\"work_order_item\".\"quantity_hundredths\" > 0"
-        },
-        "work_order_item_purchase_price_check": {
-          "name": "work_order_item_purchase_price_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" >= 0"
-        },
-        "work_order_item_purchase_price_kind_check": {
-          "name": "work_order_item_purchase_price_kind_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" is null or \"work_order_item\".\"kind\" = 'part'"
         },
         "work_order_item_unit_price_check": {
           "name": "work_order_item_unit_price_check",

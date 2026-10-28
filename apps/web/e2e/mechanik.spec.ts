@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { listCustomers } from '../src/dal/customers.ts';
 import { getRates } from '../src/dal/settings.ts';
+import { listUsers } from '../src/dal/users.ts';
 import { listVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrders } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
@@ -91,6 +92,11 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const settingsPage = await context.newPage();
   await settingsPage.goto('/nastavenia');
   await settingsPage.getByLabel('Prirážka na diely (%)').fill('77');
+  const usersPage = await context.newPage();
+  await usersPage.goto('/nastavenia');
+  await usersPage.getByLabel('Meno používateľa').fill(`Nový ${tag}`);
+  await usersPage.getByLabel('E-mail používateľa').fill(`novy-${tag}@autoservis.test`);
+  await usersPage.getByLabel('Počiatočné heslo používateľa').fill(randomBytes(12).toString('base64url'));
 
   await setRole(db, user.email, 'mechanik');
 
@@ -114,6 +120,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(itemPage.locator('main').getByRole('alert')).toHaveText(message);
   await settingsPage.getByRole('button', { name: 'Uložiť sadzby' }).click();
   await expect(settingsPage.locator('main').getByRole('alert')).toHaveText(message);
+  await usersPage.getByRole('button', { name: 'Založiť používateľa' }).click();
+  await expect(usersPage.locator('main').getByRole('alert')).toHaveText(message);
 
   // Nothing was saved: only the records the spec made through the DAL exist.
   const names = (await listCustomers(admin, db)).map((customer) => customer.name).filter((name) => name.includes(tag));
@@ -125,4 +133,5 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   expect(orders.map(({ number }) => number)).toEqual([order.number]);
   expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [{ id: itemId, name: 'Zostane' }] });
   expect(await getRates(admin, db)).toMatchObject({ markupPercent: 0 });
+  expect((await listUsers(admin, db)).filter(({ email }) => email.includes(tag)).map(({ email }) => email)).toEqual([user.email]);
 });
