@@ -1,8 +1,9 @@
 import type { Page } from '@playwright/test';
 
 /**
- * The rules of the `page` fixture in fixtures.ts: a console error, an uncaught page exception and an
- * HTTP 5xx are problems. Returns the list that gains one line per problem as the page runs.
+ * The rules of the `context` fixture in fixtures.ts, which applies them to every page of the context: a
+ * console error, an uncaught page exception and an HTTP 5xx are problems. Returns the list that gains
+ * one line per problem as the page runs.
  * Chromium also logs every failed response as a console error, so the 5xx rule overlaps with the
  * first one; it stays because it names the status and URL.
  */
