@@ -8,13 +8,19 @@ import { appEnv } from './env.ts';
 import { getDb, type Database } from './db/index.ts';
 import * as schema from './db/schema.ts';
 
+/** Better Auth's default path. No route is mounted there: src/dal/attempt-limit.ts sends the router requests under it. */
+export const authBasePath = '/api/auth';
+
 /**
  * Better Auth with e-mail and password. There is no registration: the first admin comes from the seed
  * command and every other Používateľ from an admin, through the admin plugin's server API.
  */
-export function createAuth({ db, secret }: { db: Database; secret: string }) {
+export function createAuth({ db, secret, rateLimit }: { db: Database; secret: string; rateLimit?: { enabled: boolean } }) {
   return betterAuth({
     secret,
+    basePath: authBasePath,
+    // Better Auth's default: limited when NODE_ENV is production, with its default rules (src/dal/attempt-limit.ts). Tests switch it on.
+    rateLimit,
     database: drizzleAdapter(db, { provider: 'pg', schema }),
     // The password length is the access area's rule (packages/domain/src/access); Better Auth checks the same numbers.
     emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: passwordLength.min, maxPasswordLength: passwordLength.max },
