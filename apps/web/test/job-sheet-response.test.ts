@@ -94,7 +94,7 @@ test('the PDF says what is on the form: the autoservis, the number, the day of t
   const text = page!.text;
   for (const line of [
     'Autoservis Žilinský',
-    'Hlavná 1, 811 01 Bratislava',
+    'Hlavná 1, 81101 Bratislava', // the PSČ as the app keeps it: five digits, no space
     'IČO: 12345678',
     'Zákazkový list',
     'Z2026-0001',
@@ -110,6 +110,13 @@ test('the PDF says what is on the form: the autoservis, the number, the day of t
   expect(text.split('\n')).toEqual(expect.arrayContaining(['Výmena oleja', 'Kontrola bŕzd'])); // the lines of the request stay lines
   expect(text.split('\n').at(-1)).toBe('Strana 1/1');
   expect(text).not.toContain('€');
+});
+
+test('the day of the print is the day in Europe/Bratislava, which late in the evening UTC is already the next one', async () => {
+  const [page] = readPdf(await bytesOf(await get(admin, await newWorkOrder(), new Date('2026-10-27T23:30:00Z'))));
+
+  expect(page!.text).toContain('28. 10. 2026');
+  expect(page!.text).not.toContain('27. 10. 2026');
 });
 
 test('Slovak letters in the data print as letters, none of them as a missing glyph', async () => {
