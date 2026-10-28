@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseCustomer } from '../src/customer/index.ts';
+import { formatErrors, normalizePostalCode, parseCustomer } from '../src/customer/index.ts';
 
 const company = { ico: '12345678', dic: '2020123456', icDph: 'SK2020123456' };
 const contact = { street: 'Hlavná 1', city: 'Bratislava', postalCode: '81101', phone: '0905 123 456', email: 'info@firma.sk', note: 'Platí v hotovosti' };
@@ -107,5 +107,26 @@ describe('Customer', () => {
       ok: true,
       customer: { phone: 'po 17:00 na 0905/123 456' },
     });
+  });
+});
+
+// The shapes of IČO, DIČ, IČ DPH, PSČ and e-mail for any area that has them (the Autoservis does); parseCustomer is tested on them above.
+describe('the formats of a contact', () => {
+  test('are reported for exactly the fields whose value is in the wrong shape', () => {
+    expect(formatErrors({ ico: '1', dic: '2020123456', icDph: 'SK', postalCode: '81101', email: 'info' })).toEqual({
+      ico: 'format',
+      icDph: 'format',
+      email: 'format',
+    });
+  });
+
+  test('are not reported for a field that is missing, blank or null', () => {
+    expect(formatErrors({ ico: undefined, dic: null, icDph: '', postalCode: '   ' })).toEqual({});
+    expect(formatErrors({})).toEqual({});
+  });
+
+  test('take a PSČ typed with spaces to the 5 digits that are stored', () => {
+    expect(normalizePostalCode('811 01')).toBe('81101');
+    expect(normalizePostalCode(' 8 1 1 0 1 ')).toBe('81101');
   });
 });
