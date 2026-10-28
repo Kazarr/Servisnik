@@ -78,7 +78,7 @@ export async function listCustomers(user: User | null, db: Database = getDb()) {
  * customer). A blank query has nothing to look for, so every Zákazník matches. `page` counts from 1:
  * any page past the last is the last, and anything that is not a page number is the first. Admin only.
  */
-// ponytail: a scan of the table per search; a trigram index on the search columns if the table outgrows ~100k customers.
+// ponytail: a scan of the table per search; rewrite `contains` to an escaped LIKE and add a pg_trgm GIN index on the search columns if the table outgrows ~100k customers.
 export async function searchCustomers(
   user: User | null,
   { query = '', page = 1 }: { query?: string; page?: number } = {},

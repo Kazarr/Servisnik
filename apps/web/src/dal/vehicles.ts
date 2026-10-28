@@ -106,7 +106,7 @@ export async function listVehicles(user: User | null, db: Database = getDb()) {
  * query has nothing to look for, so every Vozidlo matches. `page` counts from 1, as in `searchCustomers`.
  * Admin only.
  */
-// ponytail: a scan of both tables per search; a trigram index on the VIN, the ŠPZ and `search_name` if the tables outgrow ~100k rows.
+// ponytail: a scan of both tables per search; rewrite `contains` to an escaped LIKE and add a pg_trgm GIN index on the VIN, the ŠPZ and `search_name` if the tables outgrow ~100k rows.
 export async function searchVehicles(user: User | null, { query = '', page = 1 }: { query?: string; page?: number } = {}, db: Database = getDb()) {
   assertCan(user, 'vehicles.read');
   const { code, ownerName } = parseVehicleSearch(query);
