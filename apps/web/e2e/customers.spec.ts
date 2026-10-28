@@ -21,6 +21,7 @@ test('the admin is told at the field what is wrong, and a second firma with the 
   await page.getByLabel('Názov').fill(firstName);
   await save(page);
   await expect(field('IČO')).toHaveAccessibleDescription('Vyplňte IČO firmy');
+  await expect(field('Firma')).toBeChecked(); // a refused save does not fall back to Osoba
 
   // Every format is refused at its own field, and what was typed stays.
   await field('IČO').fill('1234567');
