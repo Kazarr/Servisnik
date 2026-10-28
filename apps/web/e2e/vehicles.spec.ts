@@ -102,13 +102,15 @@ test('the vehicle form opened from a customer takes him as the owner and refuses
   const save = () => page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
 
   const advice = 'VIN nemá písmená I, O ani Q: namiesto I patrí 1, namiesto O a Q patrí 0';
+  // No two neighbours are refused with the same words: an assertion on the reason would otherwise pass on the
+  // answer to the form before, and the form is reset to the fields of the answer that comes after it.
+  // The letter Q and the years on both sides of the limits are tried in the domain's unit tests.
   const refusedVins = [
     [vin.slice(0, 16), 'VIN musí mať presne 17 znakov'],
-    [`${vin}1`, 'VIN musí mať presne 17 znakov'],
     [`${vin.slice(0, 16)}I`, advice],
-    [`${vin.slice(0, 16)}O`, advice],
-    [`${vin.slice(0, 16)}Q`, advice],
     [`${vin.slice(0, 16)}!`, 'VIN smie obsahovať len písmená A–Z a číslice 0–9'],
+    [`${vin}1`, 'VIN musí mať presne 17 znakov'],
+    [`${vin.slice(0, 16)}O`, advice],
   ] as const;
   for (const [typed, reason] of refusedVins) {
     await vinField.fill(typed);
@@ -119,12 +121,10 @@ test('the vehicle form opened from a customer takes him as the owner and refuses
 
   await vinField.fill(vin);
   const yearField = page.getByLabel('Rok výroby');
-  for (const year of ['1949', String(lastYear() + 1)]) {
-    await yearField.fill(year);
-    await save();
-    await expect(yearField, year).toHaveAccessibleDescription(`Rok výroby má byť od 1950 do ${lastYear()}`);
-    await expect(yearField).toHaveValue(year);
-  }
+  await yearField.fill('1949');
+  await save();
+  await expect(yearField).toHaveAccessibleDescription(`Rok výroby má byť od 1950 do ${lastYear()}`);
+  await expect(yearField).toHaveValue('1949');
   await yearField.fill(String(lastYear()));
   const kmField = page.getByLabel('Stav km');
   await kmField.fill('-5');
