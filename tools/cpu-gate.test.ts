@@ -30,6 +30,8 @@ test('after 20 minutes of refusals one implementer starts anyway, so outside loa
 
 test('other agents (reviews, exploration) are never held back', () => {
   expect(gate(100, null, 'general-purpose')).toEqual({ allow: true, refusingSince: null });
+  // ...and a review started meanwhile keeps the implementers' streak of refusals.
+  expect(gate(100, 90 * minute, 'general-purpose')).toEqual({ allow: true, refusingSince: 90 * minute });
   // The main conversation's Agent calls may name no subagent type at all.
   expect(cpuGate({ subagentType: undefined as unknown as string, busy: 100, refusingSince: null, now: 0 })).toEqual({
     allow: true,
