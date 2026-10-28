@@ -23,8 +23,7 @@ export async function run(argv: string[]): Promise<{ exitCode: number; output: s
   if (!url) return { exitCode: 2, output: ['Použitie: pnpm smoke <url>'] };
   const failures = await smoke(url);
   if (failures.length > 0) return { exitCode: 1, output: ['Smoke zlyhal:', ...failures] };
-  const base = url.replace(/\/$/, '');
-  return { exitCode: 0, output: [`Smoke prešiel: ${paths.map((path) => `${base}${path} 200`).join(', ')}`] };
+  return { exitCode: 0, output: [`Smoke prešiel: ${paths.map((path) => `${new URL(path, url)} 200`).join(', ')}`] };
 }
 
 if (import.meta.main) {
