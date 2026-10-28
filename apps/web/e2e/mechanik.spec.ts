@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { listCustomers } from '../src/dal/customers.ts';
 import { getRates } from '../src/dal/settings.ts';
-import { listVehicles } from '../src/dal/vehicles.ts';
+import { searchVehicles } from '../src/dal/vehicles.ts';
 import { getWorkOrder, listWorkOrders } from '../src/dal/work-orders.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
 import { expect, runTag, signInAs, test, vinOf } from './fixtures.ts';
@@ -107,9 +107,10 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   // Nothing was saved: only the records the spec made through the DAL exist.
   const names = (await listCustomers(admin, db)).map((customer) => customer.name).filter((name) => name.includes(tag));
   expect(names).toEqual([order.customerName]);
-  const vins = (await listVehicles(admin, db)).map((vehicle) => vehicle.vin).filter((vin) => vin.includes(tag.toUpperCase()));
-  expect(vins).toEqual([order.vin]);
-  expect((await listVehicles(admin, db)).find((vehicle) => vehicle.vin === order.vin)).toMatchObject({ make: 'Škoda', model: 'Octavia' });
+  // The tag is in the VIN of the seeded vehicle and of the one the form tried to add, and in the name of the owner of both.
+  const { vehicles } = await searchVehicles(admin, { query: tag }, db);
+  expect(vehicles.map((vehicle) => vehicle.vin)).toEqual([order.vin]);
+  expect(vehicles[0]).toMatchObject({ make: 'Škoda', model: 'Octavia' });
   const orders = (await listWorkOrders(admin, db)).filter((found) => found.customer.name === order.customerName);
   expect(orders.map(({ number }) => number)).toEqual([order.number]);
   expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [] });
