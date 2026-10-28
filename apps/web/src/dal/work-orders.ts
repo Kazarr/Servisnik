@@ -15,10 +15,14 @@ import {
   type WorkOrderInput,
 } from '@servisnik/domain/work-order';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
+
+/** The rows of `query`, or none when `id` is not a UUID: PostgreSQL would answer that with an error, not with no row. */
+const rowsIfUuid = async <Row>(id: string, query: PromiseLike<Row[]>): Promise<Row[]> => (isUuid(id) ? await query : []);
 
 export type CreateWorkOrderResult =
   | { ok: true; id: string; number: string }
@@ -40,10 +44,10 @@ export async function createWorkOrder(
   if (!parsed.ok) return parsed;
 
   return db.transaction(async (tx) => {
-    const [found] = isUuid(input.vehicleId) ? await tx.select({ ownerId: vehicle.ownerId }).from(vehicle).where(eq(vehicle.id, input.vehicleId)) : [];
+    const [found] = await rowsIfUuid(input.vehicleId, tx.select({ ownerId: vehicle.ownerId }).from(vehicle).where(eq(vehicle.id, input.vehicleId)));
     if (!found) return { ok: false, errors: { vehicle: 'unknown' } };
     const customerId = input.customerId || found.ownerId;
-    const [known] = isUuid(customerId) ? await tx.select({ id: customer.id }).from(customer).where(eq(customer.id, customerId)) : [];
+    const [known] = await rowsIfUuid(customerId, tx.select({ id: customer.id }).from(customer).where(eq(customer.id, customerId)));
     if (!known) return { ok: false, errors: { customer: 'unknown' } };
 
     const year = localYear(now);
@@ -72,9 +76,7 @@ export async function addLabour(user: User | null, workOrderId: string, input: L
   if (!parsed.ok) return parsed;
 
   return db.transaction(async (tx) => {
-    const [found] = isUuid(workOrderId)
-      ? await tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, workOrderId)).for('update')
-      : [];
+    const [found] = await rowsIfUuid(workOrderId, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, workOrderId)).for('update'));
     if (!found) return { ok: false, errors: { workOrder: 'unknown' } };
     if (!canAddItems(found.status)) return { ok: false, errors: { workOrder: 'not-editable' } };
     const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...parsed.item }).returning({ id: workOrderItem.id });
@@ -88,7 +90,7 @@ export type MarkDoneResult = { ok: true } | { ok: false; error: 'unknown' | 'not
 export async function markWorkOrderDone(user: User | null, id: string, db: Database = getDb(), now: Date = new Date()): Promise<MarkDoneResult> {
   assertCan(user, 'work-orders.write');
   return db.transaction(async (tx) => {
-    const [found] = isUuid(id) ? await tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, id)).for('update') : [];
+    const [found] = await rowsIfUuid(id, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, id)).for('update'));
     if (!found) return { ok: false, error: 'unknown' };
     const changed = transition(found.status, 'done', 'user', now);
     if (!changed.ok) return { ok: false, error: 'not-allowed' };
@@ -97,7 +99,8 @@ export async function markWorkOrderDone(user: User | null, id: string, db: Datab
   });
 }
 
-const withParties = {
+/** The columns of a row in the list of Zákazky: the Zákazka itself, its customer and its vehicle. */
+const listedFields = {
   id: workOrder.id,
   number: workOrder.number,
   status: workOrder.status,
@@ -105,15 +108,18 @@ const withParties = {
   vehicle: { id: vehicle.id, vin: vehicle.vin, licensePlate: vehicle.licensePlate, make: vehicle.make, model: vehicle.model },
 };
 
+/** Zákazky joined to their customer and vehicle, selecting the listed fields and `more`. */
+const selectListed = <More extends SelectedFields>(db: Database, more: More) =>
+  db
+    .select({ ...listedFields, ...more })
+    .from(workOrder)
+    .innerJoin(customer, eq(workOrder.customerId, customer.id))
+    .innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id));
+
 /** Every Zákazka with its customer and vehicle, newest first. */
 export async function listWorkOrders(user: User | null, db: Database = getDb()) {
   assertCan(user, 'work-orders.list');
-  return db
-    .select(withParties)
-    .from(workOrder)
-    .innerJoin(customer, eq(workOrder.customerId, customer.id))
-    .innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id))
-    .orderBy(desc(workOrder.createdAt));
+  return selectListed(db, {}).orderBy(desc(workOrder.createdAt));
 }
 
 /** The Zákazky of a Vozidlo that are not Uzavretá, newest first. */
@@ -131,17 +137,11 @@ export async function listUnclosedWorkOrdersOfVehicle(user: User | null, vehicle
 export async function getWorkOrder(user: User | null, id: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
   if (!isUuid(id)) return null;
-  const [found] = await db
-    .select({
-      ...withParties,
-      completedOn: workOrder.completedOn,
-      mileageKm: workOrder.mileageKm,
-      customerRequest: workOrder.customerRequest,
-    })
-    .from(workOrder)
-    .innerJoin(customer, eq(workOrder.customerId, customer.id))
-    .innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id))
-    .where(eq(workOrder.id, id));
+  const [found] = await selectListed(db, {
+    completedOn: workOrder.completedOn,
+    mileageKm: workOrder.mileageKm,
+    customerRequest: workOrder.customerRequest,
+  }).where(eq(workOrder.id, id));
   if (!found) return null;
   const items = await db.select().from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(asc(workOrderItem.createdAt), asc(workOrderItem.id));
   return { ...found, items: items.map((item) => ({ ...item, amounts: amountsOf(item) })), totals: totalsOf(items) };
