@@ -197,6 +197,23 @@ button:disabled {
   color: var(--color-danger);
 }
 
+/* What the admin should know about something that was done, which is no error. */
+.notice {
+  max-width: var(--form-width);
+  padding: var(--space-3);
+  border: var(--border-width-strong) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.notice p {
+  margin: 0;
+}
+
+.notice p + p {
+  margin-top: var(--space-2);
+}
+
 /* Title row with an action on the right: lists, and the vehicles on a customer. */
 .page-header {
   display: flex;

@@ -1,8 +1,9 @@
-import type { Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
   addCustomer,
   addVehicleAndOpen,
   dayFromToday,
+  detail,
   endSessionBehindThePage,
   expect,
   fillIntake,
@@ -27,9 +28,6 @@ const year = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Br
 
 /** The running number of a work order number, e.g. 12 for "Z2026-0012". */
 const sequenceOf = (number: string) => Number(number.split('-')[1]);
-
-/** The value next to a label in the detail list of a page. */
-const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
 /** On a work order's detail: the form with this name; the Práca and the Diel each have one. */
 const formNamed = (page: Page, name: 'Pridať prácu' | 'Pridať diel') => page.locator('main').getByRole('form', { name });

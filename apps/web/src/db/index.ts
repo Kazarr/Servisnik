@@ -1,9 +1,13 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
+import { drizzle, type NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
+import type { PgDatabase } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import { appEnv } from '../env.ts';
 import * as schema from './schema.ts';
 
 export type Database = ReturnType<typeof createDb>;
+
+/** What a write goes through: the database, or the transaction of a bigger write that it is one step of (a transaction opened inside one is a savepoint). */
+export type Executor = PgDatabase<NodePgQueryResultHKT, typeof schema>;
 
 // pg waits forever for a host that neither refuses nor answers, and /api/health must answer well
 // inside a platform health-check timeout.

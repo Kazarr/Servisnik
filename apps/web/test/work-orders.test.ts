@@ -1,6 +1,6 @@
 import { workOrderStatuses, type ItemInput, type WorkOrderStatus } from '@servisnik/domain/work-order';
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { UnauthenticatedError } from '../src/dal/user.ts';
@@ -17,8 +17,10 @@ import {
   listWorkOrdersOfCustomer,
   listWorkOrdersOfVehicle,
 } from '../src/dal/work-orders.ts';
+import { vehicle } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { failInsertsInto } from './support/failing-insert.ts';
 import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 
@@ -643,6 +645,118 @@ test('a customer without Zákazky, one that does not exist, or an id that is not
 test('a Zákazka that does not exist, or an id that is not one, reads as nothing', async () => {
   await expect(getWorkOrder(admin, randomUUID(), ctx.db)).resolves.toBeNull();
   await expect(getWorkOrder(admin, 'zakazka-1', ctx.db)).resolves.toBeNull();
+});
+
+// Kilometres at intake (Príjem vozidla): the rule itself is packages/domain/test/work-order.test.ts; here it is
+// proven against PostgreSQL, in the same transaction as the Zákazka.
+
+/** The whole row of the vehicle, `updatedAt` too, as the database holds it. */
+const vehicleRow = async () => (await ctx.db.select().from(vehicle).where(eq(vehicle.id, vehicleId)))[0]!;
+const setVehicleKm = (km: number) => ctx.db.execute(sql`update vehicle set mileage_km = ${km} where id = ${vehicleId}`);
+
+test('the kilometres of a Zákazka become the Stav km of a vehicle that has none yet', async () => {
+  expect((await vehicleRow()).mileageKm).toBeNull();
+
+  const created = await createWorkOrder(admin, intake({ mileageKm: '123 456' }), ctx.db, summer);
+
+  expect(created).toEqual({ ok: true, id: expect.any(String), number: 'Z2026-0001' });
+  expect((await vehicleRow()).mileageKm).toBe(123456);
+});
+
+test('higher kilometres become the Stav km of the vehicle, and the Zákazka keeps them', async () => {
+  await setVehicleKm(100000);
+
+  const id = await newWorkOrderId({ mileageKm: '100 500' });
+
+  expect((await vehicleRow()).mileageKm).toBe(100500);
+  expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ mileageKm: 100500 });
+});
+
+test('lower kilometres are kept on the Zákazka and come back as a warning, and the vehicle is not touched', async () => {
+  await setVehicleKm(100000);
+  const before = await vehicleRow();
+
+  const created = await createWorkOrder(admin, intake({ mileageKm: '90 000' }), ctx.db, summer);
+
+  expect(created).toEqual({ ok: true, id: expect.any(String), number: 'Z2026-0001', lowerMileage: { vehicleMileageKm: 100000 } });
+  expect(await getWorkOrder(admin, idOf(created), ctx.db)).toMatchObject({ mileageKm: 90000 });
+  expect(await vehicleRow()).toEqual(before);
+});
+
+test('the same kilometres as the Stav km of the vehicle change nothing and warn of nothing', async () => {
+  await setVehicleKm(100000);
+  const before = await vehicleRow();
+
+  const created = await createWorkOrder(admin, intake({ mileageKm: '100000' }), ctx.db, summer);
+
+  expect(created).toEqual({ ok: true, id: expect.any(String), number: 'Z2026-0001' });
+  expect(await vehicleRow()).toEqual(before);
+});
+
+test('a Zákazka refused for another reason leaves the Stav km of the vehicle alone', async () => {
+  await setVehicleKm(100000);
+  const before = await vehicleRow();
+
+  const refused = await createWorkOrder(admin, intake({ mileageKm: '200000', customerId: randomUUID() }), ctx.db, summer);
+
+  expect(refused).toEqual({ ok: false, errors: { customer: 'unknown' } });
+  expect(await vehicleRow()).toEqual(before);
+});
+
+test('a Zákazka that cannot be saved leaves the Stav km of the vehicle and the number alone', async () => {
+  await setVehicleKm(100000);
+  const before = await vehicleRow();
+  const lift = await failInsertsInto(ctx.db, 'work_order');
+
+  try {
+    await expect(createWorkOrder(admin, intake({ mileageKm: '200000' }), ctx.db, summer)).rejects.toThrow();
+  } finally {
+    await lift();
+  }
+
+  expect(await vehicleRow()).toEqual(before);
+  expect((await ctx.db.execute(sql`select 1 from work_order_counter`)).rows).toEqual([]);
+});
+
+test('kilometres read the Stav km of the vehicle after another save of it has committed, so a lower one cannot overwrite a higher one', async () => {
+  await setVehicleKm(100000);
+  const raising = Promise.withResolvers<void>();
+  const committed = Promise.withResolvers<void>();
+  // The other save: another intake raised the Stav km to 200 000 and holds the row until `committed` is resolved.
+  const raised = ctx.db.transaction(async (tx) => {
+    await tx.execute(sql`update vehicle set mileage_km = 200000 where id = ${vehicleId}`);
+    raising.resolve();
+    await committed.promise;
+  });
+  await raising.promise;
+
+  const creating = createWorkOrder(admin, intake({ mileageKm: '150 000' }), ctx.db, summer);
+  try {
+    // Not a timer: go on only once PostgreSQL shows a session of this database waiting for a lock.
+    await vi.waitFor(
+      async () => {
+        const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
+        expect(waiting.rows).toHaveLength(1);
+      },
+      { timeout: 10_000 },
+    );
+  } finally {
+    // Also when nothing waits: the other save must end, or its connection keeps the pool open.
+    committed.resolve();
+    await raised;
+  }
+
+  expect(await creating).toMatchObject({ ok: true, lowerMileage: { vehicleMileageKm: 200000 } });
+  expect((await vehicleRow()).mileageKm).toBe(200000);
+});
+
+test('Zákazky created at once on one vehicle leave its Stav km at the highest kilometres', async () => {
+  const kilometres = ['150 000', '90 000', '200 000', '120 000', '180 000'];
+
+  const created = await Promise.all(kilometres.map((mileageKm) => createWorkOrder(admin, intake({ mileageKm }), ctx.db, summer)));
+
+  expect(created.every(({ ok }) => ok)).toBe(true);
+  expect((await vehicleRow()).mileageKm).toBe(200000);
 });
 
 // A Diel: 2 l at 12,50 € without VAT, bought for 10,00 €, VAT 19 %.

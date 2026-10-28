@@ -1,6 +1,6 @@
 import { parseCustomer, parseCustomerSearch, searchKeys, type Customer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
 import { and, count, desc, eq, ne, or, sql } from 'drizzle-orm';
-import { getDb, type Database } from '../db/index.ts';
+import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { blockedByLink, violates } from './constraint.ts';
 import { contains, pageWindow } from './paging.ts';
@@ -10,41 +10,47 @@ import { isUuid } from './uuid.ts';
 /** What the domain finds wrong, or an IČO that another Firma already has. */
 export type CustomerSaveErrors = Omit<CustomerErrors, 'ico'> & { ico?: NonNullable<CustomerErrors['ico']> | 'taken' };
 /** The Firma that has the IČO, so the form can link to it. */
-type Existing = { id: string; name: string };
+export type ExistingCustomer = { id: string; name: string };
 
-export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: CustomerSaveErrors; existing?: Existing };
+export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: CustomerSaveErrors; existing?: ExistingCustomer };
 export type UpdateCustomerResult =
   | { ok: true }
-  | { ok: false; errors: CustomerSaveErrors & { customer?: 'unknown' }; existing?: Existing };
+  | { ok: false; errors: CustomerSaveErrors & { customer?: 'unknown' }; existing?: ExistingCustomer };
 
-/**
- * The failure for an IČO that is taken: PostgreSQL refused a second Zákazník with it (the unique index
- * decides, so two saves at once cannot both get through). Any other error is not ours to handle.
- */
-async function icoTaken(error: unknown, ico: string | null, db: Database) {
-  if (!ico || !violates(error, 'customer_ico_idx')) throw error;
+/** The failure for an IČO that is taken, with the Firma that has it. */
+async function takenIco(ico: string, db: Executor) {
   const [existing] = await db.select({ id: customer.id, name: customer.name }).from(customer).where(eq(customer.ico, ico));
   return { ok: false, errors: { ico: 'taken' }, existing } as const;
+}
+
+/**
+ * The failure for a save that PostgreSQL refused because of the IČO (the unique index decides, so two
+ * saves at once cannot both get through). Any other error is not ours to handle.
+ */
+async function icoTaken(error: unknown, ico: string | null, db: Executor) {
+  if (!ico || !violates(error, 'customer_ico_idx')) throw error;
+  return takenIco(ico, db);
 }
 
 /** A Zákazník with the keys its search looks at, so no save leaves them behind. */
 const stored = (parsed: Customer) => ({ ...parsed, ...searchKeys(parsed) });
 
-/** Saves a Zákazník; the domain decides what is stored (packages/domain/src/customer). */
+/**
+ * Saves a Zákazník; the domain decides what is stored (packages/domain/src/customer). The unique index
+ * on the IČO decides a duplicate without an error, so the save can be a step of a bigger transaction
+ * (`db` is then its transaction) that goes on after it, which an error would have ended.
+ */
 export async function createCustomer(
   user: User | null,
   input: CustomerInput,
-  db: Database = getDb(),
+  db: Executor = getDb(),
 ): Promise<CreateCustomerResult> {
   assertCan(user, 'customers.write');
   const parsed = parseCustomer(input);
   if (!parsed.ok) return parsed;
-  try {
-    const [saved] = await db.insert(customer).values(stored(parsed.customer)).returning({ id: customer.id });
-    return { ok: true, id: saved!.id };
-  } catch (error) {
-    return icoTaken(error, parsed.customer.ico, db);
-  }
+  const [saved] = await db.insert(customer).values(stored(parsed.customer)).onConflictDoNothing({ target: customer.ico }).returning({ id: customer.id });
+  // Only an IČO can conflict, and a Zákazník without one never does.
+  return saved ? { ok: true, id: saved.id } : takenIco(parsed.customer.ico!, db);
 }
 
 /** Replaces every field of a Zákazník with `input`: a Firma changed to an Osoba loses its IČO, DIČ and IČ DPH. */

@@ -1,9 +1,12 @@
+import { can } from '@servisnik/domain/access';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { currentUserWith } from '../../../dal/current-user.ts';
 import { listWorkOrders } from '../../../dal/work-orders.ts';
 import { Pager } from '../pager.tsx';
 import { first, pageOf } from '../search-params.ts';
 import { listHref } from './list-href.ts';
+import { intakePaths } from './nova/paths.ts';
 import { WorkOrderFilter } from './work-order-filter.tsx';
 import { WorkOrderList } from './work-order-list.tsx';
 
@@ -23,7 +26,14 @@ export default async function WorkOrdersPage({ searchParams }: { searchParams: P
   });
   return (
     <>
-      <h1>Zákazky</h1>
+      <div className="page-header">
+        <h1>Zákazky</h1>
+        {can(user.role, 'work-orders.write') && (
+          <Link href={intakePaths.start} className="button">
+            Nová zákazka
+          </Link>
+        )}
+      </div>
       <WorkOrderFilter filter={filter} />
       <WorkOrderList orders={orders} role={user.role} now={new Date()} filter={filter} />
       <Pager page={page} pageCount={pageCount} href={(n) => listHref(filter, n)} />

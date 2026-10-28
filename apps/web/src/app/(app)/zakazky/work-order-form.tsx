@@ -1,17 +1,20 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field, FormError, SelectField, TextAreaField } from '../field.tsx';
+import { FormError, SelectField } from '../field.tsx';
 import { valueIn } from '../form-value.ts';
 import type { WorkOrderFormState } from './actions.ts';
+import { LowerMileageNotice } from './nova/lower-mileage-notice.tsx';
+import { OrderFields } from './order-fields.tsx';
 
 type Saved = { id: string; mileageKm: number; customerRequest: string; deadline: string | null; note: string | null };
 
 /**
  * The form of a Zákazka. With `intake` it is the form of a new one for the Vozidlo `vehicleId`: the
- * customer is the vehicle's owner unless another is chosen. With `saved` it edits the header of that
- * Zákazka (kilometres, request, Termín, note), whose customer and vehicle stay as they are. `action` is
- * addWorkOrder or editWorkOrder.
+ * customer is the vehicle's owner unless another is chosen, and a Zákazka saved with kilometres lower
+ * than the Stav km of the vehicle is told here, instead of opening it. With `saved` it edits the header of
+ * that Zákazka (kilometres, request, Termín, note), whose customer and vehicle stay as they are. `action`
+ * is addWorkOrder or editWorkOrder.
  */
 export function WorkOrderForm({
   action,
@@ -29,6 +32,7 @@ export function WorkOrderForm({
     deadline: saved?.deadline ?? '',
     note: saved?.note ?? '',
   });
+  if (state?.saved) return <LowerMileageNotice {...state.saved} />;
 
   return (
     <form action={formAction} className="form">
@@ -44,18 +48,7 @@ export function WorkOrderForm({
           ))}
         </SelectField>
       )}
-      <Field
-        label="Kilometre pri príjme"
-        name="mileageKm"
-        inputMode="numeric"
-        autoComplete="off"
-        defaultValue={value('mileageKm')}
-        error={state?.errors.mileageKm}
-        required
-      />
-      <TextAreaField label="Požiadavka zákazníka" name="customerRequest" rows={4} defaultValue={value('customerRequest')} error={state?.errors.customerRequest} required />
-      <Field label="Termín" name="deadline" type="date" defaultValue={value('deadline')} error={state?.errors.deadline} />
-      <TextAreaField label="Poznámka (interná)" name="note" rows={3} defaultValue={value('note')} />
+      <OrderFields value={value} errors={state?.errors ?? {}} />
       <button type="submit" disabled={pending}>
         Uložiť zákazku
       </button>

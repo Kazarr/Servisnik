@@ -6,7 +6,7 @@ import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { dayFromToday, expect, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
+import { dayFromToday, expect, fillVehicle, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -28,6 +28,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
   await expect(row.getByRole('cell')).toHaveText([order.number, order.customerName, new RegExp(order.vin), 'Prijatá', '']);
   await expect(row.getByRole('link')).toHaveCount(0);
   await expect(main).not.toContainText('€');
+  await expect(main.getByRole('link', { name: 'Nová zákazka' })).toHaveCount(0);
 
   const elsewhere = [
     '/zakaznici',
@@ -40,7 +41,11 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/vozidla/${order.vehicleId}`,
     `/vozidla/${order.vehicleId}/upravit`,
     `/vozidla/${order.vehicleId}/prepis`,
+    '/zakazky/nova',
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
+    '/zakazky/nova/nove-vozidlo',
+    `/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`,
+    '/zakazky/nova/nove-vozidlo?novy=zakaznik',
     `/zakazky/${order.orderId}`,
     `/zakazky/${order.orderId}/upravit`,
     `/zakazky/${order.orderId}/polozky/${randomUUID()}`,
@@ -65,9 +70,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await page.getByLabel('Názov').fill(`Nemal by sa uložiť ${tag}`);
   const vehiclePage = await context.newPage();
   await vehiclePage.goto(`/vozidla/novy?zakaznik=${order.customerId}`);
-  await vehiclePage.getByLabel('VIN').fill(vinOf(tag, 'ZZZ00000000'));
-  await vehiclePage.getByLabel('Značka').fill('Škoda');
-  await vehiclePage.getByLabel('Model').fill('Fabia');
+  await fillVehicle(vehiclePage, vinOf(tag, 'ZZZ00000000'), 'Škoda', 'Fabia');
   const editPage = await context.newPage();
   await editPage.goto(`/vozidla/${order.vehicleId}/upravit`);
   await editPage.getByLabel('Model').fill('Fabia');
@@ -75,6 +78,11 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await orderPage.goto(`/zakazky/nova?vozidlo=${order.vehicleId}`);
   await orderPage.getByLabel('Kilometre pri príjme').fill('500');
   await orderPage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
+  const intakePage = await context.newPage();
+  await intakePage.goto(`/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`);
+  await fillVehicle(intakePage, vinOf(tag, 'YYY00000000'), 'Škoda', 'Fabia');
+  await intakePage.getByLabel('Kilometre pri príjme').fill('500');
+  await intakePage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
   const headerPage = await context.newPage();
   await headerPage.goto(`/zakazky/${order.orderId}/upravit`);
   await headerPage.getByLabel('Kilometre pri príjme').fill('777');
@@ -109,6 +117,9 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(editPage.locator('main').getByRole('alert')).toHaveText(message);
   await orderPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(orderPage.locator('main').getByRole('alert')).toHaveText(message);
+  await intakePage.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await expect(intakePage.locator('main').getByRole('alert')).toHaveText(message);
+  await expect(intakePage.getByLabel('Model')).toHaveValue('Fabia');
   await headerPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(headerPage.locator('main').getByRole('alert')).toHaveText(message);
   await labourForm.getByRole('button', { name: 'Pridať prácu' }).click();
