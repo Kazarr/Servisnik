@@ -29,6 +29,13 @@
       "when": 1793183970437,
       "tag": "0003_customer_company_ico_phone_note",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793188011606,
+      "tag": "0004_customer_search_keys",
+      "breakpoints": true
     }
   ]
 }

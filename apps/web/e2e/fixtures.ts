@@ -50,12 +50,20 @@ export async function signInAs(page: Page, { email, password }: { email: string;
 /** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */
 export const newIco = () => String(randomInt(10_000_000, 100_000_000));
 
-/** Adds a customer through the form and waits for its detail page. A Firma gets `ico`, a new one unless given. */
-export async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba', ico = newIco()) {
+/** Adds a customer through the form and waits for its detail page. A Firma gets `ico`, a new one unless given; `contact` fills the phone and e-mail. */
+export async function addCustomer(
+  page: Page,
+  name: string,
+  type: 'Osoba' | 'Firma' = 'Osoba',
+  ico = newIco(),
+  contact: { phone?: string; email?: string } = {},
+) {
   await page.goto('/zakaznici/novy');
   await page.getByLabel(type, { exact: true }).check();
   await page.getByLabel('Názov', { exact: false }).fill(name);
   if (type === 'Firma') await page.getByLabel('IČO', { exact: true }).fill(ico);
+  if (contact.phone) await page.getByLabel('Telefón', { exact: true }).fill(contact.phone);
+  if (contact.email) await page.getByLabel('E-mail', { exact: true }).fill(contact.email);
   await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
   await expect(page.locator('main h1')).toHaveText(name);
 }
@@ -74,6 +82,17 @@ export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda'
   await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
   await page.locator('main').getByRole('link', { name: vin }).click();
   await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
+}
+
+/**
+ * Types `text` into the search field of the customer list, searches, and waits until the page of that
+ * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
+ * `text` must differ from what the list was last searched for, or there is no new page to wait for.
+ */
+export async function searchCustomers(page: Page, text: string) {
+  await page.getByLabel('Hľadať zákazníka').fill(text);
+  await page.getByRole('button', { name: 'Hľadať', exact: true }).click();
+  await page.waitForURL((url) => url.searchParams.get('q') === text);
 }
 
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
