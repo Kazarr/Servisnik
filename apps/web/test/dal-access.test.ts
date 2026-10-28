@@ -33,6 +33,7 @@ let vehicleId: string;
 let idleCustomerId: string;
 let idleVehicleId: string;
 let orderId: string;
+let itemId: string;
 beforeAll(async () => {
   ctx = await createTestDb();
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123' }); // on the real db, so that building it is not a touch of the watched one
@@ -41,7 +42,7 @@ beforeAll(async () => {
   idleCustomerId = idOf(await customers.createCustomer(admin, { type: 'person', name: 'Bez väzieb' }, ctx.db)); // nothing links to these two, so an admin may delete them
   idleVehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
-  idOf(await workOrders.addLabour(admin, orderId, { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
   await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
@@ -63,7 +64,9 @@ const calls: Record<string, Call> = {
   searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
-  addLabour: (user, db) => workOrders.addLabour(user, orderId, { name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
+  addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
+  updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', unitPrice: '12' }, db),
+  deleteItem: (user, db) => workOrders.deleteItem(user, itemId, db),
   // Whether a mechanik may change states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
