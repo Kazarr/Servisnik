@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { currentUserWith } from '../../../dal/current-user.ts';
 import { RatesSection } from './rates-section.tsx';
+import { WorkshopSection } from './workshop-section.tsx';
 
 export const metadata: Metadata = { title: 'Nastavenia' };
 
@@ -14,6 +15,7 @@ export default async function SettingsPage() {
   return (
     <>
       <h1>Nastavenia</h1>
+      <WorkshopSection user={user} />
       <RatesSection user={user} />
     </>
   );
