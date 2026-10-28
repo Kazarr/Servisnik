@@ -328,6 +328,16 @@ test('the deploy workflow stops with a clear error naming each secret that is mi
   }
 });
 
+test('the README does not list the deploy secrets again: the secret check of the workflow and the App Spec are the one list', () => {
+  const readme = read('README.md');
+  const local = new Set([...read('.env.example').matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map((match) => match[1]));
+  const deployOnly = [...Object.keys(step(isSecretCheck).env ?? {}), ...placeholders(read('.do/app.yaml')).filter((name) => !boundByDigitalOcean(name))].filter((name) => !local.has(name));
+
+  // A name that .env.example also has is the local variable, which the README explains in its own part.
+  expect(deployOnly).toContain('DIGITALOCEAN_ACCESS_TOKEN');
+  expect(deployOnly.filter((name) => readme.includes(name))).toEqual([]);
+});
+
 test('the deploy requires the secrets the skeleton needs, and KROS_* stay optional until the KROS tickets', () => {
   const check = step(isSecretCheck);
   const deploy = Object.keys(step(isDeploy).env ?? {});
