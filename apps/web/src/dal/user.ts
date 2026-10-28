@@ -1,5 +1,4 @@
 import { can, roles, type Capability, type Role } from '@servisnik/domain/access';
-import { redirect } from 'next/navigation';
 import { getAuth, type Auth } from '../auth.ts';
 
 // Data Access Layer (docs/adr/0001-stack.md): pages read data only through functions that start from
@@ -17,23 +16,16 @@ export class UnauthenticatedError extends Error {
 /** The page every Rola may open: where a user is sent whose Rola may not open the page asked for. */
 export const homePage = '/zakazky';
 
-/** The `digest` of the error that `redirect(path)` throws; undefined only if Next's redirect() stops throwing. */
-function redirectDigest(path: string) {
-  try {
-    redirect(path);
-  } catch (error) {
-    return (error as { digest?: string }).digest;
-  }
-}
-
 /**
  * The user's Rola may not do this. Pages redirect first, through currentUserWith. One thrown while a
- * page renders anyway (a DAL function the gate did not cover) carries the digest of Next's redirect to
- * the home page, so Next sends the user there, with no error page and no log line, as it does for
- * redirect(). A Server Action turns it into a message (app/(app)/forbidden.ts) before Next sees it.
+ * page renders anyway (a DAL function the gate did not cover) carries the digest of the error that
+ * Next's `redirect(homePage)` throws, so Next sends the user there, with no error page and no log
+ * line, as it does for redirect(). A Server Action turns it into a message (app/(app)/forbidden.ts)
+ * before Next sees it. The digest is spelled out because the e2e specs import the DAL under Node, where
+ * `next/navigation` does not resolve; test/forbidden-page.test.ts compares it with what redirect() throws.
  */
 export class ForbiddenError extends Error {
-  readonly digest = redirectDigest(homePage);
+  readonly digest = `NEXT_REDIRECT;replace;${homePage};307;`;
 
   constructor(capability: Capability) {
     super(`Zakázané: ${capability}`);
