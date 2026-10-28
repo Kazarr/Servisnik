@@ -57,6 +57,20 @@
       "when": 1793198983064,
       "tag": "0007_work_order_statuses",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793200437355,
+      "tag": "0008_users_admin_plugin",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793204943858,
+      "tag": "0009_workshop_logo",
+      "breakpoints": true
     }
   ]
 }

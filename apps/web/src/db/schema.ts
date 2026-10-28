@@ -1,12 +1,15 @@
 import { roles } from '@servisnik/domain/access';
 import { customerTypes } from '@servisnik/domain/customer';
+import type { LogoContentType } from '@servisnik/domain/settings';
 import { fuels } from '@servisnik/domain/vehicle';
 import { itemKinds, workOrderStatuses } from '@servisnik/domain/work-order';
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, customType, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 // Better Auth owns user, session, account and verification (docs/adr/0001-stack.md). Keys and
-// column types follow what its Drizzle adapter expects; `role` is Servisník's own column.
+// column types follow what its Drizzle adapter expects. `role` is an enum, not the plain text the
+// admin plugin would make; the plugin's other columns (`banned`, `ban_reason`, `ban_expires`,
+// `impersonated_by`) are as it declares them.
 
 /** Rola: what a Používateľ may do (packages/domain/src/access). */
 export const role = pgEnum('role', roles);
@@ -28,6 +31,10 @@ export const user = pgTable('user', {
   image: text('image'),
   // Least privilege: anyone created without an explicit role is a mechanik.
   role: role('role').notNull().default('mechanik'),
+  /** Deaktivovaný používateľ (GLOSSARY): `banned` is true. An active user is one that is not. */
+  banned: boolean('banned').notNull().default(false),
+  banReason: text('ban_reason'),
+  banExpires: timestamp('ban_expires', { withTimezone: true }),
   ...timestamps,
 });
 
@@ -42,6 +49,7 @@ export const session = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    impersonatedBy: text('impersonated_by'),
     ...timestamps,
   },
   (table) => [index('session_user_id_idx').on(table.userId)],
@@ -203,6 +211,34 @@ export const workshop = pgTable(
     check('workshop_default_vat_rate_check', sql`${table.defaultVatRate} = any(${table.vatRates})`),
     check('workshop_hourly_rate_cents_check', sql`${table.hourlyRateCents} >= 0`),
     check('workshop_markup_percent_check', sql`${table.markupPercent} >= 0`),
+  ],
+);
+
+/** A column of bytes. The app holds them as a `Uint8Array`; node-postgres hands over and takes a `Buffer`. */
+const bytea = customType<{ data: Uint8Array; driverData: Buffer }>({
+  dataType: () => 'bytea',
+  toDriver: (value) => Buffer.from(value.buffer, value.byteOffset, value.byteLength),
+  fromDriver: (value) => new Uint8Array(value.buffer, value.byteOffset, value.byteLength),
+});
+
+/**
+ * The logo of the Autoservis: the file itself, in a table of its own so that reading `workshop` (every
+ * visit to Nastavenia) never loads an image. No row means no logo; the primary key is always 1, like
+ * `workshop`. docs/adr/0001-stack.md says why it is not in S3. The type is the one the domain read from
+ * the content (packages/domain/src/settings/logo.ts) and 1 048 576 bytes is its `maxLogoBytes`.
+ */
+export const workshopLogo = pgTable(
+  'workshop_logo',
+  {
+    id: integer('id').primaryKey().default(1),
+    contentType: text('content_type').$type<LogoContentType>().notNull(),
+    data: bytea('data').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    check('workshop_logo_single_row_check', sql`${table.id} = 1`),
+    check('workshop_logo_content_type_check', sql`${table.contentType} in ('image/png', 'image/jpeg')`),
+    check('workshop_logo_size_check', sql`octet_length(${table.data}) between 1 and 1048576`),
   ],
 );
 
