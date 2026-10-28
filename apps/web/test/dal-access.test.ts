@@ -8,12 +8,13 @@ import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
+import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
-import { customer, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
+import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
@@ -68,6 +69,9 @@ const calls: Record<string, Call> = {
       { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
       db,
     ),
+  // The list reads the database it is given; the creation goes through Better Auth, which has the real database of the test, so only what it wrote shows (`everything`).
+  listUsers: (user, db) => users.listUsers(user, db),
+  createUser: (user) => users.createUser(user, { name: 'Nový Mechanik', email: 'novy@autoservis.test', role: 'mechanik', password: 'pociatocne-heslo-1234' }, auth),
   // Takes no user: it is the one the session in the headers names, so the row has none (the headers carry no session, as for a missing user).
   changeOwnPassword: () =>
     password.changeOwnPassword(new Headers(), { currentPassword: 'povodne-heslo-1234', newPassword: 'nove-heslo-5678', confirmation: 'nove-heslo-5678' }, auth),
@@ -81,6 +85,7 @@ const dataAccess = {
   'customers.ts': customers,
   'password.ts': password,
   'settings.ts': settings,
+  'users.ts': users,
   'vehicles.ts': vehicles,
   'work-orders.ts': workOrders,
   'workshop.ts': workshopDetails,
@@ -125,6 +130,8 @@ const everything = async () => ({
   items: await ctx.db.select().from(workOrderItem),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
+  users: await ctx.db.select().from(userTable),
+  accounts: await ctx.db.select().from(account),
 });
 
 test.each(Object.entries(calls).filter(([name]) => !mechanikMay.includes(name)))(

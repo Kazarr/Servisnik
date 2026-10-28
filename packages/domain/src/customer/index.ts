@@ -70,6 +70,9 @@ export function formatErrors(values: Partial<Record<FormatField, string | null |
 /** A PSČ is stored without a space: "811 01" is "81101". */
 export const normalizePostalCode = (typed: string) => typed.replace(/\s/g, '');
 
+/** Whether `value` has the shape of an e-mail, the one rule of every e-mail in Servisník (the access area asks it for a Používateľ). */
+export const isEmail = (value: string) => formats.email.test(value);
+
 /**
  * A Zákazník ready to store, or every reason it is not one. A company has an IČO (required), DIČ and
  * IČ DPH; a person has none of them, so they are dropped before they are checked. A PSČ is stored

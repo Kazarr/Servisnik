@@ -4,7 +4,7 @@ import type { Database } from '../../src/db/index.ts';
 import { user } from '../../src/db/schema.ts';
 import { seedAdmin } from '../../src/seed.ts';
 
-/** A Používateľ with this Rola, created straight in the database: nothing in the app creates a mechanik yet. `email` in lower case. */
+/** A Používateľ with this Rola, created straight in the database, with a password the test chose, without an admin who creates him (that is test/users.test.ts). `email` in lower case. */
 export async function seedUser(db: Database, input: { email: string; password: string; role: Role }) {
   await seedAdmin(db, { email: input.email, password: input.password });
   await setRole(db, input.email, input.role);

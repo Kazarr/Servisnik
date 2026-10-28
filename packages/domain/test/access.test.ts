@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { can, canSeePrices, capabilities, passwordError, passwordLength, roles, type Capability } from '../src/access/index.ts';
+import { can, canSeePrices, capabilities, parseNewUser, passwordError, passwordLength, roles, type Capability, type NewUserInput } from '../src/access/index.ts';
 
 // A capability the code has never heard of, e.g. one a newer version adds.
 const unknown = 'work-orders.delete' as Capability;
@@ -46,6 +46,15 @@ describe('Prístup', () => {
     expect(can('mechanik', 'settings.write')).toBe(false);
   });
 
+  // The list of Používatelia and the creation of one are the admin's alone: they hand out access to everything.
+  test('the mechanik may neither list nor create Používatelia, the admin does both', () => {
+    for (const capability of ['users.read', 'users.write'] as const) {
+      expect(capabilities, capability).toContain(capability);
+      expect(can('admin', capability), capability).toBe(true);
+      expect(can('mechanik', capability), capability).toBe(false);
+    }
+  });
+
   test('only the admin sees prices', () => {
     expect(canSeePrices('admin')).toBe(true);
     expect(canSeePrices('mechanik')).toBe(false);
@@ -59,5 +68,50 @@ describe('Prístup', () => {
     expect(passwordError('a'.repeat(128))).toBeNull();
     expect(passwordError('a'.repeat(129))).toBe('tooLong');
     expect(passwordError('        ')).toBeNull();
+  });
+});
+
+describe('Nový používateľ', () => {
+  const valid: NewUserInput = { name: 'Ján Novák', email: 'jan@autoservis.sk', role: 'mechanik', password: 'heslo-1234' };
+
+  test('a user with a name, an e-mail, a role and a password is accepted as typed, but for the e-mail in lower case and the name trimmed', () => {
+    expect(parseNewUser(valid)).toEqual({ ok: true, user: valid });
+    expect(parseNewUser({ ...valid, name: '  Ján Novák ', email: ' Jan@AutoServis.SK ', role: 'admin' })).toEqual({
+      ok: true,
+      user: { ...valid, role: 'admin' },
+    });
+  });
+
+  test('a password is stored as typed, spaces at its ends included', () => {
+    expect(parseNewUser({ ...valid, password: '  heslo 1234  ' })).toEqual({ ok: true, user: { ...valid, password: '  heslo 1234  ' } });
+  });
+
+  test('a name is required, and a name of spaces is none', () => {
+    expect(parseNewUser({ ...valid, name: '' })).toEqual({ ok: false, errors: { name: 'required' } });
+    expect(parseNewUser({ ...valid, name: '   ' })).toEqual({ ok: false, errors: { name: 'required' } });
+  });
+
+  test.each(['', 'jan', 'jan@', '@autoservis.sk', 'jan@autoservis', 'jan novak@autoservis.sk', 'jan@@autoservis.sk'])('the e-mail "%s" is refused', (email) => {
+    expect(parseNewUser({ ...valid, email })).toEqual({ ok: false, errors: { email: 'format' } });
+  });
+
+  test('a role that is neither admin nor mechanik is refused, and so is none', () => {
+    expect(parseNewUser({ ...valid, role: 'user' })).toEqual({ ok: false, errors: { role: 'invalid' } });
+    expect(parseNewUser({ ...valid, role: '' })).toEqual({ ok: false, errors: { role: 'invalid' } });
+    expect(parseNewUser({ ...valid, role: 'admin,mechanik' })).toEqual({ ok: false, errors: { role: 'invalid' } });
+  });
+
+  test('a password of 7 characters is too short, of 8 and of 128 it is fine, of 129 it is too long', () => {
+    expect(parseNewUser({ ...valid, password: '1234567' })).toEqual({ ok: false, errors: { password: 'tooShort' } });
+    expect(parseNewUser({ ...valid, password: '12345678' })).toMatchObject({ ok: true });
+    expect(parseNewUser({ ...valid, password: 'a'.repeat(128) })).toMatchObject({ ok: true });
+    expect(parseNewUser({ ...valid, password: 'a'.repeat(129) })).toEqual({ ok: false, errors: { password: 'tooLong' } });
+  });
+
+  test('every reason comes back at once', () => {
+    expect(parseNewUser({ name: '', email: 'x', role: 'x', password: '' })).toEqual({
+      ok: false,
+      errors: { name: 'required', email: 'format', role: 'invalid', password: 'tooShort' },
+    });
   });
 });
