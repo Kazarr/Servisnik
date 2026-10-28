@@ -6,7 +6,7 @@ import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { expect, runTag, signInAs, test, vinOf } from './fixtures.ts';
+import { dayFromToday, expect, runTag, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -26,6 +26,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
   const tag = runTag();
   const order = await seedWorkOrder(db, tag);
   await signInAs(page, await seedMechanik(tag));
+  await page.goto(`/zakazky?od=${dayFromToday(0)}`); // other workers make work orders too: the days from today keep this one on the first page
 
   const main = page.locator('main');
   await expect(page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link')).toHaveText(['Zákazky']);

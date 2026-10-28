@@ -52,6 +52,17 @@ export async function signInAs(page: Page, { email, password }: { email: string;
   await expect(page).toHaveURL(/\/zakazky$/);
 }
 
+/**
+ * The day `offset` days from today in Europe/Bratislava, as a date field and the address of the list of work
+ * orders carry it (`YYYY-MM-DD`). A spec that reads the list asks for the days from today (`?od=`), so that the
+ * work orders other workers keep making do not push its own rows to a second page.
+ */
+export function dayFromToday(offset: number) {
+  const day = new Date(`${new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava' })}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + offset);
+  return day.toISOString().slice(0, 10);
+}
+
 /** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */
 export const newIco = () => String(randomInt(10_000_000, 100_000_000));
 

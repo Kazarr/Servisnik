@@ -1,5 +1,5 @@
 import { changeWorkOrderStatus } from '../src/dal/work-orders.ts';
-import { expect, runTag, signIn, test } from './fixtures.ts';
+import { dayFromToday, expect, runTag, signIn, test } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -7,13 +7,6 @@ test.beforeAll(() => {
   db = openDatabase();
 });
 test.afterAll(() => db.$client.end());
-
-/** The day `offset` days from today in Europe/Bratislava, as a date field carries it (`YYYY-MM-DD`). */
-function dayFromToday(offset: number) {
-  const day = new Date(`${new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava' })}T00:00:00Z`);
-  day.setUTCDate(day.getUTCDate() + offset);
-  return day.toISOString().slice(0, 10);
-}
 
 test('the list shows what is not closed, and is filtered by status and by the day of intake, with the filter in the address', async ({ page }) => {
   test.slow(); // three work orders seeded and five lists; under --repeat-each the workers share one server
@@ -26,7 +19,7 @@ test('the list shows what is not closed, and is filtered by status and by the da
   const rowOf = (order: { number: string }) => main.getByRole('row', { name: new RegExp(order.number) });
 
   // Neuzavreté is the default: Prijatá and Hotová, not the Zrušená one.
-  await page.goto('/zakazky');
+  await page.goto(`/zakazky?od=${dayFromToday(0)}`);
   await expect(page.getByLabel('Stav', { exact: true }).locator('option:checked')).toHaveText('Neuzavreté');
   await expect(rowOf(received)).toBeVisible();
   await expect(rowOf(done)).toBeVisible();

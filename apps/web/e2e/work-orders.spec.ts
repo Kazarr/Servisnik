@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { addCustomer, addVehicleAndOpen, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
+import { addCustomer, addVehicleAndOpen, dayFromToday, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
 import { openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -137,6 +137,8 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await main.getByRole('link', { name: number }).click();
   await expect(page).toHaveURL(orderUrl);
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazky' }).click();
+  await expect(page).toHaveURL(/\/zakazky$/);
+  await page.goto(`/zakazky?stav=done&od=${dayFromToday(0)}`);
   const row = main.getByRole('row', { name: new RegExp(number) });
   // Hotová: the row is marked "Na fakturáciu" (the work order has no Termín, so its cell is empty).
   await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Hotová Na fakturáciu', '']);
@@ -291,10 +293,10 @@ test('the admin cancels a work order only after confirming; it keeps its number,
   // but the list of the cancelled ones does, with its number and no mark.
   await page.goto(vehicleUrl);
   await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, owner, 'Zrušená', '']);
-  await page.goto('/zakazky');
+  await page.goto(`/zakazky?od=${dayFromToday(0)}`);
   await expect(main.locator('h1')).toHaveText('Zákazky');
   await expect(main.getByRole('row', { name: new RegExp(number) })).toHaveCount(0);
-  await page.goto('/zakazky?stav=cancelled');
+  await page.goto(`/zakazky?stav=cancelled&od=${dayFromToday(0)}`);
   const row = main.getByRole('row', { name: new RegExp(number) });
   await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Zrušená', '']);
   await row.getByRole('link', { name: number }).click();
@@ -372,13 +374,6 @@ test('the work order forms and the buttons for an item and for done, used after 
   await expect(detail(main, 'Stav')).toHaveText('Prijatá');
 });
 
-/** The day `offset` days from today in Europe/Bratislava, as a date field carries it (`YYYY-MM-DD`). */
-function dayFromToday(offset: number) {
-  const day = new Date(`${new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava' })}T00:00:00Z`);
-  day.setUTCDate(day.getUTCDate() + offset);
-  return day.toISOString().slice(0, 10);
-}
-
 /** A day `YYYY-MM-DD` as the app writes it, e.g. "26. 10. 2026". */
 const written = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString('sk-SK', { timeZone: 'UTC' });
 
@@ -440,7 +435,7 @@ test('the Termín and the note are set at intake and edited while the work order
   await expect(main).not.toContainText('Poznámka');
 
   // In the list the work order is a red row with the label "Po termíne", a text the colour does not have to carry.
-  await page.goto('/zakazky');
+  await page.goto(`/zakazky?stav=received&od=${dayFromToday(0)}`);
   const row = main.getByRole('row', { name: new RegExp(number) });
   await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Prijatá Po termíne', written(yesterday)]);
   await expect(row).toHaveClass('row-late');
@@ -462,7 +457,7 @@ test('the Termín and the note are set at intake and edited while the work order
   await expect(main.getByRole('link', { name: 'Upraviť zákazku' })).toHaveCount(0);
   await page.goto(`${orderUrl}/upravit`);
   await expect(page).toHaveURL(orderUrl);
-  await page.goto('/zakazky');
+  await page.goto(`/zakazky?stav=done&od=${dayFromToday(0)}`);
   await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Hotová Na fakturáciu', written(yesterday)]);
   await expect(row).toHaveClass('row-to-invoice');
   await expect(row).toHaveCSS('background-color', await colourOf(page, '--color-warning-background'));
