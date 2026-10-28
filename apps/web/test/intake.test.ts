@@ -77,6 +77,12 @@ test('a new Firma, its new Vozidlo and the Zákazka are saved together, and the 
   expect((await everything()).customers).toHaveLength(2);
 });
 
+test('the Termín and the internal note of the form are saved on the Zákazka', async () => {
+  const created = await createIntake(admin, input({ deadline: '2026-12-01', note: ' Zákazník čaká na zavolanie ' }), ctx.db, summer);
+
+  expect(await getWorkOrder(admin, idOf(created), ctx.db)).toMatchObject({ deadline: '2026-12-01', note: 'Zákazník čaká na zavolanie' });
+});
+
 test('a new Osoba is saved the same way, with no company fields', async () => {
   const created = await createIntake(admin, input({ owner: { customer: { type: 'person', name: 'Ján Novák', ico: '11111111' } } }), ctx.db, summer);
 
@@ -103,7 +109,7 @@ test('the Zákazka gets the next number of the year, like any other', async () =
   expect(second).toMatchObject({ ok: true, number: 'Z2026-0002' });
 });
 
-test('every reason of every part comes back at once, and nothing is written, not even a number', async () => {
+test('every reason of the rules, in every part, comes back at once, and nothing is written, not even a number', async () => {
   const before = await everything();
 
   const refused = await createIntake(
