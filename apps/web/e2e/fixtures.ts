@@ -131,7 +131,7 @@ export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda'
   await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
 }
 
-/** On a vehicle's detail: opens the form for a new work order. */
+/** On a vehicle's detail: opens the form for a new work order. On Zákazky: opens the search of the vehicle it is for. */
 export async function startWorkOrder(page: Page) {
   await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
   await expect(page.locator('main h1')).toHaveText('Nová zákazka');
