@@ -14,10 +14,13 @@ export const test = base.extend({
   },
 });
 
-/** Submits the login form with the e-mail of the admin the global setup seeded; `password` is the admin's own unless a test wants a wrong one. */
-export async function submitLogin(page: Page, password = process.env.E2E_ADMIN_PASSWORD!) {
+/**
+ * Submits the login form with the e-mail and password of the admin the global setup seeded, unless
+ * a test names another user or wants a wrong password.
+ */
+export async function submitLogin(page: Page, password = process.env.E2E_ADMIN_PASSWORD!, email = process.env.E2E_ADMIN_EMAIL!) {
   await page.goto('/login');
-  await page.getByLabel('E-mail').fill(process.env.E2E_ADMIN_EMAIL!);
+  await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Heslo').fill(password);
   await page.getByRole('button', { name: 'Prihlásiť sa' }).click();
 }
@@ -25,6 +28,12 @@ export async function submitLogin(page: Page, password = process.env.E2E_ADMIN_P
 /** Signs in as the admin the global setup seeded and waits for the first page after the login. */
 export async function signIn(page: Page) {
   await submitLogin(page);
+  await expect(page).toHaveURL(/\/zakazky$/);
+}
+
+/** Signs in as a user the spec created (see test/support/users.ts) and waits for the first page after the login. */
+export async function signInAs(page: Page, { email, password }: { email: string; password: string }) {
+  await submitLogin(page, password, email);
   await expect(page).toHaveURL(/\/zakazky$/);
 }
 
