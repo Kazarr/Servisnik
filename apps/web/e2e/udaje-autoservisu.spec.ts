@@ -65,7 +65,7 @@ test('values that break a rule are refused next to their fields, and everything 
   await field('ico').fill('1234567');
   await field('dic').fill('202012345');
   await field('icDph').fill('SK');
-  await field('vatPayerType').selectOption('Platiteľ');
+  await field('vatPayerType').selectOption('Neplatiteľ'); // neither the default (payer) nor what the first test saved (section7), so the select must keep a choice of its own
   await field('iban').fill('SK3112000000198742637542');
   await field('email').fill('info@novak');
   await main.getByRole('button', { name: 'Uložiť údaje autoservisu' }).click();
@@ -82,9 +82,10 @@ test('values that break a rule are refused next to their fields, and everything 
   await expect(field('street')).toHaveValue('Dlhá 2');
   await expect(field('postalCode')).toHaveValue('8110');
   await expect(field('iban')).toHaveValue('SK3112000000198742637542');
-  await expect(field('vatPayerType')).toHaveValue('payer');
+  await expect(field('vatPayerType')).toHaveValue('nonPayer');
 
   // A platiteľ DPH with no IČ DPH is told that, and nothing was saved.
+  await field('vatPayerType').selectOption('Platiteľ');
   await field('name').fill('Autoservis bez IČ DPH');
   await field('postalCode').fill('');
   await field('ico').fill('');
