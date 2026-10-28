@@ -3,7 +3,7 @@ import { count, desc, eq, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
-import { violates } from './constraint.ts';
+import { blockedByLink, violates } from './constraint.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
@@ -122,4 +122,23 @@ export async function getCustomer(user: User | null, id: string, db: Database = 
   if (!found) return null;
   const vehicles = await db.select().from(vehicle).where(eq(vehicle.ownerId, id)).orderBy(desc(vehicle.createdAt));
   return { ...found, vehicles };
+}
+
+export type DeleteCustomerResult = { ok: true } | { ok: false; error: 'unknown' | 'has-links' };
+
+/**
+ * Deletes a Zákazník who has no Vozidlo and no Zákazka; one with any link stays, as `has-links`.
+ * There is no look before the delete: the foreign keys to the customer are `restrict`, so PostgreSQL
+ * refuses the delete itself and a link added at the same moment cannot slip through. Admin only.
+ */
+export async function deleteCustomer(user: User | null, id: string, db: Database = getDb()): Promise<DeleteCustomerResult> {
+  assertCan(user, 'customers.write');
+  if (!isUuid(id)) return { ok: false, error: 'unknown' };
+  try {
+    const [deleted] = await db.delete(customer).where(eq(customer.id, id)).returning({ id: customer.id });
+    return deleted ? { ok: true } : { ok: false, error: 'unknown' };
+  } catch (error) {
+    if (!blockedByLink(error)) throw error;
+    return { ok: false, error: 'has-links' };
+  }
 }
