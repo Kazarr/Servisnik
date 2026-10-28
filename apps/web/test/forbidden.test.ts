@@ -22,6 +22,8 @@ const { touched, watched } = vi.hoisted(() => {
 vi.mock('../src/dal/current-user.ts', async () => ({ currentUser: async () => (await import('./support/dal-users.ts')).mechanic }));
 vi.mock('../src/db/index.ts', () => ({ getDb: () => watched('db') }));
 vi.mock('../src/auth.ts', () => ({ getAuth: () => watched('auth') }));
+// The actions of Používatelia hand the request's headers, with the admin's session, to Better Auth; outside a request there are none to read.
+vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
 
 test('orForbidden gives the result of the call', async () => {
   expect(await orForbidden(Promise.resolve({ ok: true }))).toEqual({ ok: true });
@@ -53,10 +55,20 @@ const formRefused = expect.objectContaining({ errors: { form: forbiddenMessage }
 const actions = {
   addCustomer: { call: () => customerActions.addCustomer(null, form({ type: 'person', name: 'Ján Novák' })), answer: formRefused },
   editCustomer: { call: () => customerActions.editCustomer(null, form({ id, type: 'person', name: 'Premenovaný' })), answer: formRefused },
+  removeCustomer: { call: () => customerActions.removeCustomer(null, form({ id })), answer: { error: forbiddenMessage } },
   addVehicle: { call: () => vehicleActions.addVehicle(null, form({ ownerId: id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Octavia' })), answer: formRefused },
   editVehicle: { call: () => vehicleActions.editVehicle(null, form({ id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Fabia' })), answer: formRefused },
+  transferVehicle: {
+    call: () => vehicleActions.transferVehicle(null, form({ vehicleId: id, fromOwnerId: id, toOwnerId: '8d2a6c5e-1b7f-4e0c-a3d9-5f6b7c8d9e01' })),
+    answer: { error: forbiddenMessage },
+  },
+  removeVehicle: { call: () => vehicleActions.removeVehicle(null, form({ id })), answer: { error: forbiddenMessage } },
   addWorkOrder: {
     call: () => workOrderActions.addWorkOrder(null, form({ vehicleId: id, customerId: id, mileageKm: '1', customerRequest: 'Brzdy' })),
+    answer: formRefused,
+  },
+  editWorkOrder: {
+    call: () => workOrderActions.editWorkOrder(null, form({ id, mileageKm: '1', customerRequest: 'Brzdy', deadline: '2026-12-01', note: 'Poznámka' })),
     answer: formRefused,
   },
   addItemToWorkOrder: {
@@ -95,6 +107,13 @@ const actions = {
       userActions.createUserAction(null, form({ newUserName: 'Nový Mechanik', newUserEmail: 'novy@autoservis.test', newUserRole: 'mechanik', newUserPassword: 'pociatocne-heslo-1234' })),
     answer: formRefused,
   },
+  updateUserAction: {
+    call: () => userActions.updateUserAction(null, form({ userId: id, userName: 'Premenovaný', userEmail: 'premenovany@autoservis.test', userRole: 'admin' })),
+    answer: formRefused,
+  },
+  setUserPasswordAction: { call: () => userActions.setUserPasswordAction(null, form({ userId: id, userPassword: 'nove-heslo-5678' })), answer: formRefused },
+  deactivateUserAction: { call: () => userActions.deactivateUserAction(null, form({ userId: id })), answer: { error: forbiddenMessage } },
+  activateUserAction: { call: () => userActions.activateUserAction(null, form({ userId: id })), answer: { error: forbiddenMessage } },
 };
 
 // Every file under app/(app) whose first statement is 'use server', whatever it is called: found by the file system rather than listed or named, so that a new one is not missed.

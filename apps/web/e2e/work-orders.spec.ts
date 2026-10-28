@@ -1,5 +1,18 @@
 import type { Locator, Page } from '@playwright/test';
-import { addCustomer, addVehicleAndOpen, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
+import {
+  addCustomer,
+  addVehicleAndOpen,
+  dayFromToday,
+  endSessionBehindThePage,
+  expect,
+  fillIntake,
+  numberOnTheDetail,
+  runTag,
+  signIn,
+  startWorkOrder,
+  test,
+  vinOf,
+} from './fixtures.ts';
 import { openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -11,25 +24,6 @@ test.afterAll(() => db.$client.end());
 /** Today in Europe/Bratislava as the app writes it, e.g. "26. 10. 2026". */
 const today = () => new Date().toLocaleDateString('sk-SK', { timeZone: 'Europe/Bratislava' });
 const year = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava', year: 'numeric' });
-
-/** On a vehicle's detail: opens the form for a new work order. */
-async function startWorkOrder(page: Page) {
-  await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
-  await expect(page.locator('main h1')).toHaveText('Nová zákazka');
-}
-
-async function fillIntake(page: Page, mileage: string, request: string) {
-  await page.getByLabel('Kilometre pri príjme').fill(mileage);
-  await page.getByLabel('Požiadavka zákazníka').fill(request);
-  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
-}
-
-/** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
-async function numberOnTheDetail(page: Page) {
-  const heading = page.locator('main h1');
-  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
-  return (await heading.textContent())!;
-}
 
 /** The running number of a work order number, e.g. 12 for "Z2026-0012". */
 const sequenceOf = (number: string) => Number(number.split('-')[1]);
@@ -135,14 +129,18 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
 
   // The vehicle lists its work order, in any state, with the customer it was made for, and the list of work orders shows it too.
   await page.goto(vehicleUrl);
-  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, owner, 'Hotová']);
+  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, owner, 'Hotová Na fakturáciu', '']);
   await expect(main).not.toContainText('Zatiaľ žiadna zákazka.');
   await expect(main).not.toContainText(/otvoren/i); // GLOSSARY lists "otvorená" under Avoid
   await main.getByRole('link', { name: number }).click();
   await expect(page).toHaveURL(orderUrl);
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazky' }).click();
+  await expect(page).toHaveURL(/\/zakazky$/);
+  await page.goto(`/zakazky?stav=done&od=${dayFromToday(0)}`);
   const row = main.getByRole('row', { name: new RegExp(number) });
-  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Hotová']);
+  // Hotová: the row is marked "Na fakturáciu" (the work order has no Termín, so its cell is empty).
+  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Hotová Na fakturáciu', '']);
+  await expect(row.getByText('Na fakturáciu')).toBeVisible();
   await row.getByRole('link', { name: number }).click();
   await expect(page).toHaveURL(orderUrl);
 });
@@ -257,8 +255,8 @@ test('a work order for another customer than the owner keeps that customer, and 
   await page.goto(vehicleUrl);
   const rows = main.locator('tbody tr');
   await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0).getByRole('cell')).toHaveText([secondNumber, owner, 'Prijatá']);
-  await expect(rows.nth(1).getByRole('cell')).toHaveText([firstNumber, other, 'Prijatá']);
+  await expect(rows.nth(0).getByRole('cell')).toHaveText([secondNumber, owner, 'Prijatá', '']);
+  await expect(rows.nth(1).getByRole('cell')).toHaveText([firstNumber, other, 'Prijatá', '']);
 });
 
 test('the admin cancels a work order only after confirming; it keeps its number, is locked and stays in the history of the vehicle', async ({ page }) => {
@@ -289,12 +287,16 @@ test('the admin cancels a work order only after confirming; it keeps its number,
     await expect(main.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
 
-  // The vehicle keeps it in its history, as Zrušená, and the list shows it too, with its number.
+  // The vehicle keeps it in its history, as Zrušená. The list of work orders that are not closed does not show it,
+  // but the list of the cancelled ones does, with its number and no mark.
   await page.goto(vehicleUrl);
-  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, owner, 'Zrušená']);
-  await page.goto('/zakazky');
+  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, owner, 'Zrušená', '']);
+  await page.goto(`/zakazky?od=${dayFromToday(0)}`);
+  await expect(main.locator('h1')).toHaveText('Zákazky');
+  await expect(main.getByRole('row', { name: new RegExp(number) })).toHaveCount(0);
+  await page.goto(`/zakazky?stav=cancelled&od=${dayFromToday(0)}`);
   const row = main.getByRole('row', { name: new RegExp(number) });
-  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Zrušená']);
+  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Zrušená', '']);
   await row.getByRole('link', { name: number }).click();
   await expect(page).toHaveURL(orderUrl);
 });
@@ -368,4 +370,94 @@ test('the work order forms and the buttons for an item and for done, used after 
   await signIn(page);
   await page.goto(orderUrl);
   await expect(detail(main, 'Stav')).toHaveText('Prijatá');
+});
+
+/** A day `YYYY-MM-DD` as the app writes it, e.g. "26. 10. 2026". */
+const written = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString('sk-SK', { timeZone: 'UTC' });
+
+/** What the colour of a design token comes out as in the page, e.g. "rgb(253, 236, 234)". The tokens are the source of the expected colours. */
+const colourOf = (page: Page, token: string) =>
+  page.evaluate((name) => {
+    const probe = document.createElement('span');
+    probe.style.backgroundColor = `var(${name})`;
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  }, token);
+
+test('the Termín and the note are set at intake and edited while the work order is Rozpracovaná; a late one is a red row, a done one an orange row and cannot be edited', async ({
+  page,
+}) => {
+  test.slow(); // a customer, a vehicle, a work order, an edit, two lists and the done button; under --repeat-each the workers share one server
+  const tag = runTag();
+  const owner = `Majiteľ Termínu ${tag}`;
+  await signIn(page);
+  await addCustomer(page, owner);
+  await addVehicleAndOpen(page, vinOf(tag));
+  const main = page.locator('main');
+  const [ahead, yesterday] = [dayFromToday(5), dayFromToday(-1)];
+
+  // The form of a new work order takes the Termín and the note, and the detail shows them.
+  await startWorkOrder(page);
+  await page.getByLabel('Termín', { exact: true }).fill(ahead);
+  await page.getByLabel('Poznámka (interná)').fill('Zákazník príde po 16:00');
+  await fillIntake(page, '1 000', 'Výmena oleja');
+  const number = await numberOnTheDetail(page);
+  const orderUrl = page.url();
+  await expect(detail(main, 'Termín')).toHaveText(written(ahead));
+  await expect(detail(main, 'Poznámka')).toHaveText('Zákazník príde po 16:00');
+
+  // The edit form starts with what is saved, and a header that is not one stays on the form with the reason and what was typed.
+  await main.getByRole('link', { name: 'Upraviť zákazku' }).click();
+  await expect(main.locator('h1')).toHaveText('Upraviť zákazku');
+  await expect(page.getByLabel('Kilometre pri príjme')).toHaveValue('1000');
+  await expect(page.getByLabel('Požiadavka zákazníka')).toHaveValue('Výmena oleja');
+  await expect(page.getByLabel('Termín', { exact: true })).toHaveValue(ahead);
+  await expect(page.getByLabel('Poznámka (interná)')).toHaveValue('Zákazník príde po 16:00');
+  await page.getByLabel('Požiadavka zákazníka').fill('  ');
+  await page.getByLabel('Kilometre pri príjme').fill('150 000');
+  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await expect(page.getByLabel('Požiadavka zákazníka')).toHaveAccessibleDescription('Vyplňte požiadavku zákazníka');
+  await expect(page.getByLabel('Kilometre pri príjme')).toHaveValue('150 000');
+
+  // A header that is saved: a Termín that has passed, no note any more.
+  await page.getByLabel('Požiadavka zákazníka').fill('Výmena brzdových kotúčov');
+  await page.getByLabel('Termín', { exact: true }).fill(yesterday);
+  await page.getByLabel('Poznámka (interná)').fill('');
+  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await expect(page).toHaveURL(orderUrl);
+  await expect(detail(main, 'Kilometre pri príjme')).toHaveText('150 000 km');
+  await expect(detail(main, 'Požiadavka zákazníka')).toHaveText('Výmena brzdových kotúčov');
+  await expect(detail(main, 'Termín')).toHaveText(written(yesterday));
+  await expect(main).not.toContainText('Poznámka');
+
+  // In the list the work order is a red row with the label "Po termíne", a text the colour does not have to carry.
+  await page.goto(`/zakazky?stav=received&od=${dayFromToday(0)}`);
+  const row = main.getByRole('row', { name: new RegExp(number) });
+  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Prijatá Po termíne', written(yesterday)]);
+  await expect(row).toHaveClass('row-late');
+  await expect(row).toHaveCSS('background-color', await colourOf(page, '--color-danger-background'));
+  const label = row.getByText('Po termíne');
+  await expect(label).toBeVisible();
+  await expect(label).toHaveCSS('border-top-style', 'none');
+  // Forced colours drop the background colours; the label is drawn with a border in a system colour then.
+  await page.emulateMedia({ forcedColors: 'active' });
+  await expect(label).toBeVisible();
+  await expect(label).toHaveCSS('border-top-style', 'solid');
+  await page.emulateMedia({ forcedColors: 'none' });
+
+  // Hotová: the same work order is an orange row "Na fakturáciu", not a red one, and it cannot be edited any more.
+  await row.getByRole('link', { name: number }).click();
+  await expect(page).toHaveURL(orderUrl);
+  await main.getByRole('button', { name: 'Označiť ako hotovú' }).click();
+  await expect(detail(main, 'Stav')).toHaveText('Hotová');
+  await expect(main.getByRole('link', { name: 'Upraviť zákazku' })).toHaveCount(0);
+  await page.goto(`${orderUrl}/upravit`);
+  await expect(page).toHaveURL(orderUrl);
+  await page.goto(`/zakazky?stav=done&od=${dayFromToday(0)}`);
+  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Hotová Na fakturáciu', written(yesterday)]);
+  await expect(row).toHaveClass('row-to-invoice');
+  await expect(row).toHaveCSS('background-color', await colourOf(page, '--color-warning-background'));
+  await expect(row.getByText('Po termíne')).toHaveCount(0);
 });

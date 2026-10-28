@@ -1,5 +1,7 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
+import type { Database } from '../src/db/index.ts';
+import { seedUser } from '../test/support/users.ts';
 import { watchPage } from './watch-page.ts';
 
 export { expect };
@@ -52,6 +54,24 @@ export async function signInAs(page: Page, { email, password }: { email: string;
   await expect(page).toHaveURL(/\/zakazky$/);
 }
 
+/** A mechanik made straight in the database, with the tag in his name and e-mail so that specs do not meet each other's users. */
+export async function seedMechanik(db: Database, tag: string, name = `Mechanik ${tag}`) {
+  const mechanik = { name, email: `mechanik-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
+  await seedUser(db, { ...mechanik, role: 'mechanik' });
+  return mechanik;
+}
+
+/**
+ * The day `offset` days from today in Europe/Bratislava, as a date field and the address of the list of work
+ * orders carry it (`YYYY-MM-DD`). A spec that reads the list asks for the days from today (`?od=`), so that the
+ * work orders other workers keep making do not push its own rows to a second page.
+ */
+export function dayFromToday(offset: number) {
+  const day = new Date(`${new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava' })}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + offset);
+  return day.toISOString().slice(0, 10);
+}
+
 /** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */
 export const newIco = () => String(randomInt(10_000_000, 100_000_000));
 
@@ -89,6 +109,26 @@ export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda'
   await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
 }
 
+/** On a vehicle's detail: opens the form for a new work order. */
+export async function startWorkOrder(page: Page) {
+  await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
+  await expect(page.locator('main h1')).toHaveText('Nová zákazka');
+}
+
+/** On the form for a new work order: fills the intake and sends it. */
+export async function fillIntake(page: Page, mileage: string, request: string) {
+  await page.getByLabel('Kilometre pri príjme').fill(mileage);
+  await page.getByLabel('Požiadavka zákazníka').fill(request);
+  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
+}
+
+/** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
+export async function numberOnTheDetail(page: Page) {
+  const heading = page.locator('main h1');
+  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
+  return (await heading.textContent())!;
+}
+
 /**
  * Types `text` into the search field called `label`, searches, and waits until the page of that
  * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
@@ -102,6 +142,9 @@ async function searchList(page: Page, label: string, text: string) {
 
 /** Searches the list of customers for `text` (see searchList). */
 export const searchCustomers = (page: Page, text: string) => searchList(page, 'Hľadať zákazníka', text);
+
+/** On a page that picks a Majiteľ (the new vehicle, a Prepis): searches the customers for `text` (see searchList). */
+export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľadať majiteľa', text);
 
 /** Searches the list of vehicles for `text` (see searchList). */
 export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);

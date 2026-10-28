@@ -1,8 +1,8 @@
 import { parseCustomer, parseCustomerSearch, searchKeys, type Customer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
-import { count, desc, eq, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ne, or, sql } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
-import { violates } from './constraint.ts';
+import { blockedByLink, violates } from './constraint.ts';
 import { contains, pageWindow } from './paging.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
@@ -76,24 +76,29 @@ export async function listCustomers(user: User | null, db: Database = getDb()) {
  * A page of Zákazníci that match `query`, alphabetically by name. The query is a part of the name,
  * IČO, e-mail or phone; the domain normalizes it the way the stored keys are (packages/domain/src/
  * customer). A blank query has nothing to look for, so every Zákazník matches. `page` counts from 1:
- * any page past the last is the last, and anything that is not a page number is the first. Admin only.
+ * any page past the last is the last, and anything that is not a page number is the first. `except` is
+ * the id of a Zákazník that is never found, for the search of a new Majiteľ that leaves out the
+ * current one; anything that is not an id leaves nobody out. Admin only.
  */
 // ponytail: a scan of the table per search; rewrite `contains` to an escaped LIKE and add a pg_trgm GIN index on the search columns if the table outgrows ~100k customers.
 export async function searchCustomers(
   user: User | null,
-  { query = '', page = 1 }: { query?: string; page?: number } = {},
+  { query = '', page = 1, except }: { query?: string; page?: number; except?: string } = {},
   db: Database = getDb(),
 ) {
   assertCan(user, 'customers.read');
   const { text, ico, phone } = parseCustomerSearch(query);
-  const matching = text
-    ? or(
-        contains(customer.searchName, text),
-        contains(customer.searchEmail, text),
-        contains(customer.ico, ico),
-        phone ? contains(customer.searchPhone, phone) : undefined,
-      )
-    : undefined;
+  const matching = and(
+    text
+      ? or(
+          contains(customer.searchName, text),
+          contains(customer.searchEmail, text),
+          contains(customer.ico, ico),
+          phone ? contains(customer.searchPhone, phone) : undefined,
+        )
+      : undefined,
+    except && isUuid(except) ? ne(customer.id, except) : undefined,
+  );
 
   const [counted] = await db.select({ total: count() }).from(customer).where(matching);
   const total = counted!.total;
@@ -117,4 +122,23 @@ export async function getCustomer(user: User | null, id: string, db: Database = 
   if (!found) return null;
   const vehicles = await db.select().from(vehicle).where(eq(vehicle.ownerId, id)).orderBy(desc(vehicle.createdAt));
   return { ...found, vehicles };
+}
+
+export type DeleteCustomerResult = { ok: true } | { ok: false; error: 'unknown' | 'has-links' };
+
+/**
+ * Deletes a Zákazník who has no Vozidlo and no Zákazka; one with any link stays, as `has-links`.
+ * There is no look before the delete: the foreign keys to the customer are `restrict`, so PostgreSQL
+ * refuses the delete itself and a link added at the same moment cannot slip through. Admin only.
+ */
+export async function deleteCustomer(user: User | null, id: string, db: Database = getDb()): Promise<DeleteCustomerResult> {
+  assertCan(user, 'customers.write');
+  if (!isUuid(id)) return { ok: false, error: 'unknown' };
+  try {
+    const [deleted] = await db.delete(customer).where(eq(customer.id, id)).returning({ id: customer.id });
+    return deleted ? { ok: true } : { ok: false, error: 'unknown' };
+  } catch (error) {
+    if (!blockedByLink(error)) throw error;
+    return { ok: false, error: 'has-links' };
+  }
 }

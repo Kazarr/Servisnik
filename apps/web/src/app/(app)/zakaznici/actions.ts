@@ -2,7 +2,8 @@
 
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
-import { createCustomer, updateCustomer, type CustomerSaveErrors } from '../../../dal/customers.ts';
+import { createCustomer, deleteCustomer, updateCustomer, type CustomerSaveErrors } from '../../../dal/customers.ts';
+import type { DeleteState } from '../delete-form.tsx';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import { formatMessages } from '../format-messages.ts';
 
@@ -90,4 +91,21 @@ export async function editCustomer(_state: CustomerFormState, formData: FormData
     return refused(values, result);
   }
   redirect(`/zakaznici/${id}`);
+}
+
+/**
+ * Server Action of "Potvrdiť zmazanie" on a customer's detail; it checks the session and the Rola itself,
+ * like every action. A customer who got a Vozidlo or a Zákazka after the page was opened is not deleted:
+ * the database refuses, and the page says so.
+ */
+export async function removeCustomer(_state: DeleteState, formData: FormData): Promise<DeleteState> {
+  const user = await currentUser();
+
+  const result = await orForbidden(deleteCustomer(user, String(formData.get('id') ?? '')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if (result.error === 'unknown') notFound();
+    return { error: 'Zákazník má vozidlo alebo zákazku, preto ho nemožno zmazať' };
+  }
+  redirect('/zakaznici');
 }

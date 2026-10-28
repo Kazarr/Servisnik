@@ -1,5 +1,5 @@
 {
-  "id": "a67b3052-6ada-405c-ad30-383590282c6d",
+  "id": "0e07f948-d4c7-43d4-9fc5-fb0c2d68a916",
   "prevId": "446e454a-044e-4c64-aa23-9d4a341a7e59",
   "version": "7",
   "dialect": "postgresql",
@@ -260,128 +260,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.price_list_item": {
-      "name": "price_list_item",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "kind": {
-          "name": "kind",
-          "type": "work_order_item_kind",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unit": {
-          "name": "unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "purchase_price_cents": {
-          "name": "purchase_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "unit_price_cents": {
-          "name": "unit_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "vat_rate": {
-          "name": "vat_rate",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "search_code": {
-          "name": "search_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "search_name": {
-          "name": "search_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "price_list_item_code_idx": {
-          "name": "price_list_item_code_idx",
-          "columns": [
-            {
-              "expression": "lower(\"code\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "price_list_item_purchase_price_check": {
-          "name": "price_list_item_purchase_price_check",
-          "value": "\"price_list_item\".\"purchase_price_cents\" >= 0"
-        },
-        "price_list_item_purchase_price_kind_check": {
-          "name": "price_list_item_purchase_price_kind_check",
-          "value": "\"price_list_item\".\"purchase_price_cents\" is null or \"price_list_item\".\"kind\" = 'part'"
-        },
-        "price_list_item_unit_price_check": {
-          "name": "price_list_item_unit_price_check",
-          "value": "\"price_list_item\".\"unit_price_cents\" >= 0"
-        },
-        "price_list_item_vat_rate_check": {
-          "name": "price_list_item_vat_rate_check",
-          "value": "\"price_list_item\".\"vat_rate\" between 0 and 100"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.session": {
@@ -837,6 +715,18 @@
         "completed_on": {
           "name": "completed_on",
           "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deadline": {
+          "name": "deadline",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
