@@ -138,7 +138,7 @@ Deň, keď zákazka prešla do stavu Hotová, podľa kalendára v Europe/Bratisl
 _Avoid_: delivery date
 
 **Termín** (`deadline`):
-Deň, do ktorého autoservis zákazníkovi sľúbil vozidlo opraviť. Rozpracovaná zákazka po termíne je oneskorená.
+Deň, do ktorého autoservis zákazníkovi sľúbil vozidlo opraviť. Rozpracovaná zákazka po termíne je oneskorená (`late`); termín dnešného dňa ešte nie je po termíne.
 _Avoid_: dátum odovzdania, splatnosť (tá patrí faktúre)
 
 **Príjem vozidla** (`intake`):
