@@ -22,6 +22,10 @@ jobs:
     environment: test
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # Bez toho beží krok pod `bash -e` bez pipefail: pipe, ktorej prvý príkaz zlyhá, by prešla (tools/deploy-config.test.ts).
+    defaults:
+      run:
+        shell: bash
     steps:
       # Prvé: bez secretov nemá zmysel nič zostavovať. KROS_* sa nevyžadujú, kým ich nezačne čítať #81.
       - name: Check that the secrets are set
@@ -55,7 +59,22 @@ jobs:
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
+      # Garbage collection, ktorú spustil krok na konci predošlého behu, beží asynchrónne a drží register len na čítanie,
+      # kým neskončí: push by v tom čase zlyhal.
+      - name: Wait for the registry garbage collection
+        run: |
+          attempts=${GC_POLL_ATTEMPTS:-30}
+          seconds=${GC_POLL_SECONDS:-20}
+          for attempt in $(seq 1 "$attempts"); do
+            doctl registry garbage-collection get-active > /dev/null 2>&1 || exit 0
+            echo "Register zbiera garbage a je len na čítanie, čakám (pokus $attempt z $attempts)."
+            sleep "$seconds"
+          done
+          echo "::error title=Register je len na čítanie::Garbage collection beží aj po $((attempts * seconds)) s, push by zlyhal."
+          exit 1
+
       - name: Build the image and push it to the DigitalOcean registry
+        id: push
         run: |
           doctl registry login --expiry-seconds 3600
           registry=$(doctl registry get --format Name --no-header) || { echo "::error title=Chýba register::V DigitalOcean nie je container registry (README, časť Nasadenie)."; exit 1; }
@@ -97,7 +116,8 @@ jobs:
           LIVE_URL: ${{ fromJSON(steps.deploy.outputs.app).live_url }}
         run: pnpm smoke "$LIVE_URL" "$GITHUB_SHA"
 
-      # Smoke už zapísal do logu svoje požiadavky. Text chýb sa nevypisuje: log behu verejného repa je verejný.
+      # Smoke už appku zavolal, takže prípadná chyba pri jej štarte alebo pri prvých požiadavkách je v logu. Text chýb
+      # sa nevypisuje: log behu verejného repa je verejný.
       - name: Compare the run log with the one before the deploy
         env:
           APP_ID: ${{ fromJSON(steps.deploy.outputs.app).id }}
@@ -105,9 +125,14 @@ jobs:
           doctl apps logs "$APP_ID" web --type run --tail 2000 > "$RUNNER_TEMP/run-after.log"
           node tools/log-diff.ts "$RUNNER_TEMP/run-before.log" "$RUNNER_TEMP/run-after.log"
 
-      # Register v úrovni Starter drží 500 MiB (README): po úspešnom nasadení ostanú najnovšie tagy (počet je v
-      # tools/registry-retention.ts), ostatné sa zmažú a garbage collection uvoľní ich vrstvy. Nasadenia sa nepretekajú (concurrency).
+      # Register v úrovni Starter drží 500 MiB (README). Po každom pushi, aj keď nasadenie zlyhalo (séria zlyhaných
+      # nasadení by register zaplnila), ostanú najnovšie tagy (počet je v tools/registry-retention.ts) a tagy, ktoré
+      # práve beží nasadená appka; ostatné sa zmažú a garbage collection uvoľní ich vrstvy. Ak sa živý tag nedá zistiť, nič sa nemaže.
+      # Garbage collection beží ďalej po skončení kroku; ďalší beh na ňu čaká pred pushom.
       - name: Keep the newest image tags and collect the garbage
+        if: always() && steps.push.outcome == 'success'
         run: |
-          doctl registry repository list-tags servisnik --output json | node tools/registry-retention.ts "$GITHUB_SHA" | xargs --no-run-if-empty doctl registry repository delete-tag servisnik --force
+          app=$(sed -n 's/^name: *//p' .do/app.yaml)
+          doctl apps list --output json > "$RUNNER_TEMP/apps.json"
+          doctl registry repository list-tags servisnik --output json | node tools/registry-retention.ts "$GITHUB_SHA" "$app" "$RUNNER_TEMP/apps.json" | xargs --no-run-if-empty doctl registry repository delete-tag servisnik --force
           doctl registry garbage-collection start --include-untagged-manifests --force
