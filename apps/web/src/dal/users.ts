@@ -54,13 +54,13 @@ export type CreateUserResult = { ok: true; id: string } | { ok: false; errors: C
  * creates him through its admin plugin, called on the server with no session; the plugin then checks
  * no permission of its own, so the capability is checked here, before anything. The password is never returned.
  */
-export async function createUser(user: User | null, input: NewUserInput, auth: Auth = getAuth()): Promise<CreateUserResult> {
+export async function createUser(user: User | null, input: NewUserInput, auth?: Auth): Promise<CreateUserResult> {
   assertCan(user, 'users.write');
   const parsed = parseNewUser(input);
   if (!parsed.ok) return parsed;
 
   try {
-    const { user: created } = await auth.api.createUser({ body: parsed.user });
+    const { user: created } = await (auth ?? getAuth()).api.createUser({ body: parsed.user });
     return { ok: true, id: created.id };
   } catch (error) {
     // The e-mail is already used (Better Auth compares it in lower case, as the domain stores it), or has a shape its own check refuses.
