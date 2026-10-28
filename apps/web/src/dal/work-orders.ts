@@ -128,6 +128,17 @@ export async function listWorkOrders(user: User | null, db: Database = getDb()) 
   return selectListed(db, {}).orderBy(desc(workOrder.createdAt));
 }
 
+/**
+ * The Zákazky made for a Zákazník, in any Stav, newest first, each with its customer and vehicle. A Zákazka
+ * belongs to the customer it was made for, so the Zákazky of other customers on his vehicles are not here,
+ * and after a Prepis the Zákazky stay with the customer they were made for.
+ */
+export async function listWorkOrdersOfCustomer(user: User | null, customerId: string, db: Database = getDb()) {
+  assertCan(user, 'work-orders.read');
+  if (!isUuid(customerId)) return [];
+  return selectListed(db, {}).where(eq(workOrder.customerId, customerId)).orderBy(desc(workOrder.createdAt));
+}
+
 /** The Zákazky of a Vozidlo that are not Uzavretá, newest first. */
 export async function listUnclosedWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
