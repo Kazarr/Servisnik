@@ -11,6 +11,7 @@ import { first, pageOf } from '../../search-params.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { DeleteItemForm } from './delete-item-form.tsx';
 import { ItemForm } from './item-form.tsx';
+import { PrintLinks } from './print-links.tsx';
 import { PriceListSearch } from './price-list-search.tsx';
 import { StatusForm } from './status-form.tsx';
 
@@ -87,6 +88,7 @@ export default async function WorkOrderPage({
           </div>
         )}
       </dl>
+      <PrintLinks workOrderId={order.id} />
 
       <h2>Položky</h2>
       {order.items.length === 0 ? (
