@@ -366,23 +366,18 @@ test('Zákazky are listed from the newest with number, customer, vehicle and sta
   ]);
 });
 
-test('a vehicle lists all its Zákazky from the newest with their customer, whatever the status and whoever the owner is, and not another vehicle’s', async () => {
+test('a vehicle lists all its Zákazky from the newest with their customer, in every status and whoever the owner is, and not another vehicle’s', async () => {
   const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
-  const received = await newWorkOrderId();
-  const done = await newWorkOrderId({ customerId: other }); // its customer is not the owner of the vehicle
-  await move(done, 'done');
-  const invoiced = await newWorkOrderId();
-  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
+  // One Zákazka per status, oldest first, then one whose customer is not the owner of the vehicle.
+  const oldestFirst: { id: string; status: WorkOrderStatus; customer: string }[] = [];
+  for (const status of workOrderStatuses) oldestFirst.push({ id: await workOrderIn(status), status, customer: 'Firma s.r.o.' });
+  oldestFirst.push({ id: await newWorkOrderId({ customerId: other }), status: 'received', customer: 'Ján Novák' });
   await newWorkOrderId({ vehicleId: otherVehicle });
 
   const history = await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
 
-  expect(history.map(({ id, number, status, customer }) => ({ id, number, status, customer: customer.name }))).toEqual([
-    { id: invoiced, number: 'Z2026-0003', status: 'invoiced', customer: 'Firma s.r.o.' },
-    { id: done, number: 'Z2026-0002', status: 'done', customer: 'Ján Novák' },
-    { id: received, number: 'Z2026-0001', status: 'received', customer: 'Firma s.r.o.' },
-  ]);
+  expect(history.map(({ id, status, customer }) => ({ id, status, customer: customer.name }))).toEqual(oldestFirst.reverse());
   expect(findPriceKeys(history)).toEqual([]);
 });
 
