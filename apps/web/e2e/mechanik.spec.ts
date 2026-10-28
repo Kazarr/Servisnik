@@ -1,5 +1,4 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { listCustomers } from '../src/dal/customers.ts';
 import { searchPriceList } from '../src/dal/price-list.ts';
 import { getRates } from '../src/dal/settings.ts';
@@ -7,9 +6,8 @@ import { listUsers } from '../src/dal/users.ts';
 import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
-import { readPdf } from '../test/support/pdf.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { dayFromToday, expect, fillVehicle, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
+import { dayFromToday, downloadPdf, expect, fillVehicle, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -65,7 +63,8 @@ test('the mechanik signs in to Zákazky only, sees no amount in the list, and ev
 
 // The smoke path of the detail he has (spec #95, Mechanik). That the shape has no price key is checked at the Data Access Layer
 // (test/unpriced-work-order.test.ts), what the page draws and links in test/unpriced-work-order-view.test.ts; here the built page is
-// searched for the prices, in the HTML and in the data that Next sends with it.
+// searched for the prices, in the HTML and in the data that Next sends with it (the `self.__next_f` scripts); a Zákazka opened from the
+// list is fetched by the client navigation and its data never lands in the page, so the page is loaded again first.
 test('the mechanik opens a Zákazka from the list, sees its items and no price anywhere on the page, and downloads the zákazkový list', async ({ page }) => {
   test.slow(); // the server starts its Chromium with the first print, and on a host that other runs share that takes long
   const tag = runTag();
@@ -80,13 +79,15 @@ test('the mechanik opens a Zákazka from the list, sees its items and no price a
   await expect(main.getByRole('row', { name: new RegExp(tag) }).getByRole('cell')).toHaveText(['Diel', `OF-${tag}`, `Olejový filter ${tag}`, '2 ks']);
   await expect(main).toContainText(order.customerName);
   await expect(main).not.toContainText('€');
-  expect(await page.content(), 'the page, with the data that Next sends with it').not.toMatch(/8765[,.]43|876543|4321[,.]09|432109/);
+  await page.reload();
+  await expect(main.locator('h1')).toHaveText(order.number);
+  const html = await page.content();
+  expect(html, 'the data that Next sends with the page is in it').toContain('self.__next_f');
+  expect(html, 'the page, with the data that Next sends with it').not.toMatch(/8765[,.]43|876543|4321[,.]09|432109/);
 
-  const downloading = page.waitForEvent('download');
-  await main.getByRole('link', { name: 'Zákazkový list' }).click();
-  const download = await downloading;
-  expect(download.suggestedFilename()).toBe(`${order.number}-zakazkovy-list.pdf`);
-  expect(readPdf(readFileSync((await download.path())!))[0]!.text).toContain(order.customerName);
+  const { filename, text } = await downloadPdf(page, 'Zákazkový list', `/zakazky/${order.orderId}/zakazkovy-list`);
+  expect(filename).toBe(`${order.number}-zakazkovy-list.pdf`);
+  expect(text).toContain(order.customerName);
 });
 
 test('forms and buttons used after the admin became a mechanik answer with a message and change nothing', async ({ page, context }) => {
