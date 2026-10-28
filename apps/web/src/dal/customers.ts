@@ -1,11 +1,11 @@
-import { parseCustomer, type CustomerInput } from '@servisnik/domain/customer';
+import { parseCustomer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { assertUser, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
-export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: { name: 'required' } };
+export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: CustomerErrors };
 
 /** Saves a Zákazník; the domain decides what is stored (packages/domain/src/customer). */
 export async function createCustomer(
