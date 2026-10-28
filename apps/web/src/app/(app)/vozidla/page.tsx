@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { currentUser } from '../../../dal/current-user.ts';
 import { listVehicles } from '../../../dal/vehicles.ts';
+import { VehicleCells } from './vehicle-cells.tsx';
 
 export const metadata: Metadata = { title: 'Vozidlá' };
 
@@ -25,10 +25,7 @@ export default async function VehiclesPage() {
             <tbody>
               {vehicles.map((vehicle) => (
                 <tr key={vehicle.id}>
-                  <td>
-                    <Link href={`/vozidla/${vehicle.id}`}>{vehicle.vin}</Link>
-                  </td>
-                  <td>{vehicle.licensePlate}</td>
+                  <VehicleCells vehicle={vehicle} />
                   <td>{vehicle.owner.name}</td>
                 </tr>
               ))}
