@@ -1,7 +1,7 @@
 import { parseVehicle, parseVehicleSearch, type VehicleErrors, type VehicleInput, type VinError } from '@servisnik/domain/vehicle';
 import { localYear } from '@servisnik/domain/work-order';
 import { and, count, desc, eq, or } from 'drizzle-orm';
-import { getDb, type Database } from '../db/index.ts';
+import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { blockedByLink, violates } from './constraint.ts';
 import { contains, pageWindow } from './paging.ts';
@@ -11,15 +11,15 @@ import { isUuid } from './uuid.ts';
 /** What the domain finds wrong, or a VIN that another Vozidlo already has. */
 export type VehicleSaveErrors = Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken' };
 /** The Vozidlo that has the VIN, with its Majiteľ, so the form can show whose it is and link to it. */
-type Existing = { id: string; make: string; model: string; owner: { id: string; name: string } };
+export type ExistingVehicle = { id: string; make: string; model: string; owner: { id: string; name: string } };
 
 export type CreateVehicleResult =
   | { ok: true; id: string }
-  | { ok: false; errors: VehicleSaveErrors & { owner?: 'unknown' }; existing?: Existing };
-export type UpdateVehicleResult = { ok: true } | { ok: false; errors: VehicleSaveErrors & { vehicle?: 'unknown' }; existing?: Existing };
+  | { ok: false; errors: VehicleSaveErrors & { owner?: 'unknown' }; existing?: ExistingVehicle };
+export type UpdateVehicleResult = { ok: true } | { ok: false; errors: VehicleSaveErrors & { vehicle?: 'unknown' }; existing?: ExistingVehicle };
 
 /** The Vozidlá with their Majiteľ; the caller adds the filter and the order. */
-const vehiclesWithOwner = (db: Database) =>
+const vehiclesWithOwner = (db: Executor) =>
   db
     .select({
       id: vehicle.id,
@@ -37,7 +37,7 @@ const vehiclesWithOwner = (db: Database) =>
     .innerJoin(customer, eq(vehicle.ownerId, customer.id));
 
 /** The failure for a VIN that is taken, with the Vozidlo that has it. */
-async function vinTaken(vin: string, db: Database) {
+async function vinTaken(vin: string, db: Executor) {
   const [found] = await vehiclesWithOwner(db).where(eq(vehicle.vin, vin));
   const existing = found && { id: found.id, make: found.make, model: found.model, owner: found.owner };
   return { ok: false, errors: { vin: 'taken' }, existing } as const;
@@ -49,12 +49,13 @@ async function vinTaken(vin: string, db: Database) {
  * attempts at once cannot both get through. Once the fields parse and the VIN is free, an `ownerId`
  * that is no Zákazník comes back as `owner: 'unknown'`; the foreign key decides that too, so no check
  * can go stale before the insert. An `ownerId` that is not even an id comes back so as soon as the
- * fields parse.
+ * fields parse. As a step of a bigger transaction (`db`), an `ownerId` that is no Zákazník leaves that
+ * transaction aborted, because PostgreSQL aborts one on a foreign key violation: the caller rolls it back.
  */
 export async function createVehicle(
   user: User | null,
   input: VehicleInput & { ownerId: string },
-  db: Database = getDb(),
+  db: Executor = getDb(),
 ): Promise<CreateVehicleResult> {
   assertCan(user, 'vehicles.write');
   const { ownerId, ...fields } = input;

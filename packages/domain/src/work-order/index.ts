@@ -20,9 +20,9 @@ export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoic
 /**
  * The one lock of a Zákazka: its items change only while it is Rozpracovaná, because from Hotová on an
  * invoice is made from them. `lockForItems` of the Data Access Layer checks it under the row lock for
- * `addItem`, `updateItem` and `deleteItem`; every later write of the discount or the header (kilometres,
- * request, deadline, note) must call `canEdit` the same way, since a hidden button is not enough. Hotová
- * stays locked until ledger question 9 is answered.
+ * every way of adding an item (`addItem`, `addItemFromPriceList`), `updateItem` and `deleteItem`; every
+ * later write of the discount or the header (kilometres, request, deadline, note) must call `canEdit`
+ * the same way, since a hidden button is not enough. Hotová stays locked until ledger question 9 is answered.
  */
 export const canEdit = (status: WorkOrderStatus): boolean => isActive(status);
 
@@ -81,6 +81,17 @@ export function localDate(instant: Date): string {
 
 /** The year at this moment in Europe/Bratislava, which is the year of a new Zákazka's number. */
 export const localYear = (instant: Date): number => Number(localDate(instant).slice(0, 4));
+
+/**
+ * What the kilometres of a new Zákazka (Príjem vozidla) do to the Stav km of its Vozidlo: higher ones
+ * become its Stav km, as do any when it has none yet. Lower ones leave it as it was and ask for a
+ * warning, because the odometer may have been replaced; the Zákazka keeps them either way. Equal ones
+ * change nothing and need no warning.
+ */
+export function mileageAtIntake(vehicleMileageKm: number | null, intakeKm: number): { vehicleMileageKm: number; lowerThanVehicle: boolean } {
+  if (vehicleMileageKm === null || intakeKm > vehicleMileageKm) return { vehicleMileageKm: intakeKm, lowerThanVehicle: false };
+  return { vehicleMileageKm, lowerThanVehicle: intakeKm < vehicleMileageKm };
+}
 
 /** Money is whole cents and a quantity is in hundredths, so no amount here is ever a float. */
 export type Amounts = { net: number; vat: number; gross: number };
@@ -168,6 +179,13 @@ function parseDay(typed: string): string | null {
   const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   return parsed.toISOString().slice(0, 10) === day ? day : null;
 }
+/**
+ * The Sadzby DPH an item that is edited may choose from: those of Nastavenia, and after them the one the item already
+ * has when they no longer offer it, so that an old item can still be edited. A rate any other than these is refused.
+ */
+export const vatRatesKeeping = (vatRates: readonly number[], vatRate: number): number[] =>
+  vatRates.includes(vatRate) ? [...vatRates] : [...vatRates, vatRate];
+
 /** What `marginOf` needs of an item: what it sells for, and what a Diel was bought for. */
 export type Costed = Priced & { kind: ItemKind; purchasePriceCents: number | null };
 

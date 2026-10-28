@@ -92,6 +92,13 @@
       "when": 1793211165049,
       "tag": "0012_work_order_deadline_note",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793217118381,
+      "tag": "0013_price_list_item",
+      "breakpoints": true
     }
   ]
 }

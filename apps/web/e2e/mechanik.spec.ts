@@ -1,12 +1,13 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { listCustomers } from '../src/dal/customers.ts';
+import { searchPriceList } from '../src/dal/price-list.ts';
 import { getRates } from '../src/dal/settings.ts';
 import { listUsers } from '../src/dal/users.ts';
 import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { dayFromToday, expect, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
+import { dayFromToday, expect, fillVehicle, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -28,6 +29,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
   await expect(row.getByRole('cell')).toHaveText([order.number, order.customerName, new RegExp(order.vin), 'Prijatá', '']);
   await expect(row.getByRole('link')).toHaveCount(0);
   await expect(main).not.toContainText('€');
+  await expect(main.getByRole('link', { name: 'Nová zákazka' })).toHaveCount(0);
 
   const elsewhere = [
     '/zakaznici',
@@ -40,10 +42,17 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/vozidla/${order.vehicleId}`,
     `/vozidla/${order.vehicleId}/upravit`,
     `/vozidla/${order.vehicleId}/prepis`,
+    '/zakazky/nova',
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
+    '/zakazky/nova/nove-vozidlo',
+    `/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`,
+    '/zakazky/nova/nove-vozidlo?novy=zakaznik',
     `/zakazky/${order.orderId}`,
     `/zakazky/${order.orderId}/upravit`,
     `/zakazky/${order.orderId}/polozky/${randomUUID()}`,
+    '/cennik',
+    '/cennik/nova/diel',
+    `/cennik/${randomUUID()}/upravit`,
     '/nastavenia',
   ];
   for (const path of elsewhere) {
@@ -65,9 +74,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await page.getByLabel('Názov').fill(`Nemal by sa uložiť ${tag}`);
   const vehiclePage = await context.newPage();
   await vehiclePage.goto(`/vozidla/novy?zakaznik=${order.customerId}`);
-  await vehiclePage.getByLabel('VIN').fill(vinOf(tag, 'ZZZ00000000'));
-  await vehiclePage.getByLabel('Značka').fill('Škoda');
-  await vehiclePage.getByLabel('Model').fill('Fabia');
+  await fillVehicle(vehiclePage, vinOf(tag, 'ZZZ00000000'), 'Škoda', 'Fabia');
   const editPage = await context.newPage();
   await editPage.goto(`/vozidla/${order.vehicleId}/upravit`);
   await editPage.getByLabel('Model').fill('Fabia');
@@ -75,6 +82,11 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await orderPage.goto(`/zakazky/nova?vozidlo=${order.vehicleId}`);
   await orderPage.getByLabel('Kilometre pri príjme').fill('500');
   await orderPage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
+  const intakePage = await context.newPage();
+  await intakePage.goto(`/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`);
+  await fillVehicle(intakePage, vinOf(tag, 'YYY00000000'), 'Škoda', 'Fabia');
+  await intakePage.getByLabel('Kilometre pri príjme').fill('500');
+  await intakePage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
   const headerPage = await context.newPage();
   await headerPage.goto(`/zakazky/${order.orderId}/upravit`);
   await headerPage.getByLabel('Kilometre pri príjme').fill('777');
@@ -88,6 +100,10 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const itemPage = await context.newPage();
   await itemPage.goto(`/zakazky/${order.orderId}/polozky/${itemId}`);
   await itemPage.getByLabel('Názov', { exact: true }).fill('Nemal by sa zmeniť');
+  const priceListPage = await context.newPage();
+  await priceListPage.goto('/cennik/nova/diel');
+  await priceListPage.getByLabel('Názov', { exact: true }).fill(`Nemal by sa uložiť ${tag}`);
+  await priceListPage.getByLabel('Predajná cena za jednotku bez DPH (€)').fill('10');
   const settingsPage = await context.newPage();
   await settingsPage.goto('/nastavenia');
   await settingsPage.getByLabel('Prirážka na diely (%)').fill('77');
@@ -109,6 +125,9 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(editPage.locator('main').getByRole('alert')).toHaveText(message);
   await orderPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(orderPage.locator('main').getByRole('alert')).toHaveText(message);
+  await intakePage.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await expect(intakePage.locator('main').getByRole('alert')).toHaveText(message);
+  await expect(intakePage.getByLabel('Model')).toHaveValue('Fabia');
   await headerPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(headerPage.locator('main').getByRole('alert')).toHaveText(message);
   await labourForm.getByRole('button', { name: 'Pridať prácu' }).click();
@@ -119,6 +138,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message, message]);
   await itemPage.getByRole('button', { name: 'Uložiť zmeny' }).click();
   await expect(itemPage.locator('main').getByRole('alert')).toHaveText(message);
+  await priceListPage.getByRole('button', { name: 'Pridať do cenníka' }).click();
+  await expect(priceListPage.locator('main').getByRole('alert')).toHaveText(message);
   await settingsPage.getByRole('button', { name: 'Uložiť sadzby' }).click();
   await expect(settingsPage.locator('main').getByRole('alert')).toHaveText(message);
   await usersPage.getByRole('button', { name: 'Založiť používateľa' }).click();
@@ -133,6 +154,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   expect(vehicles[0]).toMatchObject({ make: 'Škoda', model: 'Octavia' });
   expect((await listWorkOrdersOfVehicle(admin, order.vehicleId, db)).map(({ number }) => number)).toEqual([order.number]);
   expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [{ id: itemId, name: 'Zostane' }], mileageKm: 1000 });
+  expect((await searchPriceList(admin, { query: tag }, db)).items).toEqual([]);
   expect(await getRates(admin, db)).toMatchObject({ markupPercent: 0 });
   expect((await listUsers(admin, db)).filter(({ email }) => email.includes(tag)).map(({ email }) => email)).toEqual([user.email]);
 });

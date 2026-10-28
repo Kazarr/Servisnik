@@ -4,39 +4,36 @@ import { itemKinds, workOrderStatuses, type ItemErrors, type WorkOrderErrors } f
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
-import { addItem, changeWorkOrderStatus, createWorkOrder, deleteItem, updateItem, updateWorkOrderHeader } from '../../../dal/work-orders.ts';
+import type { ExistingCustomer } from '../../../dal/customers.ts';
+import type { ExistingVehicle } from '../../../dal/vehicles.ts';
+import {
+  addItem,
+  addItemFromPriceList,
+  changeWorkOrderStatus,
+  createIntake,
+  createWorkOrder,
+  deleteItem,
+  updateItem,
+  updateWorkOrderHeader,
+} from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
+import { itemMessages } from '../item-messages.ts';
+import { customerMessages, intakeCustomerPrefix, readCustomer, type CustomerFormErrors, type CustomerFormValues } from '../zakaznici/customer-input.ts';
+import { intakeVehiclePrefix, readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from '../vozidla/vehicle-input.ts';
+import { orderMessages, readOrder, type OrderFormErrors, type OrderFormValues } from './order-input.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 export type WorkOrderFormState = {
-  values: Record<'mileageKm' | 'customerRequest' | 'deadline' | 'note', string>;
-  errors: { mileageKm?: string; customerRequest?: string; deadline?: string; form?: string };
+  values: OrderFormValues;
+  errors: OrderFormErrors & { form?: string };
+  /** The Zákazka was saved with kilometres lower than the Stav km of its Vozidlo, which stays: the form tells so instead of leaving it. */
+  saved?: { id: string; number: string; vehicleMileageKm: number };
 } | null;
 
-/** What the form of a Zákazka sent: the header, the same fields whether the Zákazka is new or edited. */
-const readHeader = (formData: FormData) => ({
-  mileageKm: field(formData, 'mileageKm'),
-  customerRequest: field(formData, 'customerRequest'),
-  deadline: field(formData, 'deadline'),
-  note: field(formData, 'note'),
-});
-
 /** The form again, with what was typed and the reason at each field the domain refused (and `form` for a reason that is not a field's). */
-function refused(
-  values: NonNullable<WorkOrderFormState>['values'],
-  errors: WorkOrderErrors,
-  form?: string,
-): WorkOrderFormState {
-  return {
-    values,
-    errors: {
-      mileageKm: errors.mileageKm && 'Zadajte kilometre ako celé číslo, 0 alebo viac',
-      customerRequest: errors.customerRequest && 'Vyplňte požiadavku zákazníka',
-      deadline: errors.deadline && 'Zadajte termín ako platný dátum',
-      form,
-    },
-  };
+function refused(values: OrderFormValues, errors: WorkOrderErrors, form?: string): WorkOrderFormState {
+  return { values, errors: { ...orderMessages(errors), form } };
 }
 
 /**
@@ -46,13 +43,55 @@ function refused(
  */
 export async function addWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
   const user = await currentUser();
-  const values = readHeader(formData);
+  const values = readOrder(formData);
 
   const result = await orForbidden(createWorkOrder(user, { vehicleId: field(formData, 'vehicleId'), customerId: field(formData, 'customerId'), ...values }));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.vehicle || result.errors.customer) notFound();
     return refused(values, result.errors);
+  }
+  if (result.lowerMileage) return { values, errors: {}, saved: { id: result.id, number: result.number, ...result.lowerMileage } };
+  redirect(`/zakazky/${result.id}`);
+}
+
+export type IntakeFormState = {
+  values: { customer: CustomerFormValues; vehicle: VehicleFormValues; order: OrderFormValues };
+  errors: { form?: string; customer?: CustomerFormErrors; vehicle?: VehicleFormErrors; order?: OrderFormErrors };
+  /** The Firma that has the IČO, and the Vozidlo that has the VIN, which the form was sent with: the form links to them. */
+  existingCustomer?: ExistingCustomer;
+  existingVehicle?: ExistingVehicle;
+} | null;
+
+/**
+ * Server Action of the form of an intake with a new Vozidlo: it saves the Vozidlo, the Zákazka and, when
+ * the form has no `ownerId`, the new Zákazník whose fields it carries, all or none (createIntake). It
+ * checks the session itself, like every action. An `ownerId` that is no Zákazník is a page that does not exist.
+ */
+export async function addIntake(_state: IntakeFormState, formData: FormData): Promise<IntakeFormState> {
+  const user = await currentUser();
+  const ownerId = field(formData, 'ownerId');
+  const customer = readCustomer(formData, intakeCustomerPrefix);
+  const vehicle = readVehicle(formData, intakeVehiclePrefix);
+  const order = readOrder(formData);
+  const values = { customer: customer.values, vehicle, order };
+
+  const owner = ownerId ? { id: ownerId } : { customer: { type: customer.type, ...customer.values } };
+  const result = await orForbidden(createIntake(user, { owner, vehicle, ...order }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
+  if (!result.ok) {
+    const { owner: unknownOwner, customer: customerErrors, vehicle: vehicleErrors, workOrder } = result.errors;
+    if (unknownOwner) notFound();
+    return {
+      values,
+      errors: {
+        customer: customerErrors && customerMessages(customerErrors),
+        vehicle: vehicleErrors && vehicleMessages(vehicleErrors),
+        order: workOrder && orderMessages(workOrder),
+      },
+      existingCustomer: result.existingCustomer,
+      existingVehicle: result.existingVehicle,
+    };
   }
   redirect(`/zakazky/${result.id}`);
 }
@@ -65,7 +104,7 @@ export async function addWorkOrder(_state: WorkOrderFormState, formData: FormDat
 export async function editWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
   const user = await currentUser();
   const id = field(formData, 'id');
-  const values = readHeader(formData);
+  const values = readOrder(formData);
 
   const result = await orForbidden(updateWorkOrderHeader(user, id, values));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
@@ -104,15 +143,7 @@ const notEditableMessage = 'Položky sa dajú meniť len na rozpracovanej zákaz
 
 /** The messages for the reasons an item was refused, at the fields; `notEditable` is the reason for the whole form. */
 function itemErrors(errors: ItemErrors, notEditable: boolean): NonNullable<ItemFormState>['errors'] {
-  return {
-    name: errors.name && 'Vyplňte názov',
-    quantity: errors.quantity && 'Množstvo musí byť väčšie ako 0, najviac na 2 desatinné miesta',
-    unit: errors.unit && 'Vyplňte jednotku',
-    purchasePrice: errors.purchasePrice && 'Nákupná cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
-    unitPrice: errors.unitPrice && 'Cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
-    vatRate: errors.vatRate && 'Vyberte sadzbu DPH zo sadzieb v Nastaveniach',
-    form: notEditable ? notEditableMessage : undefined,
-  };
+  return { ...itemMessages(errors), form: notEditable ? notEditableMessage : undefined };
 }
 
 /** Server Action of the form that adds a Práca or a Diel; it checks the session itself, like every action. */
@@ -160,6 +191,28 @@ export async function deleteItemOfWorkOrder(_state: DeleteItemState, formData: F
   if (result === 'forbidden') return { error: forbiddenMessage };
   if (!result.ok && result.error === 'not-editable') return { error: notEditableMessage };
   revalidatePath(`/zakazky/${result.ok ? result.workOrderId : field(formData, 'workOrderId')}`);
+  return null;
+}
+
+export type AddFromPriceListState = { error: string } | null;
+
+/**
+ * Server Action of the "Pridať" button of an item found in the Cenník (`priceListItemId`); it checks the session itself,
+ * like every action. The item is added as a copy of quantity 1. An item deleted from the Cenník in the meantime is
+ * told so, and a Zákazka that is no longer rozpracovaná takes none.
+ */
+export async function addPriceListItemToWorkOrder(_state: AddFromPriceListState, formData: FormData): Promise<AddFromPriceListState> {
+  const user = await currentUser();
+  const workOrderId = field(formData, 'workOrderId');
+  const result = await orForbidden(addItemFromPriceList(user, workOrderId, field(formData, 'priceListItemId')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if (result.errors.workOrder === 'unknown') notFound();
+    if (result.errors.workOrder === 'not-editable') return { error: notEditableMessage };
+    if (result.errors.vatRate) return { error: 'Sadzba DPH tejto položky cenníka už nie je v Nastaveniach. Upravte položku cenníka.' };
+    return { error: 'Položka už v cenníku nie je' };
+  }
+  revalidatePath(`/zakazky/${workOrderId}`);
   return null;
 }
 

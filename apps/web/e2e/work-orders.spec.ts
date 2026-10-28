@@ -1,8 +1,9 @@
-import type { Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import {
   addCustomer,
   addVehicleAndOpen,
   dayFromToday,
+  detail,
   endSessionBehindThePage,
   expect,
   fillIntake,
@@ -27,9 +28,6 @@ const year = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Br
 
 /** The running number of a work order number, e.g. 12 for "Z2026-0012". */
 const sequenceOf = (number: string) => Number(number.split('-')[1]);
-
-/** The value next to a label in the detail list of a page. */
-const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
 /** On a work order's detail: the form with this name; the Práca and the Diel each have one. */
 const formNamed = (page: Page, name: 'Pridať prácu' | 'Pridať diel') => page.locator('main').getByRole('form', { name });
@@ -70,6 +68,9 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(detail(main, 'Kilometre pri príjme')).toHaveText('123 456 km');
   await expect(detail(main, 'Požiadavka zákazníka')).toHaveText('Výmena oleja a kontrola bŕzd');
   await expect(main).not.toContainText('Dátum dokončenia');
+
+  // A Rozpracovaná Zákazka offers the search of the Cenník beside the forms for work and parts.
+  await expect(main.getByRole('search')).toHaveCount(1);
 
   // The VAT rate starts at 23 %. A work item that is not one stays on the form, with the reason at the field.
   const labourForm = formNamed(page, 'Pridať prácu');
@@ -115,8 +116,9 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(detail(main, 'Stav')).toHaveText('Hotová');
   await expect(detail(main, 'Dátum dokončenia')).toHaveText(today());
   await expect(main.getByRole('button', { name: 'Označiť ako hotovú' })).toHaveCount(0);
-  // A Hotová Zákazka offers no way to add, edit or delete an item.
+  // A Hotová Zákazka offers no way to add, edit or delete an item, and no search of the Cenník to add one from.
   await expect(main.getByRole('form')).toHaveCount(0);
+  await expect(main.getByRole('search')).toHaveCount(0);
   await expect(main.getByRole('link', { name: 'Upraviť' })).toHaveCount(0);
   await expect(main.getByRole('button', { name: /^Zmazať/ })).toHaveCount(0);
   for (const name of ['Prijatá', 'V práci', 'Čaká na diely', 'Pridať prácu', 'Pridať diel']) await expect(button(name)).toHaveCount(0);

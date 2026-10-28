@@ -1,4 +1,4 @@
-import { expect, test as base, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test as base, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
 import type { Database } from '../src/db/index.ts';
 import { seedUser } from '../test/support/users.ts';
@@ -115,12 +115,17 @@ export async function addCustomer(
   await expect(page.locator('main h1')).toHaveText(name);
 }
 
-/** From a customer's detail: opens the form for a new vehicle and fills VIN, make and model. The form is not sent. */
-export async function fillVehicleForm(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
-  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+/** On a form of a vehicle: fills VIN, make and model, which it requires. The form is not sent. */
+export async function fillVehicle(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
   await page.getByLabel('VIN').fill(vin);
   await page.getByLabel('Značka').fill(make);
   await page.getByLabel('Model').fill(model);
+}
+
+/** From a customer's detail: opens the form for a new vehicle and fills VIN, make and model. The form is not sent. */
+export async function fillVehicleForm(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await fillVehicle(page, vin, make, model);
 }
 
 /** From a customer's detail: adds a vehicle through the form and opens its detail. */
@@ -131,7 +136,7 @@ export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda'
   await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
 }
 
-/** On a vehicle's detail: opens the form for a new work order. */
+/** On a vehicle's detail: opens the form for a new work order. On Zákazky: opens the search of the vehicle it is for. */
 export async function startWorkOrder(page: Page) {
   await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
   await expect(page.locator('main h1')).toHaveText('Nová zákazka');
@@ -170,6 +175,12 @@ export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľa
 
 /** Searches the list of vehicles for `text` (see searchList). */
 export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);
+
+/** The value next to a label in the detail list of a page. */
+export const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
+
+/** Searches the Cenník, on its own page or in the section of a Zákazka, for `text` (see searchList). */
+export const searchPriceList = (page: Page, text: string) => searchList(page, 'Hľadať v cenníku', text);
 
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
 export async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {
