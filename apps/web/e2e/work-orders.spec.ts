@@ -87,11 +87,25 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   ]);
   await expect(main.getByRole('row', { name: /Spolu/ }).getByRole('cell')).toHaveText(['68,33 €', '15,72 €', '84,05 €']);
 
+  // The buttons are the transitions the current status allows: never the status it is in. Prijatá → V práci → Čaká na diely, and work can still be added.
+  const button = (name: string) => main.getByRole('button', { name, exact: true });
+  await expect(button('Prijatá')).toHaveCount(0);
+  await button('V práci').click();
+  await expect(detail(main, 'Stav')).toHaveText('V práci');
+  await expect(button('V práci')).toHaveCount(0);
+  await expect(button('Prijatá')).toBeVisible();
+  await button('Čaká na diely').click();
+  await expect(detail(main, 'Stav')).toHaveText('Čaká na diely');
+  await expect(button('Čaká na diely')).toHaveCount(0);
+  await expect(button('Pridať prácu')).toBeVisible();
+  await expect(main).not.toContainText('Dátum dokončenia');
+
   await main.getByRole('button', { name: 'Označiť ako hotovú' }).click();
   await expect(detail(main, 'Stav')).toHaveText('Hotová');
   await expect(detail(main, 'Dátum dokončenia')).toHaveText(today());
   await expect(main.getByRole('button', { name: 'Označiť ako hotovú' })).toHaveCount(0);
-  await expect(main.getByRole('button', { name: 'Pridať prácu' })).toHaveCount(0);
+  for (const name of ['Prijatá', 'V práci', 'Čaká na diely', 'Pridať prácu']) await expect(button(name)).toHaveCount(0);
+  await expect(main.locator('summary')).toHaveCount(0);
   await expect(main.getByRole('row', { name: /Spolu/ }).getByRole('cell')).toHaveText(['68,33 €', '15,72 €', '84,05 €']);
 
   // The vehicle lists its work order, in any state, with the customer it was made for, and the list of work orders shows it too.
@@ -142,6 +156,45 @@ test('a work order for another customer than the owner keeps that customer, and 
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0).getByRole('cell')).toHaveText([secondNumber, owner, 'Prijatá']);
   await expect(rows.nth(1).getByRole('cell')).toHaveText([firstNumber, other, 'Prijatá']);
+});
+
+test('the admin cancels a work order only after confirming; it keeps its number, is locked and no longer counts as open on the vehicle', async ({ page }) => {
+  test.slow(); // a customer, a vehicle, a work order and the cancelling; under --repeat-each the workers share one server
+  const tag = runTag();
+  const owner = `Majiteľ Zrušenej Zákazky ${tag}`;
+  await signIn(page);
+  await addCustomer(page, owner);
+  await addVehicleAndOpen(page, vinOf(tag));
+  const main = page.locator('main');
+  const vehicleUrl = page.url();
+  await startWorkOrder(page);
+  await fillIntake(page, '1 000', 'Nezmyselná oprava');
+  const number = await numberOnTheDetail(page);
+  const orderUrl = page.url();
+
+  // Opening the confirmation sends nothing: the work order is still Prijatá and can still be worked on.
+  await main.locator('summary', { hasText: 'Zrušiť zákazku' }).click();
+  await expect(main.getByRole('button', { name: 'Potvrdiť zrušenie' })).toBeVisible();
+  await expect(detail(main, 'Stav')).toHaveText('Prijatá');
+  await expect(main.getByRole('button', { name: 'Pridať prácu' })).toBeVisible();
+
+  await main.getByRole('button', { name: 'Potvrdiť zrušenie' }).click();
+  await expect(detail(main, 'Stav')).toHaveText('Zrušená');
+  await expect(main.locator('h1')).toHaveText(number);
+  await expect(main.locator('summary')).toHaveCount(0);
+  for (const name of ['Prijatá', 'V práci', 'Čaká na diely', 'Označiť ako hotovú', 'Potvrdiť zrušenie', 'Pridať prácu']) {
+    await expect(main.getByRole('button', { name, exact: true })).toHaveCount(0);
+  }
+
+  // The vehicle no longer links to it, and the list still shows it, with its number.
+  await page.goto(vehicleUrl);
+  await expect(main).not.toContainText('Otvorené zákazky');
+  await expect(main.getByRole('link', { name: number })).toHaveCount(0);
+  await page.goto('/zakazky');
+  const row = main.getByRole('row', { name: new RegExp(number) });
+  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Zrušená']);
+  await row.getByRole('link', { name: number }).click();
+  await expect(page).toHaveURL(orderUrl);
 });
 
 test('a work order form with a bad kilometre count stays on the form, with the reason and what was typed', async ({ page }) => {
