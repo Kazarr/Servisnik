@@ -1,10 +1,10 @@
+import { can, roles, type Capability, type Role } from '@servisnik/domain/access';
 import { getAuth, type Auth } from '../auth.ts';
-import { role } from '../db/schema.ts';
 
 // Data Access Layer (docs/adr/0001-stack.md): pages read data only through functions that start from
 // the user returned here and hand back only what that user may see.
 
-export type Role = (typeof role.enumValues)[number];
+export type { Role };
 export type User = { id: string; email: string; name: string; role: Role };
 
 export class UnauthenticatedError extends Error {
@@ -13,12 +13,23 @@ export class UnauthenticatedError extends Error {
   }
 }
 
-/** First line of every DAL function that reads or writes data: no user, nothing happens. */
-export function assertUser(user: User | null): asserts user is User {
-  if (!user) throw new UnauthenticatedError();
+/** The user's Rola may not do this: pages send the user to Zákazky, Server Actions answer with a message. */
+export class ForbiddenError extends Error {
+  constructor(capability: Capability) {
+    super(`Zakázané: ${capability}`);
+  }
 }
 
-const isRole =(value: unknown): value is Role => role.enumValues.some((known) => known === value);
+/**
+ * First line of every DAL function that reads or writes data: no user, or a Rola without this
+ * capability (packages/domain/src/access), and nothing happens.
+ */
+export function assertCan(user: User | null, capability: Capability): asserts user is User {
+  if (!user) throw new UnauthenticatedError();
+  if (!can(user.role, capability)) throw new ForbiddenError(capability);
+}
+
+const isRole = (value: unknown): value is Role => roles.some((known) => known === value);
 
 /**
  * The Používateľ behind the request's session cookie. Rejects with UnauthenticatedError when there
