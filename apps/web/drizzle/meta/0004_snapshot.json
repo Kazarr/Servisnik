@@ -1,5 +1,5 @@
 {
-  "id": "111bc0c5-d3b8-4c03-b441-d6a756c71537",
+  "id": "094e24fe-c5d0-47f1-8e96-79f23d0f754e",
   "prevId": "c7b42f63-7fe3-4c16-8443-54c82063b184",
   "version": "7",
   "dialect": "postgresql",
@@ -204,6 +204,24 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "search_name": {
+          "name": "search_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "search_email": {
+          "name": "search_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "search_phone": {
+          "name": "search_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
@@ -892,86 +910,6 @@
         "work_order_item_vat_rate_check": {
           "name": "work_order_item_vat_rate_check",
           "value": "\"work_order_item\".\"vat_rate\" between 0 and 100"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.workshop": {
-      "name": "workshop",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "default": 1
-        },
-        "vat_rates": {
-          "name": "vat_rates",
-          "type": "integer[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "default_vat_rate": {
-          "name": "default_vat_rate",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "hourly_rate_cents": {
-          "name": "hourly_rate_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "markup_percent": {
-          "name": "markup_percent",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "workshop_single_row_check": {
-          "name": "workshop_single_row_check",
-          "value": "\"workshop\".\"id\" = 1"
-        },
-        "workshop_vat_rates_check": {
-          "name": "workshop_vat_rates_check",
-          "value": "0 <= all(\"workshop\".\"vat_rates\") and 100 >= all(\"workshop\".\"vat_rates\")"
-        },
-        "workshop_default_vat_rate_check": {
-          "name": "workshop_default_vat_rate_check",
-          "value": "\"workshop\".\"default_vat_rate\" = any(\"workshop\".\"vat_rates\")"
-        },
-        "workshop_hourly_rate_cents_check": {
-          "name": "workshop_hourly_rate_cents_check",
-          "value": "\"workshop\".\"hourly_rate_cents\" >= 0"
-        },
-        "workshop_markup_percent_check": {
-          "name": "workshop_markup_percent_check",
-          "value": "\"workshop\".\"markup_percent\" >= 0"
         }
       },
       "isRLSEnabled": false

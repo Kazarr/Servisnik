@@ -33,8 +33,15 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1793191029208,
-      "tag": "0004_workshop_rates",
+      "when": 1793188011606,
+      "tag": "0004_customer_search_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793192548312,
+      "tag": "0005_workshop_rates",
       "breakpoints": true
     }
   ]
