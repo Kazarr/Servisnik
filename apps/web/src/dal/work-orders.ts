@@ -17,7 +17,7 @@ import {
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
-import { assertUser, type User } from './user.ts';
+import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
 export type CreateWorkOrderResult =
@@ -35,7 +35,7 @@ export async function createWorkOrder(
   db: Database = getDb(),
   now: Date = new Date(),
 ): Promise<CreateWorkOrderResult> {
-  assertUser(user);
+  assertCan(user, 'work-orders.write');
   const parsed = parseWorkOrder(input);
   if (!parsed.ok) return parsed;
 
@@ -67,7 +67,7 @@ export type AddLabourResult =
 
 /** Adds a Práca to a Zákazka that is still Prijatá; the row lock keeps it from landing after the Zákazka became Hotová. */
 export async function addLabour(user: User | null, workOrderId: string, input: LabourInput, db: Database = getDb()): Promise<AddLabourResult> {
-  assertUser(user);
+  assertCan(user, 'work-orders.write');
   const parsed = parseLabour(input);
   if (!parsed.ok) return parsed;
 
@@ -86,7 +86,7 @@ export type MarkDoneResult = { ok: true } | { ok: false; error: 'unknown' | 'not
 
 /** Prijatá becomes Hotová and the delivery date is stored; the domain's transition table decides, under a row lock. */
 export async function markWorkOrderDone(user: User | null, id: string, db: Database = getDb(), now: Date = new Date()): Promise<MarkDoneResult> {
-  assertUser(user);
+  assertCan(user, 'work-orders.write');
   return db.transaction(async (tx) => {
     const [found] = isUuid(id) ? await tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, id)).for('update') : [];
     if (!found) return { ok: false, error: 'unknown' };
@@ -107,7 +107,7 @@ const withParties = {
 
 /** Every Zákazka with its customer and vehicle, newest first. */
 export async function listWorkOrders(user: User | null, db: Database = getDb()) {
-  assertUser(user);
+  assertCan(user, 'work-orders.list');
   return db
     .select(withParties)
     .from(workOrder)
@@ -118,7 +118,7 @@ export async function listWorkOrders(user: User | null, db: Database = getDb()) 
 
 /** The open Zákazky of a Vozidlo (not yet invoiced), newest first. */
 export async function listOpenWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
-  assertUser(user);
+  assertCan(user, 'work-orders.read');
   if (!isUuid(vehicleId)) return [];
   return db
     .select({ id: workOrder.id, number: workOrder.number, status: workOrder.status })
@@ -129,7 +129,7 @@ export async function listOpenWorkOrdersOfVehicle(user: User | null, vehicleId: 
 
 /** One Zákazka with its items, the amounts of each and the totals, or null when there is none with this id. */
 export async function getWorkOrder(user: User | null, id: string, db: Database = getDb()) {
-  assertUser(user);
+  assertCan(user, 'work-orders.read');
   if (!isUuid(id)) return null;
   const [found] = await db
     .select({

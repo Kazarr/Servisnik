@@ -3,7 +3,7 @@ import { count, desc, eq, or, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
-import { assertAdmin, type User } from './user.ts';
+import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
 /** What the domain finds wrong, or an IČO that another Firma already has. */
@@ -38,7 +38,7 @@ export async function createCustomer(
   input: CustomerInput,
   db: Database = getDb(),
 ): Promise<CreateCustomerResult> {
-  assertAdmin(user);
+  assertCan(user, 'customers.write');
   const parsed = parseCustomer(input);
   if (!parsed.ok) return parsed;
   try {
@@ -56,7 +56,7 @@ export async function updateCustomer(
   input: CustomerInput,
   db: Database = getDb(),
 ): Promise<UpdateCustomerResult> {
-  assertAdmin(user);
+  assertCan(user, 'customers.write');
   const parsed = parseCustomer(input);
   if (!parsed.ok) return parsed;
   if (!isUuid(id)) return { ok: false, errors: { customer: 'unknown' } };
@@ -70,11 +70,11 @@ export async function updateCustomer(
 
 /** Every Zákazník, newest first. */
 export async function listCustomers(user: User | null, db: Database = getDb()) {
-  assertAdmin(user);
+  assertCan(user, 'customers.read');
   return db.select().from(customer).orderBy(desc(customer.createdAt));
 }
 
-export const customersPerPage = 25;
+const customersPerPage = 25;
 
 const contains = (column: AnyPgColumn, part: string) => sql`strpos(${column}, ${part}) > 0`;
 
@@ -90,7 +90,7 @@ export async function searchCustomers(
   { query = '', page = 1 }: { query?: string; page?: number } = {},
   db: Database = getDb(),
 ) {
-  assertAdmin(user);
+  assertCan(user, 'customers.read');
   const { text, ico, phone } = parseCustomerSearch(query);
   const matching = text
     ? or(
@@ -118,7 +118,7 @@ export async function searchCustomers(
 
 /** One Zákazník with the Vozidlá they own (newest first), or null when there is none with this id. */
 export async function getCustomer(user: User | null, id: string, db: Database = getDb()) {
-  assertAdmin(user);
+  assertCan(user, 'customers.read');
   if (!isUuid(id)) return null;
   const [found] = await db.select().from(customer).where(eq(customer.id, id));
   if (!found) return null;

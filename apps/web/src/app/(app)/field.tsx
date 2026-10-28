@@ -2,6 +2,15 @@ import type { ComponentProps, ReactNode } from 'react';
 
 type Common = { label: string; name: string; error?: ReactNode };
 
+/** The reason a whole form was refused, above its fields. */
+export function FormError({ message }: { message?: string }) {
+  return message ? (
+    <p role="alert" className="error">
+      {message}
+    </p>
+  ) : null;
+}
+
 /** A label above a control, and below it the reason the value was refused, tied to the control so a screen reader reads both. */
 function Shell({ label, name, error, children }: Common & { children: ReactNode }) {
   return (

@@ -5,6 +5,7 @@ import { createCustomer, getCustomer } from '../src/dal/customers.ts';
 import { UnauthenticatedError, type User } from '../src/dal/user.ts';
 import { createVehicle, getVehicle, listVehicles } from '../src/dal/vehicles.ts';
 import { createTestDb } from './support/db.ts';
+import { idOf } from './support/id-of.ts';
 
 const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
 const vin = 'WVWZZZ1JZ3W386752';
@@ -19,11 +20,6 @@ beforeEach(async () => {
   await ctx.db.execute(sql`truncate customer cascade`);
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
 });
-
-function idOf(result: { ok: true; id: string } | { ok: false }) {
-  if (!result.ok) throw new Error('The record was expected to be saved.');
-  return result.id;
-}
 
 const golf = (overrides: { ownerId?: string; vin?: string; licensePlate?: string } = {}) => ({
   ownerId,

@@ -3,13 +3,14 @@
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
 import { createCustomer, updateCustomer, type CustomerSaveErrors } from '../../../dal/customers.ts';
+import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 const fields = ['name', 'ico', 'dic', 'icDph', 'street', 'city', 'postalCode', 'phone', 'email', 'note'] as const;
 type Field = (typeof fields)[number];
 
 export type CustomerFormState = {
   values: Record<Field, string>;
-  errors: Partial<Record<Field, string>>;
+  errors: Partial<Record<Field | 'form', string>>;
   /** The Firma that already has the IČO the form was sent with; the form links to it. */
   existing?: { id: string; name: string };
 } | null;
@@ -58,7 +59,8 @@ export async function addCustomer(_state: CustomerFormState, formData: FormData)
   const user = await currentUser();
   const { type, values } = read(formData);
 
-  const result = await createCustomer(user, { type, ...values });
+  const result = await orForbidden(createCustomer(user, { type, ...values }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) return refused(values, result);
   redirect(`/zakaznici/${result.id}`);
 }
@@ -69,7 +71,8 @@ export async function editCustomer(_state: CustomerFormState, formData: FormData
   const { type, values } = read(formData);
   const id = String(formData.get('id') ?? '');
 
-  const result = await updateCustomer(user, id, { type, ...values });
+  const result = await orForbidden(updateCustomer(user, id, { type, ...values }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.customer) notFound();
     return refused(values, result);

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { currentUser } from '../../../dal/current-user.ts';
+import { currentUserWith } from '../../../dal/current-user.ts';
 import { searchCustomers } from '../../../dal/customers.ts';
 import { Field } from '../field.tsx';
 import { Pager } from '../pager.tsx';
@@ -21,7 +21,7 @@ const first = (value: string | string[] | undefined) => (typeof value === 'strin
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string | string[]; strana?: string | string[] }> }) {
   const { q, strana } = await searchParams;
   const query = first(q);
-  const { customers, page, pageCount } = await searchCustomers(await currentUser(), { query, page: Number(first(strana) || 1) });
+  const { customers, page, pageCount } = await searchCustomers(await currentUserWith('customers.read'), { query, page: Number(first(strana) || 1) });
   return (
     <>
       <div className="page-header">

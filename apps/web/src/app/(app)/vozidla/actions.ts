@@ -4,10 +4,11 @@ import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
 import { getCustomer } from '../../../dal/customers.ts';
 import { createVehicle } from '../../../dal/vehicles.ts';
+import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 export type VehicleFormState = {
   values: Record<string, string>;
-  errors: { vin?: string; make?: string; model?: string };
+  errors: { vin?: string; make?: string; model?: string; form?: string };
 } | null;
 
 const vinMessages = {
@@ -25,9 +26,12 @@ export async function addVehicle(_state: VehicleFormState, formData: FormData): 
   const field = (name: string) => String(formData.get(name) ?? '');
   const ownerId = field('ownerId');
   const values = { vin: field('vin'), licensePlate: field('licensePlate'), make: field('make'), model: field('model') };
-  if (!(await getCustomer(user, ownerId))) notFound();
+  const owner = await orForbidden(getCustomer(user, ownerId));
+  if (owner === 'forbidden') return { values, errors: { form: forbiddenMessage } };
+  if (!owner) notFound();
 
-  const result = await createVehicle(user, { ownerId, ...values });
+  const result = await orForbidden(createVehicle(user, { ownerId, ...values }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     const { vin, make, model } = result.errors;
     return {

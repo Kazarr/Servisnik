@@ -1,3 +1,4 @@
+import { roles } from '@servisnik/domain/access';
 import { customerTypes } from '@servisnik/domain/customer';
 import { itemKinds, workOrderStatuses } from '@servisnik/domain/work-order';
 import { sql } from 'drizzle-orm';
@@ -6,8 +7,8 @@ import { boolean, check, date, index, integer, pgEnum, pgTable, text, timestamp,
 // Better Auth owns user, session, account and verification (docs/adr/0001-stack.md). Keys and
 // column types follow what its Drizzle adapter expects; `role` is Servisník's own column.
 
-/** Rola: what a Používateľ sees. Only `admin` is used so far. */
-export const role = pgEnum('role', ['admin', 'mechanik']);
+/** Rola: what a Používateľ may do (packages/domain/src/access). */
+export const role = pgEnum('role', roles);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

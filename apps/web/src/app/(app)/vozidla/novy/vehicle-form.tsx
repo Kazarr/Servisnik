@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field } from '../../field.tsx';
+import { Field, FormError } from '../../field.tsx';
 import { addVehicle } from '../actions.ts';
 
 export function VehicleForm({ ownerId }: { ownerId: string }) {
@@ -11,6 +11,7 @@ export function VehicleForm({ ownerId }: { ownerId: string }) {
   return (
     <form action={formAction} className="form">
       <input type="hidden" name="ownerId" value={ownerId} />
+      <FormError message={state?.errors.form} />
       <Field label="VIN" name="vin" defaultValue={value('vin')} error={state?.errors.vin} autoComplete="off" required />
       <Field label="ŠPZ" name="licensePlate" defaultValue={value('licensePlate')} autoComplete="off" />
       <Field label="Značka" name="make" defaultValue={value('make')} error={state?.errors.make} required />

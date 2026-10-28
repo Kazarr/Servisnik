@@ -2,7 +2,7 @@ import { parseVehicle, type VehicleErrors, type VehicleInput, type VinError } fr
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
-import { assertUser, type User } from './user.ts';
+import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
 export type CreateVehicleResult =
@@ -18,7 +18,7 @@ export async function createVehicle(
   input: VehicleInput & { ownerId: string },
   db: Database = getDb(),
 ): Promise<CreateVehicleResult> {
-  assertUser(user);
+  assertCan(user, 'vehicles.write');
   const { ownerId, ...fields } = input;
   const parsed = parseVehicle(fields);
   if (!parsed.ok) return parsed;
@@ -41,13 +41,13 @@ const withOwner = {
 
 /** Every Vozidlo with its Majiteľ, newest first. */
 export async function listVehicles(user: User | null, db: Database = getDb()) {
-  assertUser(user);
+  assertCan(user, 'vehicles.read');
   return db.select(withOwner).from(vehicle).innerJoin(customer, eq(vehicle.ownerId, customer.id)).orderBy(desc(vehicle.createdAt));
 }
 
 /** One Vozidlo with its Majiteľ, or null when there is none with this id. */
 export async function getVehicle(user: User | null, id: string, db: Database = getDb()) {
-  assertUser(user);
+  assertCan(user, 'vehicles.read');
   if (!isUuid(id)) return null;
   const [found] = await db.select(withOwner).from(vehicle).innerJoin(customer, eq(vehicle.ownerId, customer.id)).where(eq(vehicle.id, id));
   return found ?? null;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { Field, SelectField, TextAreaField } from '../../field.tsx';
+import { Field, FormError, SelectField, TextAreaField } from '../../field.tsx';
 import { openWorkOrder } from '../actions.ts';
 
 /** The customer is the vehicle's owner unless another is chosen. */
@@ -12,6 +12,7 @@ export function WorkOrderForm({ vehicleId, ownerId, customers }: { vehicleId: st
   return (
     <form action={formAction} className="form">
       <input type="hidden" name="vehicleId" value={vehicleId} />
+      <FormError message={state?.errors.form} />
       <SelectField label="Zákazník" name="customerId" defaultValue={ownerId}>
         {customers.map(({ id, name }) => (
           <option key={id} value={id}>
