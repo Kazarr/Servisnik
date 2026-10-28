@@ -14,6 +14,8 @@ export const capabilities = [
   'work-orders.read',
   'work-orders.write',
   'password.change',
+  'settings.read',
+  'settings.write',
 ] as const;
 export type Capability = (typeof capabilities)[number];
 

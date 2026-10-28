@@ -16,7 +16,7 @@ import {
 } from '@servisnik/domain/work-order';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
-import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
+import { customer, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
@@ -65,10 +65,14 @@ export type AddLabourResult =
   | { ok: true; id: string }
   | { ok: false; errors: LabourErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
-/** Adds a Práca to a Zákazka that is still Prijatá; the row lock keeps it from landing after the Zákazka became Hotová. */
+/**
+ * Adds a Práca to a Zákazka that is still Prijatá; the row lock keeps it from landing after the Zákazka became Hotová.
+ * The item keeps the VAT rate it has now: a VAT rate left out is the default one of Nastavenia, and a later change of the rates leaves it alone.
+ */
 export async function addLabour(user: User | null, workOrderId: string, input: LabourInput, db: Database = getDb()): Promise<AddLabourResult> {
   assertCan(user, 'work-orders.write');
-  const parsed = parseLabour(input);
+  const [rates] = await db.select({ defaultVatRate: workshop.defaultVatRate }).from(workshop);
+  const parsed = parseLabour(input, rates!.defaultVatRate);
   if (!parsed.ok) return parsed;
 
   return db.transaction(async (tx) => {
