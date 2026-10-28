@@ -158,7 +158,7 @@ test('a work order for another customer than the owner keeps that customer, and 
   await expect(rows.nth(1).getByRole('cell')).toHaveText([firstNumber, other, 'Prijatá']);
 });
 
-test('the admin cancels a work order only after confirming; it keeps its number, is locked and no longer counts as open on the vehicle', async ({ page }) => {
+test('the admin cancels a work order only after confirming; it keeps its number, is locked and stays in the history of the vehicle', async ({ page }) => {
   test.slow(); // a customer, a vehicle, a work order and the cancelling; under --repeat-each the workers share one server
   const tag = runTag();
   const owner = `Majiteľ Zrušenej Zákazky ${tag}`;
@@ -186,10 +186,9 @@ test('the admin cancels a work order only after confirming; it keeps its number,
     await expect(main.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
 
-  // The vehicle no longer links to it, and the list still shows it, with its number.
+  // The vehicle keeps it in its history, as Zrušená, and the list shows it too, with its number.
   await page.goto(vehicleUrl);
-  await expect(main).not.toContainText('Otvorené zákazky');
-  await expect(main.getByRole('link', { name: number })).toHaveCount(0);
+  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, owner, 'Zrušená']);
   await page.goto('/zakazky');
   const row = main.getByRole('row', { name: new RegExp(number) });
   await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Zrušená']);
