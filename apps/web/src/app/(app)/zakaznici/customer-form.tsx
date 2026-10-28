@@ -20,7 +20,7 @@ export function CustomerForm({
   const [state, formAction, pending] = useActionState(action, null);
   // The state shows or hides the company fields. The radios are not controlled, their default follows
   // the state: React resets the form when the action ends and a reset returns to the default, so a
-  // failed save keeps the choice (a controlled radio would fall back to the first render's choice).
+  // failed save keeps the choice.
   const [type, setType] = useState<CustomerType>(customer?.type ?? 'person');
   const value = (name: keyof Fields) => (state ? state.values[name] : (customer?.[name] ?? ''));
   const errors = state?.errors ?? {};
