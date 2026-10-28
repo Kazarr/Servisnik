@@ -1,10 +1,11 @@
 import { passwordError, type PasswordError } from '@servisnik/domain/access';
 import { APIError } from 'better-auth/api';
 import { getAuth, type Auth } from '../auth.ts';
+import { withinAttemptLimit } from './attempt-limit.ts';
 import { assertCan, requireUser } from './user.ts';
 
 export type PasswordChange = { currentPassword: string; newPassword: string; confirmation: string };
-export type PasswordChangeErrors = { currentPassword?: 'wrong'; newPassword?: PasswordError; confirmation?: 'mismatch' };
+export type PasswordChangeErrors = { currentPassword?: 'wrong'; newPassword?: PasswordError; confirmation?: 'mismatch'; form?: 'tooManyAttempts' };
 export type ChangePasswordResult = { ok: true } | { ok: false; errors: PasswordChangeErrors };
 
 /**
@@ -21,7 +22,9 @@ const isWrongCurrentPassword = (error: unknown) =>
  * sign-ins. The user is the one that session names, so the capability is checked for the user whose
  * password changes. Better Auth swaps the session he is in for a new one; in a Server Action the
  * nextCookies plugin puts its cookie on the response, so he stays signed in. The new password and its
- * repeat are judged first, so a bad new password is reported before Better Auth checks the current one.
+ * repeat are judged first, so a bad new password is reported before Better Auth checks the current one,
+ * and costs no attempt: a client that made too many attempts to check the current password is
+ * turned away before Better Auth checks it (src/dal/attempt-limit.ts).
  */
 export async function changeOwnPassword(requestHeaders: Headers, input: PasswordChange, auth: Auth = getAuth()): Promise<ChangePasswordResult> {
   const user = await requireUser(requestHeaders, auth);
@@ -31,6 +34,7 @@ export async function changeOwnPassword(requestHeaders: Headers, input: Password
   if (tooBad) errors.newPassword = tooBad;
   if (input.confirmation !== input.newPassword) errors.confirmation = 'mismatch';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
+  if (!(await withinAttemptLimit(requestHeaders, 'change-password', auth))) return { ok: false, errors: { form: 'tooManyAttempts' } };
 
   try {
     await auth.api.changePassword({

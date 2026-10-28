@@ -8,6 +8,9 @@ const limitedPaths = { 'sign-in': '/sign-in/email', 'change-password': '/change-
 
 export type LimitedAttempt = keyof typeof limitedPaths;
 
+/** What a Server Action tells the Používateľ whose attempt was turned away. */
+export const tooManyAttemptsMessage = 'Príliš veľa pokusov. Skúste to znova o chvíľu.';
+
 /**
  * Whether the client behind `requestHeaders` may make one more attempt of this kind, and counts the
  * attempt when it may. Call it before the password is checked and check nothing when it says no.
