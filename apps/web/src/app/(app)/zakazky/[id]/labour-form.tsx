@@ -3,12 +3,13 @@
 import { defaultVatRate } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
 import { Field, FormError } from '../../field.tsx';
+import { valueIn } from '../../form-value.ts';
 import { addLabourToWorkOrder } from '../actions.ts';
 
 /** Adds a Práca: hours, a unit price without VAT, and a VAT rate that starts at 23 %. */
 export function LabourForm({ workOrderId }: { workOrderId: string }) {
   const [state, formAction, pending] = useActionState(addLabourToWorkOrder, null);
-  const value = (name: string) => state?.values[name];
+  const value = valueIn(state, { vatRate: String(defaultVatRate) });
 
   return (
     <form action={formAction} className="form">
@@ -25,7 +26,7 @@ export function LabourForm({ workOrderId }: { workOrderId: string }) {
         autoComplete="off"
         required
       />
-      <Field label="Sadzba DPH (%)" name="vatRate" inputMode="numeric" defaultValue={value('vatRate') ?? String(defaultVatRate)} error={state?.errors.vatRate} autoComplete="off" required />
+      <Field label="Sadzba DPH (%)" name="vatRate" inputMode="numeric" defaultValue={value('vatRate')} error={state?.errors.vatRate} autoComplete="off" required />
       <button type="submit" disabled={pending}>
         Pridať prácu
       </button>

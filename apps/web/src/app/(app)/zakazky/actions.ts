@@ -9,7 +9,7 @@ import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 export type WorkOrderFormState = {
-  values: Record<string, string>;
+  values: Record<'mileageKm' | 'customerRequest', string>;
   errors: { mileageKm?: string; customerRequest?: string; form?: string };
 } | null;
 
@@ -38,7 +38,7 @@ export async function addWorkOrder(_state: WorkOrderFormState, formData: FormDat
 }
 
 export type LabourFormState = {
-  values: Record<string, string>;
+  values: Record<'name' | 'quantity' | 'unitPrice' | 'vatRate', string>;
   errors: { name?: string; quantity?: string; unitPrice?: string; vatRate?: string; form?: string };
 } | null;
 
