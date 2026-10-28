@@ -9,7 +9,7 @@ export type PdfPage = {
   /** The size of the page in points (1/72 inch). */
   width: number;
   height: number;
-  /** The text of the page, one text run of the PDF per line, in the order the page paints them. */
+  /** The text of the page, one line of the page per line, in the order the page paints them; a no-break space reads as a space. */
   text: string;
   /** How many glyphs the page paints as the .notdef glyph (id 0) of its font, the "tofu" of a character that no font has. */
   missingGlyphs: number;
@@ -119,7 +119,7 @@ export function readPdf(bytes: Uint8Array): PdfPage[] {
     return {
       width,
       height,
-      text: lines.map(({ text }) => text).join('\n'),
+      text: lines.map(({ text }) => text).join('\n').replace(/\p{Zs}/gu, ' '),
       missingGlyphs,
       fills: [...new Set([...content.matchAll(/(\S+ \S+ \S+) rg\b/g)].map(([, colour]) => colour!))],
       margins: marginsOf(content, width, height),

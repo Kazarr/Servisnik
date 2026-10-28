@@ -46,8 +46,12 @@ const onlyName: WorkshopDetails = {
 const print = (overrides: { sheet?: JobSheet; workshop?: WorkshopDetails; logo?: Parameters<typeof jobSheetDocument>[0]['logo'] } = {}) =>
   jobSheetDocument({ sheet, workshop, logo: null, printedOn: '2026-10-28', ...overrides });
 
-/** The text after the term `label` in a list of facts, as markup, or null when the document has no such term. */
-const fact = (document: string, label: string) => new RegExp(`<dt>${label}</dt>\\s*<dd[^>]*>([\\s\\S]*?)</dd>`).exec(document)?.[1] ?? null;
+/**
+ * The text after the term `label` in a list of facts, as markup, or null when the document has no such term.
+ * A grouped number keeps its digits together with a no-break space (as the app shows it), read here as a space.
+ */
+const fact = (document: string, label: string) =>
+  new RegExp(`<dt>${label}</dt>\\s*<dd[^>]*>([\\s\\S]*?)</dd>`).exec(document)?.[1]?.replace(/\p{Zs}/gu, ' ') ?? null;
 
 describe('the header', () => {
   test('carries the name, address, identifiers and contacts of the autoservis, the number of the Zákazka and the day of the print', () => {
