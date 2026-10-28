@@ -43,6 +43,13 @@
       "when": 1793192548312,
       "tag": "0005_workshop_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793196360907,
+      "tag": "0006_vehicle_details",
+      "breakpoints": true
     }
   ]
 }

@@ -51,6 +51,16 @@ Výrobca vozidla, napríklad Volkswagen alebo Škoda. Pri vozidle (stĺpec, pole
 Označenie vozidla od jeho výrobcu, napríklad Golf alebo Octavia.
 _Avoid_: typ (to je osoba alebo firma)
 
+**Rok výroby** (`year`):
+Rok, v ktorom sa vozidlo vyrobilo, od 1950 po budúci rok.
+
+**Palivo** (`fuel`):
+Čím vozidlo jazdí: benzín, nafta, hybrid, elektro, LPG, CNG alebo iné.
+
+**Stav km** (`mileageKm`):
+Posledný známy stav tachometra vozidla v kilometroch. Zákazka si pri príjme nesie vlastné kilometre.
+_Avoid_: najazdené kilometre
+
 **ŠPZ** (`licensePlate`):
 Evidenčné číslo na tabuľke vozidla. Neurčuje vozidlo, lebo sa môže zmeniť alebo prejsť na iné auto.
 _Avoid_: EČV, evidenčné číslo, poznávacia značka, značka (to je výrobca vozidla)

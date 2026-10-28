@@ -1,5 +1,7 @@
 // Work order area (GLOSSARY: Zákazka a faktúra). Pure rules: no framework, database or network.
 
+import { parseMileageKm } from '../vehicle/index.ts';
+
 /** The Stav zákazky (GLOSSARY) by its code name: `received` Prijatá, `done` Hotová, `invoiced` Vyfakturovaná. A new one is added here and in `transitions`. */
 export const workOrderStatuses = ['received', 'done', 'invoiced'] as const;
 export type WorkOrderStatus = (typeof workOrderStatuses)[number];
@@ -82,7 +84,6 @@ export type WorkOrderItem = Priced & { kind: ItemKind; name: string; unit: strin
 // Limits keep every product below 2^53 and every stored number inside a PostgreSQL integer.
 const maxQuantityHundredths = 9_999_999; // 99 999,99
 const maxUnitPriceCents = 100_000_000; // 1 000 000,00 €
-const maxMileageKm = 9_999_999;
 
 /**
  * A number typed with a decimal comma or point and at most two decimals, as hundredths, or null.
@@ -97,12 +98,6 @@ function hundredths(typed: string): number | null {
 export function parseUnitPrice(typed: string): number | null {
   const cents = hundredths(typed);
   return cents === null || cents > maxUnitPriceCents ? null : cents;
-}
-
-/** A whole number such as the kilometres; spaces may group the digits. */
-function wholeNumber(typed: string): number | null {
-  const digits = typed.replace(/\s/g, '');
-  return /^\d+$/.test(digits) ? Number(digits) : null;
 }
 
 const maxVatRate = 100;
@@ -121,10 +116,10 @@ export type WorkOrderErrors = { mileageKm?: 'invalid'; customerRequest?: 'requir
 export function parseWorkOrder(
   input: WorkOrderInput,
 ): { ok: true; workOrder: { mileageKm: number; customerRequest: string } } | { ok: false; errors: WorkOrderErrors } {
-  const mileageKm = wholeNumber(input.mileageKm);
+  const mileageKm = parseMileageKm(input.mileageKm);
   const customerRequest = input.customerRequest.trim();
   const errors: WorkOrderErrors = {};
-  if (mileageKm === null || mileageKm > maxMileageKm) errors.mileageKm = 'invalid';
+  if (mileageKm === null) errors.mileageKm = 'invalid';
   if (!customerRequest) errors.customerRequest = 'required';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, workOrder: { mileageKm: mileageKm!, customerRequest } };

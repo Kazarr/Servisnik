@@ -164,6 +164,7 @@ describe('a Zákazka as the admin types it', () => {
     ['0', 0],
     ['123456', 123456],
     ['123 456', 123456],
+    ['00000001', 1],
     [' 9999999 ', 9999999],
   ])('kilometres "%s" are %i, and the Zákazka is these two values and nothing else', (typed, km) => {
     expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toEqual({

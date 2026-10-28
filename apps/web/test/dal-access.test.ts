@@ -46,6 +46,8 @@ const calls: Record<string, Call> = {
   searchCustomers: (user, db) => customers.searchCustomers(user, { query: 'Firma' }, db),
   getCustomer: (user, db) => customers.getCustomer(user, ownerId, db),
   createVehicle: (user, db) => vehicles.createVehicle(user, { ownerId, vin: 'TMBZZZ5JZ3W000101', licensePlate: '', make: 'Škoda', model: 'Octavia' }, db),
+  updateVehicle: (user, db) =>
+    vehicles.updateVehicle(user, vehicleId, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Passat' }, db),
   listVehicles: (user, db) => vehicles.listVehicles(user, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
