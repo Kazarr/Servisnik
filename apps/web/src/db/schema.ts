@@ -170,6 +170,31 @@ export const workOrder = pgTable(
   ],
 );
 
+/**
+ * Autoservis: the one row of values for the whole workshop (GLOSSARY: Nastavenia). The migration
+ * creates it and nothing inserts another: the primary key is always 1. Other parts of Nastavenia add
+ * their columns here. Here are the rates (packages/domain/src/settings): the VAT rates with the default
+ * one, the hourly rate in cents without VAT (null when none) and the markup on parts in whole percent.
+ */
+export const workshop = pgTable(
+  'workshop',
+  {
+    id: integer('id').primaryKey().default(1),
+    vatRates: integer('vat_rates').array().notNull(),
+    defaultVatRate: integer('default_vat_rate').notNull(),
+    hourlyRateCents: integer('hourly_rate_cents'),
+    markupPercent: integer('markup_percent').notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    check('workshop_single_row_check', sql`${table.id} = 1`),
+    check('workshop_vat_rates_check', sql`0 <= all(${table.vatRates}) and 100 >= all(${table.vatRates})`),
+    check('workshop_default_vat_rate_check', sql`${table.defaultVatRate} = any(${table.vatRates})`),
+    check('workshop_hourly_rate_cents_check', sql`${table.hourlyRateCents} >= 0`),
+    check('workshop_markup_percent_check', sql`${table.markupPercent} >= 0`),
+  ],
+);
+
 /** Práca or Diel. */
 export const workOrderItemKind = pgEnum('work_order_item_kind', itemKinds);
 

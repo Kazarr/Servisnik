@@ -2,12 +2,12 @@ import { describe, expect, test } from 'vitest';
 import {
   amountsOf,
   canAddItems,
-  defaultVatRate,
   formatWorkOrderNumber,
   isClosed,
   localDate,
   localYear,
   parseLabour,
+  parseVatRate,
   parseWorkOrder,
   totalsOf,
   transition,
@@ -192,21 +192,40 @@ describe('a Zákazka as the admin types it', () => {
   });
 });
 
+// The one rule for a VAT rate typed anywhere: on a Práca, and in the list of rates of Nastavenia.
+describe('a VAT rate as it is typed', () => {
+  test.each([
+    ['0', 0],
+    ['5', 5],
+    ['23', 23],
+    ['100', 100],
+    ['007', 7],
+    [' 23 ', 23],
+  ])('"%s" is %i', (typed, rate) => {
+    expect(parseVatRate(typed)).toBe(rate);
+  });
+
+  test.each(['', ' ', '101', '1000', '-1', '2,5', '2.5', '23 %', '2 3', 'plná', '99999999999999999999999'])('"%s" is not a whole percentage from 0 to 100', (typed) => {
+    expect(parseVatRate(typed)).toBeNull();
+  });
+});
+
 describe('a work item (Práca) as the admin types it', () => {
   const typed = { name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' };
-  const refused = (overrides: Partial<typeof typed>) => parseLabour({ ...typed, ...overrides });
+  // The default VAT rate comes from Nastavenia: the domain is handed it.
+  const refused = (overrides: Partial<typeof typed>) => parseLabour({ ...typed, ...overrides }, 23);
 
   test('is a labour item in hours, with the quantity in hundredths and the price in cents', () => {
-    expect(parseLabour(typed)).toEqual({
+    expect(parseLabour(typed, 23)).toEqual({
       ok: true,
       item: { kind: 'labour', name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', unitPriceCents: 4000, vatRate: 23 },
     });
   });
 
-  test('the VAT rate is 23 % unless typed otherwise', () => {
-    expect(defaultVatRate).toBe(23);
+  test('the VAT rate is the default rate the domain is given unless typed otherwise', () => {
     const { vatRate: _typed, ...withoutRate } = typed;
-    expect(parseLabour(withoutRate)).toMatchObject({ ok: true, item: { vatRate: 23 } });
+    expect(parseLabour(withoutRate, 19)).toMatchObject({ ok: true, item: { vatRate: 19 } });
+    expect(parseLabour(withoutRate, 5)).toMatchObject({ ok: true, item: { vatRate: 5 } });
     expect(refused({ vatRate: '5' })).toMatchObject({ ok: true, item: { vatRate: 5 } });
     expect(refused({ vatRate: '0' })).toMatchObject({ ok: true, item: { vatRate: 0 } });
   });
@@ -241,7 +260,7 @@ describe('a work item (Práca) as the admin types it', () => {
     expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
   });
 
-  test.each(['', '-1', '101', '2,5', '23 %', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
+  test.each(['', '-1', '101', '2,5', '23 %', '2 3', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
     expect(refused({ vatRate })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
   });
 

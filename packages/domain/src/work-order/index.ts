@@ -79,8 +79,6 @@ export type ItemKind = (typeof itemKinds)[number];
 /** Položka zákazky; the price is per unit and without VAT (ledger question 8 is open). */
 export type WorkOrderItem = Priced & { kind: ItemKind; name: string; unit: string };
 
-export const defaultVatRate = 23;
-
 // Limits keep every product below 2^53 and every stored number inside a PostgreSQL integer.
 const maxQuantityHundredths = 9_999_999; // 99 999,99
 const maxUnitPriceCents = 100_000_000; // 1 000 000,00 €
@@ -95,10 +93,25 @@ function hundredths(typed: string): number | null {
   return match ? Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')) : null;
 }
 
-/** A whole number such as the kilometres or a VAT rate; spaces may group the digits. */
+/** A price per unit typed in euros: cents from 0 up to the largest price an item may have, or null. */
+export function parseUnitPrice(typed: string): number | null {
+  const cents = hundredths(typed);
+  return cents === null || cents > maxUnitPriceCents ? null : cents;
+}
+
+/** A whole number such as the kilometres; spaces may group the digits. */
 function wholeNumber(typed: string): number | null {
   const digits = typed.replace(/\s/g, '');
   return /^\d+$/.test(digits) ? Number(digits) : null;
+}
+
+const maxVatRate = 100;
+
+/** A Sadzba DPH: a whole percentage from 0 to 100, in digits only (no grouping, so "2 3" is not 23), or null. */
+export function parseVatRate(typed: string): number | null {
+  const digits = typed.trim();
+  const rate = /^\d+$/.test(digits) ? Number(digits) : null;
+  return rate === null || rate > maxVatRate ? null : rate;
 }
 
 export type WorkOrderInput = { mileageKm: string; customerRequest: string };
@@ -117,24 +130,24 @@ export function parseWorkOrder(
   return { ok: true, workOrder: { mileageKm: mileageKm!, customerRequest } };
 }
 
-/** What the form sends for a Práca; `vatRate` left out means the default, a blank one is a mistake. */
+/** What the form sends for a Práca; `vatRate` left out means the default rate of Nastavenia, a blank one is a mistake. */
 export type LabourInput = { name: string; quantity: string; unitPrice: string; vatRate?: string };
 export type LabourErrors = { name?: 'required'; quantity?: 'invalid'; unitPrice?: 'invalid'; vatRate?: 'invalid' };
 
 /**
  * A Práca ready to store: hours (more than 0), a unit price without VAT (0 or more) and a whole VAT
- * percentage from 0 to 100.
+ * percentage from 0 to 100. `defaultVatRate` is the one to take when none was typed.
  */
-export function parseLabour(input: LabourInput): { ok: true; item: WorkOrderItem } | { ok: false; errors: LabourErrors } {
+export function parseLabour(input: LabourInput, defaultVatRate: number): { ok: true; item: WorkOrderItem } | { ok: false; errors: LabourErrors } {
   const name = input.name.trim();
   const quantityHundredths = hundredths(input.quantity);
-  const unitPriceCents = hundredths(input.unitPrice);
-  const vatRate = input.vatRate === undefined ? defaultVatRate : wholeNumber(input.vatRate);
+  const unitPriceCents = parseUnitPrice(input.unitPrice);
+  const vatRate = input.vatRate === undefined ? defaultVatRate : parseVatRate(input.vatRate);
   const errors: LabourErrors = {};
   if (!name) errors.name = 'required';
   if (quantityHundredths === null || quantityHundredths < 1 || quantityHundredths > maxQuantityHundredths) errors.quantity = 'invalid';
-  if (unitPriceCents === null || unitPriceCents > maxUnitPriceCents) errors.unitPrice = 'invalid';
-  if (vatRate === null || vatRate > 100) errors.vatRate = 'invalid';
+  if (unitPriceCents === null) errors.unitPrice = 'invalid';
+  if (vatRate === null) errors.vatRate = 'invalid';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, item: { kind: 'labour', name, quantityHundredths: quantityHundredths!, unit: 'h', unitPriceCents: unitPriceCents!, vatRate: vatRate! } };
 }
