@@ -1,3 +1,4 @@
+import { can, type Capability } from '@servisnik/domain/access';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
@@ -15,3 +16,14 @@ export const currentUser = cache(async () => {
     throw error;
   }
 });
+
+/**
+ * For a page that needs a capability: like currentUser, and a Používateľ whose Rola may not do it is
+ * sent to Zákazky, the page every Rola may open. The DAL checks the same capability again, so a page
+ * that names the wrong one shows an error page and no data.
+ */
+export async function currentUserWith(capability: Capability) {
+  const user = await currentUser();
+  if (!can(user.role, capability)) redirect('/zakazky');
+  return user;
+}

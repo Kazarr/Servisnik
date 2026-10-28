@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { currentUser } from '../../../../dal/current-user.ts';
+import { currentUserWith } from '../../../../dal/current-user.ts';
 import { CustomerForm } from './customer-form.tsx';
 
 export const metadata: Metadata = { title: 'Nový zákazník' };
 
 export default async function NewCustomerPage() {
-  await currentUser();
+  await currentUserWith('customers.write');
   return (
     <>
       <h1>Nový zákazník</h1>
