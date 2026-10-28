@@ -52,7 +52,7 @@ const calls: Record<string, Call> = {
   markWorkOrderDone: (user, db) => workOrders.markWorkOrderDone(user, orderId, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, db),
-  listOpenWorkOrdersOfVehicle: (user, db) => workOrders.listOpenWorkOrdersOfVehicle(user, vehicleId, db),
+  listUnclosedWorkOrdersOfVehicle: (user, db) => workOrders.listUnclosedWorkOrdersOfVehicle(user, vehicleId, db),
   changeOwnPassword: (user) =>
     password.changeOwnPassword(user, new Headers(), { currentPassword: 'povodne-heslo-1234', newPassword: 'nove-heslo-5678', confirmation: 'nove-heslo-5678' }, auth),
 };

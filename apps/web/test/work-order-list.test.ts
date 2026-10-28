@@ -35,11 +35,11 @@ test('the mechanik sees the number, customer, vehicle and status, and the number
   expect(html).not.toContain('href');
 });
 
-test('an empty list tells the admin to open a Zákazka on the detail of a vehicle', () => {
+test('an empty list tells the admin to add a Zákazka on the detail of a vehicle', () => {
   expect(render('admin', [])).toContain('Zatiaľ tu nič nie je. Zákazku založíte na detaile vozidla.');
 });
 
-test('an empty list does not tell the mechanik to open a Zákazka, which he may not', () => {
+test('an empty list does not tell the mechanik to add a Zákazka, which he may not', () => {
   const html = render('mechanik', []);
 
   expect(html).toContain('Zatiaľ tu nič nie je.');
