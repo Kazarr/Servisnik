@@ -115,12 +115,17 @@ export async function addCustomer(
   await expect(page.locator('main h1')).toHaveText(name);
 }
 
-/** From a customer's detail: opens the form for a new vehicle and fills VIN, make and model. The form is not sent. */
-export async function fillVehicleForm(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
-  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+/** On a form of a vehicle: fills VIN, make and model, which it requires. The form is not sent. */
+export async function fillVehicle(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
   await page.getByLabel('VIN').fill(vin);
   await page.getByLabel('Značka').fill(make);
   await page.getByLabel('Model').fill(model);
+}
+
+/** From a customer's detail: opens the form for a new vehicle and fills VIN, make and model. The form is not sent. */
+export async function fillVehicleForm(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await fillVehicle(page, vin, make, model);
 }
 
 /** From a customer's detail: adds a vehicle through the form and opens its detail. */

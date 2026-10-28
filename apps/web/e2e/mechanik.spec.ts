@@ -6,7 +6,7 @@ import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { dayFromToday, expect, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
+import { dayFromToday, expect, fillVehicle, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -70,9 +70,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await page.getByLabel('Názov').fill(`Nemal by sa uložiť ${tag}`);
   const vehiclePage = await context.newPage();
   await vehiclePage.goto(`/vozidla/novy?zakaznik=${order.customerId}`);
-  await vehiclePage.getByLabel('VIN').fill(vinOf(tag, 'ZZZ00000000'));
-  await vehiclePage.getByLabel('Značka').fill('Škoda');
-  await vehiclePage.getByLabel('Model').fill('Fabia');
+  await fillVehicle(vehiclePage, vinOf(tag, 'ZZZ00000000'), 'Škoda', 'Fabia');
   const editPage = await context.newPage();
   await editPage.goto(`/vozidla/${order.vehicleId}/upravit`);
   await editPage.getByLabel('Model').fill('Fabia');
@@ -82,9 +80,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await orderPage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
   const intakePage = await context.newPage();
   await intakePage.goto(`/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`);
-  await intakePage.getByLabel('VIN').fill(vinOf(tag, 'YYY00000000'));
-  await intakePage.getByLabel('Značka').fill('Škoda');
-  await intakePage.getByLabel('Model').fill('Fabia');
+  await fillVehicle(intakePage, vinOf(tag, 'YYY00000000'), 'Škoda', 'Fabia');
   await intakePage.getByLabel('Kilometre pri príjme').fill('500');
   await intakePage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
   const headerPage = await context.newPage();
