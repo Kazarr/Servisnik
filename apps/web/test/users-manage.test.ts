@@ -4,8 +4,8 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { signInWithPassword } from '../src/app/login/sign-in.ts';
 import { createAuth } from '../src/auth.ts';
 import { ForbiddenError, requireUser, UnauthenticatedError } from '../src/dal/user.ts';
-import { activateUser, deactivateUser, listUsers, updateUser } from '../src/dal/users.ts';
-import { session, user } from '../src/db/schema.ts';
+import { activateUser, deactivateUser, listUsers, setUserPassword, updateUser } from '../src/dal/users.ts';
+import { account, session, user } from '../src/db/schema.ts';
 import { createTestDb } from './support/db.ts';
 import { raceForUserWrites } from './support/race.ts';
 import { signInHeaders } from './support/sessions.ts';
@@ -249,4 +249,61 @@ test('the admin does not deactivate himself, and his sign-in stays', async () =>
   await expect(requireUser(boss.headers, auth)).resolves.toMatchObject({ id: boss.id });
   // Another admin is not himself.
   expect(await deactivate(boss, other.id)).toEqual({ ok: true });
+});
+
+const newPassword = 'nove-heslo-5678';
+const setPassword = (by: Account, targetId: string, chosen = newPassword) => setUserPassword(by.user, by.headers, targetId, chosen, auth);
+
+test('the admin gives a user a new password: it signs him in, the old one no more, and every sign-in he had ends', async () => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+  const otherTab = await signInHeaders(auth, worker.email, password);
+  const colleague = await newUser('mechanik');
+
+  const result = await setPassword(boss, worker.id);
+
+  expect(result).toEqual({ ok: true }); // the password is not given back
+  expect(await signIn(worker.email, password)).toEqual({ ok: false, message: 'Nesprávny e-mail alebo heslo.' });
+  expect(await signIn(worker.email, newPassword)).toEqual({ ok: true });
+  await expect(requireUser(worker.headers, auth)).rejects.toBeInstanceOf(UnauthenticatedError);
+  await expect(requireUser(otherTab, auth)).rejects.toBeInstanceOf(UnauthenticatedError);
+  // The admin's own sign-in and another user's stay, and the sign-in just made is the one new session.
+  await expect(requireUser(boss.headers, auth)).resolves.toMatchObject({ id: boss.id });
+  await expect(requireUser(colleague.headers, auth)).resolves.toMatchObject({ id: colleague.id });
+  expect(await sessionsOf(worker.id)).toBe(1);
+});
+
+test('the new password is stored only as a hash', async () => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+
+  await setPassword(boss, worker.id);
+
+  const [credential] = await ctx.db.select({ password: account.password }).from(account).where(eq(account.userId, worker.id));
+  expect(credential!.password).toMatch(/^[0-9a-f]+:[0-9a-f]+$/); // salt:hash
+  expect(credential!.password).not.toContain(newPassword);
+});
+
+test.each([
+  ['7 characters is too short', '1234567', 'tooShort'],
+  ['an empty password is too short', '', 'tooShort'],
+  ['129 characters is too long', 'a'.repeat(129), 'tooLong'],
+] as const)('a new password of %s: refused with the reason, and nothing changes', async (_name, tooBad, reason) => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+
+  expect(await setPassword(boss, worker.id, tooBad)).toEqual({ ok: false, errors: { password: reason } });
+
+  expect(await signIn(worker.email, password)).toEqual({ ok: true });
+  await expect(requireUser(worker.headers, auth)).resolves.toMatchObject({ id: worker.id });
+});
+
+test.each([8, 128])('a new password of %i characters is accepted and signs the user in', async (length) => {
+  const boss = await newUser('admin');
+  const worker = await newUser('mechanik');
+  const chosen = 'x'.repeat(length);
+
+  expect(await setPassword(boss, worker.id, chosen)).toEqual({ ok: true });
+
+  expect(await signIn(worker.email, chosen)).toEqual({ ok: true });
 });
