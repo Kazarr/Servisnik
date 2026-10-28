@@ -18,8 +18,8 @@ const vinMessages = {
 
 /**
  * Server Action of the vehicle form. It checks the session itself: the proxy only sees a cookie, and
- * the action is a public endpoint. The Majiteľ is the Zákazník the form was opened from; one that does
- * not exist is a page that does not exist.
+ * the action is a public endpoint. The Majiteľ is the Zákazník the form was opened from; once the
+ * fields parse and the VIN is free, one that does not exist is a page that does not exist.
  */
 export async function addVehicle(_state: VehicleFormState, formData: FormData): Promise<VehicleFormState> {
   const user = await currentUser();

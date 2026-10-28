@@ -13,8 +13,9 @@ export type CreateVehicleResult =
 /**
  * Saves a Vozidlo for `ownerId`, the Zákazník it is added from; only the admin may (GLOSSARY, Rola).
  * The domain normalises the VIN, and the unique index on it decides a duplicate: two attempts at once
- * cannot both get through. An `ownerId` that is no Zákazník, or not even an id, comes back as
- * `owner: 'unknown'`; the foreign key decides that too, so no check can go stale before the insert.
+ * cannot both get through. Once the fields parse and the VIN is free, an `ownerId` that is no Zákazník
+ * comes back as `owner: 'unknown'`; the foreign key decides that too, so no check can go stale before
+ * the insert. An `ownerId` that is not even an id comes back so as soon as the fields parse.
  */
 export async function createVehicle(
   user: User | null,
