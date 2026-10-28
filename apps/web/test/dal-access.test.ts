@@ -3,6 +3,7 @@ import { afterAll, beforeAll, expect, test } from 'vitest';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as logo from '../src/dal/logo.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
@@ -10,10 +11,11 @@ import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
-import { customer, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
+import { customer, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { jpeg, png } from './support/logo-files.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 
 // Every function of the Data Access Layer checks the Rola's capability, not only the sign-in
@@ -29,6 +31,7 @@ beforeAll(async () => {
   vehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
   idOf(await workOrders.addLabour(admin, orderId, { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
 
@@ -52,13 +55,17 @@ const calls: Record<string, Call> = {
   listUnclosedWorkOrdersOfVehicle: (user, db) => workOrders.listUnclosedWorkOrdersOfVehicle(user, vehicleId, db),
   getRates: (user, db) => settings.getRates(user, db),
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
+  getLogo: (user, db) => logo.getLogo(user, db),
+  getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
+  saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
+  removeLogo: (user, db) => logo.removeLogo(user, db),
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders'];
+const mechanikMay = ['listWorkOrders', 'getLogo'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
-const dataAccess = { 'customers.ts': customers, 'settings.ts': settings, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders };
+const dataAccess = { 'customers.ts': customers, 'logo.ts': logo, 'settings.ts': settings, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders };
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the refused
  * constraint, the user, the id check and the page-side wrapper. An export added to one of them fails
@@ -99,6 +106,7 @@ const everything = async () => ({
   items: await ctx.db.select().from(workOrderItem),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
+  workshopLogo: await ctx.db.select().from(workshopLogo),
 });
 
 test.each(Object.entries(calls).filter(([name]) => !mechanikMay.includes(name)))(
