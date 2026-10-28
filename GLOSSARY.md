@@ -46,10 +46,9 @@ _Avoid_: číslo karosérie, výrobné číslo
 
 **Značka vozidla** (`make`):
 Výrobca vozidla, napríklad Volkswagen alebo Škoda. Pri vozidle (stĺpec, pole formulára) stačí „Značka“; ŠPZ sa tak nenazýva.
-_Avoid_: výrobca
 
 **Model** (`model`):
-Typ vozidla od jeho výrobcu, napríklad Golf alebo Octavia.
+Označenie vozidla od jeho výrobcu, napríklad Golf alebo Octavia.
 _Avoid_: typ (to je osoba alebo firma)
 
 **ŠPZ** (`licensePlate`):
