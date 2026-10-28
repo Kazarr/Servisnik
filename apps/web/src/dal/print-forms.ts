@@ -65,7 +65,8 @@ export async function getQuote(user: User | null, workOrderId: string, db: Datab
 /**
  * What the Odovzdávací protokol (GLOSSARY) prints about a Zákazka: the customer it was made for, the vehicle, the
  * kilometres at intake and the work and parts with their quantities and units. It holds no price, sum, VAT or
- * discount, and no internal note, and a field added here is added for a form without prices.
+ * discount, and no internal note: the test of this read fails on any price key in the whole answer, so a price
+ * field cannot be added here by mistake.
  */
 export type HandoverProtocol = {
   number: string;
