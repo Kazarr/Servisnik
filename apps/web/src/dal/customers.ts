@@ -1,5 +1,6 @@
-import { parseCustomer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
-import { desc, eq } from 'drizzle-orm';
+import { parseCustomer, parseCustomerSearch, searchKeys, type Customer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
+import { count, desc, eq, or, sql } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
@@ -28,6 +29,9 @@ async function icoTaken(error: unknown, ico: string | null, db: Database) {
   return { ok: false, errors: { ico: 'taken' }, existing } as const;
 }
 
+/** A Zákazník with the keys its search looks at, so no save leaves them behind. */
+const stored = (parsed: Customer) => ({ ...parsed, ...searchKeys(parsed) });
+
 /** Saves a Zákazník; the domain decides what is stored (packages/domain/src/customer). */
 export async function createCustomer(
   user: User | null,
@@ -38,7 +42,7 @@ export async function createCustomer(
   const parsed = parseCustomer(input);
   if (!parsed.ok) return parsed;
   try {
-    const [saved] = await db.insert(customer).values(parsed.customer).returning({ id: customer.id });
+    const [saved] = await db.insert(customer).values(stored(parsed.customer)).returning({ id: customer.id });
     return { ok: true, id: saved!.id };
   } catch (error) {
     return icoTaken(error, parsed.customer.ico, db);
@@ -57,7 +61,7 @@ export async function updateCustomer(
   if (!parsed.ok) return parsed;
   if (!isUuid(id)) return { ok: false, errors: { customer: 'unknown' } };
   try {
-    const [saved] = await db.update(customer).set(parsed.customer).where(eq(customer.id, id)).returning({ id: customer.id });
+    const [saved] = await db.update(customer).set(stored(parsed.customer)).where(eq(customer.id, id)).returning({ id: customer.id });
     return saved ? { ok: true } : { ok: false, errors: { customer: 'unknown' } };
   } catch (error) {
     return icoTaken(error, parsed.customer.ico, db);
@@ -68,6 +72,48 @@ export async function updateCustomer(
 export async function listCustomers(user: User | null, db: Database = getDb()) {
   assertCan(user, 'customers.read');
   return db.select().from(customer).orderBy(desc(customer.createdAt));
+}
+
+const customersPerPage = 25;
+
+const contains = (column: AnyPgColumn, part: string) => sql`strpos(${column}, ${part}) > 0`;
+
+/**
+ * A page of Zákazníci that match `query`, alphabetically by name. The query is a part of the name,
+ * IČO, e-mail or phone; the domain normalizes it the way the stored keys are (packages/domain/src/
+ * customer). A blank query has nothing to look for, so every Zákazník matches. `page` counts from 1:
+ * any page past the last is the last, and anything that is not a page number is the first. Admin only.
+ */
+// ponytail: a scan of the table per search; a trigram index on the search columns if the table outgrows ~100k customers.
+export async function searchCustomers(
+  user: User | null,
+  { query = '', page = 1 }: { query?: string; page?: number } = {},
+  db: Database = getDb(),
+) {
+  assertCan(user, 'customers.read');
+  const { text, ico, phone } = parseCustomerSearch(query);
+  const matching = text
+    ? or(
+        contains(customer.searchName, text),
+        contains(customer.searchEmail, text),
+        contains(customer.ico, ico),
+        phone ? contains(customer.searchPhone, phone) : undefined,
+      )
+    : undefined;
+
+  const [counted] = await db.select({ total: count() }).from(customer).where(matching);
+  const total = counted!.total;
+  const pageCount = Math.max(1, Math.ceil(total / customersPerPage));
+  const current = Number.isInteger(page) ? Math.min(Math.max(page, 1), pageCount) : 1;
+  const customers = await db
+    .select({ id: customer.id, type: customer.type, name: customer.name, ico: customer.ico, phone: customer.phone, email: customer.email })
+    .from(customer)
+    .where(matching)
+    // The Slovak alphabet (č after c, ch after h, case and diacritics only after the letters), the same on every server.
+    .orderBy(sql`${customer.name} collate "sk-x-icu"`, customer.id)
+    .limit(customersPerPage)
+    .offset((current - 1) * customersPerPage);
+  return { customers, page: current, pageCount, total };
 }
 
 /** One Zákazník with the Vozidlá they own (newest first), or null when there is none with this id. */
