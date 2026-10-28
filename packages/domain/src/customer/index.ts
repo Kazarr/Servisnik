@@ -81,3 +81,38 @@ export function parseCustomer(input: CustomerInput): { ok: true; customer: Custo
   }
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, customer };
 }
+
+// Hľadanie zákazníkov: one field finds a Zákazník by part of the name, IČO, e-mail or phone. The same
+// normalization is applied to what is stored and to what is typed, so PostgreSQL needs no `unaccent`.
+
+/** Lower case, no diacritics, single spaces: "Ján  Novák" is "jan novak". */
+export const normalizeText = (typed: string) =>
+  typed.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim();
+
+/** Digits only, without a leading 00421, 421 or 0: "+421 905 123 456" and "0905 123 456" are both "905123456". */
+export const normalizePhone = (typed: string) => typed.replace(/\D/g, '').replace(/^(?:00421|421|0)/, '');
+
+export type CustomerSearch = {
+  /** Looked for in the name and the e-mail. */
+  text: string;
+  /** Looked for in the IČO, which is digits only, so spaces typed between its groups are dropped. */
+  ico: string;
+  /** Looked for in the phone; null when what was typed is not a phone number, so that "Ján 2" does not find every phone with a 2. */
+  phone: string | null;
+};
+
+/** What to look for when `typed` is typed into the search field; blank text looks for nothing. */
+export function parseCustomerSearch(typed: string): CustomerSearch {
+  const text = normalizeText(typed);
+  const phone = /\p{L}/u.test(typed) ? '' : normalizePhone(typed);
+  return { text, ico: text.replaceAll(' ', ''), phone: phone || null };
+}
+
+/** The normalized name, e-mail and phone of a Zákazník, stored beside them to be searched. */
+export function searchKeys(customer: Pick<Customer, 'name' | 'email' | 'phone'>) {
+  return {
+    searchName: normalizeText(customer.name),
+    searchEmail: normalizeText(customer.email ?? ''),
+    searchPhone: normalizePhone(customer.phone ?? ''),
+  };
+}
