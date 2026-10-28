@@ -39,25 +39,30 @@ export async function createVehicle(
   }
 }
 
-const withOwner = {
-  id: vehicle.id,
-  vin: vehicle.vin,
-  licensePlate: vehicle.licensePlate,
-  make: vehicle.make,
-  model: vehicle.model,
-  owner: { id: customer.id, name: customer.name },
-};
+/** The Vozidlá with their Majiteľ; the caller adds the filter and the order. */
+const vehiclesWithOwner = (db: Database) =>
+  db
+    .select({
+      id: vehicle.id,
+      vin: vehicle.vin,
+      licensePlate: vehicle.licensePlate,
+      make: vehicle.make,
+      model: vehicle.model,
+      owner: { id: customer.id, name: customer.name },
+    })
+    .from(vehicle)
+    .innerJoin(customer, eq(vehicle.ownerId, customer.id));
 
 /** Every Vozidlo with its Majiteľ, newest first. */
 export async function listVehicles(user: User | null, db: Database = getDb()) {
   assertUser(user);
-  return db.select(withOwner).from(vehicle).innerJoin(customer, eq(vehicle.ownerId, customer.id)).orderBy(desc(vehicle.createdAt));
+  return vehiclesWithOwner(db).orderBy(desc(vehicle.createdAt));
 }
 
 /** One Vozidlo with its Majiteľ, or null when there is none with this id. */
 export async function getVehicle(user: User | null, id: string, db: Database = getDb()) {
   assertUser(user);
   if (!isUuid(id)) return null;
-  const [found] = await db.select(withOwner).from(vehicle).innerJoin(customer, eq(vehicle.ownerId, customer.id)).where(eq(vehicle.id, id));
+  const [found] = await vehiclesWithOwner(db).where(eq(vehicle.id, id));
   return found ?? null;
 }
