@@ -32,7 +32,13 @@ export function createAuth({ db, secret }: { db: Database; secret: string }) {
       // The plugin owns `role`, `banned`, `ban_reason`, `ban_expires` and `session.impersonated_by` (src/db/schema.ts). A user it
       // is not told the Rola of is a mechanik. Which Rola may do what in Servisník is the access area's rule; the DAL checks it
       // before it calls the plugin (src/dal/users.ts), and the roles above are what the plugin itself lets through.
-      admin({ roles: { admin: adminRole, mechanik: mechanikRole }, adminRoles: ['admin'], defaultRole: 'mechanik' }),
+      admin({
+        roles: { admin: adminRole, mechanik: mechanikRole },
+        adminRoles: ['admin'],
+        defaultRole: 'mechanik',
+        // What a Deaktivovaný používateľ is told at the login, after the right password; a wrong one gets the ordinary message (app/login/sign-in.ts).
+        bannedUserMessage: 'Účet je deaktivovaný. Obráťte sa na admina.',
+      }),
       nextCookies(), // keep last
     ],
   });
