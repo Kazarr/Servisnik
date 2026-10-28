@@ -249,6 +249,7 @@ main section.items {
 
 /* The sums under the list of items, to the right, with the total with VAT in bold. */
 .totals .facts {
+  grid-template-columns: max-content max-content;
   justify-content: end;
 }
 
