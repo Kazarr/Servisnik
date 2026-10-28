@@ -152,6 +152,17 @@ test('the App Spec names the environment variables of spec #77 and keeps the sec
   expect(secrets(jobs[1]!)).toEqual(['ADMIN_EMAIL', 'ADMIN_PASSWORD']);
 });
 
+test('what the service and the jobs share is written once in the App Spec: the image and the two database variables', () => {
+  // The other tests read the spec through a YAML parser, which expands the anchors: they prove the reuse changes nothing.
+  // DigitalOcean's deploy action reads it the same way (sigs.k8s.io/yaml in digitalocean/app_action, deploy/main.go).
+  const text = read('.do/app.yaml');
+  const written = (block: string) => text.split(block).length - 1;
+
+  expect(written('registry_type: DOCR')).toBe(1);
+  expect(written('value: ${db.DATABASE_URL}')).toBe(1);
+  expect(written('value: ${db.CA_CERT}')).toBe(1);
+});
+
 test('the App Spec holds no value, only placeholders', () => {
   const { services, jobs } = spec();
   const literals = [...services, ...jobs].flatMap(({ envs }) => envs).filter(({ value }) => !value?.includes('${'));
