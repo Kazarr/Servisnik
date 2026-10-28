@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { workOrderStatuses, type WorkOrderStatus } from '@servisnik/domain/work-order';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
@@ -6,11 +7,11 @@ import { UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
 import {
   addLabour,
+  changeWorkOrderStatus,
   createWorkOrder,
   getWorkOrder,
   listUnclosedWorkOrdersOfVehicle,
   listWorkOrders,
-  markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
@@ -44,6 +45,17 @@ async function newWorkOrderId(overrides: Parameters<typeof intake>[0] = {}, now 
   return idOf(await createWorkOrder(admin, intake(overrides), ctx.db, now));
 }
 
+/** The admin takes a Zákazka to `to`, as the buttons of its detail do. */
+const move = (id: string, to: WorkOrderStatus, { confirmed, now = summer }: { confirmed?: boolean; now?: Date } = {}) =>
+  changeWorkOrderStatus(admin, id, { to, confirmed }, ctx.db, now);
+
+/** A Zákazka in `status` straight away, as a later ticket or the invoice would leave it. */
+async function workOrderIn(status: WorkOrderStatus, completedOn: string | null = null) {
+  const id = await newWorkOrderId();
+  await ctx.db.execute(sql`update work_order set status = ${status}::work_order_status, completed_on = ${completedOn} where id = ${id}`);
+  return id;
+}
+
 test('without a user every function rejects, and nothing is written', async () => {
   const id = await newWorkOrderId();
   idOf(await addLabour(admin, id, oilChange, ctx.db));
@@ -52,7 +64,7 @@ test('without a user every function rejects, and nothing is written', async () =
   const rejected = [
     createWorkOrder(null, intake(), ctx.db, summer),
     addLabour(null, id, oilChange, ctx.db),
-    markWorkOrderDone(null, id, ctx.db, summer),
+    changeWorkOrderStatus(null, id, { to: 'done' }, ctx.db, summer),
     getWorkOrder(null, id, ctx.db),
     listWorkOrders(null, ctx.db),
     listUnclosedWorkOrdersOfVehicle(null, vehicleId, ctx.db),
@@ -178,59 +190,136 @@ test('work that breaks a rule is not added, and every reason comes back', async 
   expect((await getWorkOrder(admin, id, ctx.db))?.items).toEqual([]);
 });
 
-test('work is added to a Zákazka that exists and is still Prijatá, and to no other', async () => {
-  const done = await newWorkOrderId();
-  idOf(await addLabour(admin, done, oilChange, ctx.db));
-  await markWorkOrderDone(admin, done, ctx.db, summer);
-  const invoiced = await newWorkOrderId();
-  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
-  const before = await getWorkOrder(admin, done, ctx.db);
+test.each([
+  ['received', true],
+  ['inProgress', true],
+  ['waitingForParts', true],
+  ['done', false],
+  ['invoiced', false],
+  ['cancelled', false],
+] as const)('work is added to a Zákazka that is %s only if it is Rozpracovaná: %s', async (status, added) => {
+  const id = await workOrderIn(status);
+  const before = await getWorkOrder(admin, id, ctx.db);
 
-  expect(await addLabour(admin, done, oilChange, ctx.db)).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
-  expect(await addLabour(admin, invoiced, oilChange, ctx.db)).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
+  const result = await addLabour(admin, id, oilChange, ctx.db);
+
+  if (added) {
+    expect(result).toEqual({ ok: true, id: expect.any(String) });
+    expect((await getWorkOrder(admin, id, ctx.db))?.items).toHaveLength(1);
+  } else {
+    expect(result).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
+    expect(await getWorkOrder(admin, id, ctx.db)).toEqual(before);
+  }
+});
+
+test('work is added to no Zákazka that does not exist, and an id that is not one reads as unknown', async () => {
   expect(await addLabour(admin, randomUUID(), oilChange, ctx.db)).toEqual({ ok: false, errors: { workOrder: 'unknown' } });
   expect(await addLabour(admin, 'zakazka-1', oilChange, ctx.db)).toEqual({ ok: false, errors: { workOrder: 'unknown' } });
-  expect(await getWorkOrder(admin, done, ctx.db)).toEqual(before);
-  expect((await getWorkOrder(admin, invoiced, ctx.db))?.items).toEqual([]);
 });
 
 test('marking a Zákazka as done makes it Hotová and records the Dátum dokončenia in Europe/Bratislava', async () => {
   const id = await newWorkOrderId();
 
   // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
-  const result = await markWorkOrderDone(admin, id, ctx.db, new Date('2026-12-31T23:30:00Z'));
+  const result = await move(id, 'done', { now: new Date('2026-12-31T23:30:00Z') });
 
   expect(result).toEqual({ ok: true });
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'done', completedOn: '2027-01-01' });
 });
 
-test('a Zákazka that is already Hotová is not marked again, and its Dátum dokončenia stays', async () => {
+test('a Zákazka moves between Prijatá, V práci and Čaká na diely in any order, and has no Dátum dokončenia', async () => {
   const id = await newWorkOrderId();
-  await markWorkOrderDone(admin, id, ctx.db, new Date('2026-07-15T10:00:00Z'));
 
-  const again = await markWorkOrderDone(admin, id, ctx.db, new Date('2026-07-20T10:00:00Z'));
+  for (const to of ['waitingForParts', 'inProgress', 'received', 'inProgress', 'waitingForParts'] as const) {
+    expect(await move(id, to), `to ${to}`).toEqual({ ok: true });
+    expect(await getWorkOrder(admin, id, ctx.db), `after ${to}`).toMatchObject({ status: to, completedOn: null });
+  }
+});
 
-  expect(again).toEqual({ ok: false, error: 'not-allowed' });
+test.each(['inProgress', 'waitingForParts'] as const)('a Zákazka that is %s is marked Hotová with the Dátum dokončenia', async (status) => {
+  const id = await workOrderIn(status);
+
+  expect(await move(id, 'done', { now: new Date('2026-07-15T10:00:00Z') })).toEqual({ ok: true });
+
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'done', completedOn: '2026-07-15' });
 });
 
-test('a Vyfakturovaná Zákazka cannot be marked Hotová, and one that does not exist reads as unknown', async () => {
-  const id = await newWorkOrderId();
-  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${id}`);
+test('the next transition to Hotová overwrites the Dátum dokončenia of the one before', async () => {
+  // A Zákazka that was Hotová and went back to work (the ticket that does it comes later) still carries its first date.
+  const id = await workOrderIn('inProgress', '2026-07-15');
 
-  expect(await markWorkOrderDone(admin, id, ctx.db, summer)).toEqual({ ok: false, error: 'not-allowed' });
-  expect(await markWorkOrderDone(admin, randomUUID(), ctx.db, summer)).toEqual({ ok: false, error: 'unknown' });
-  expect(await markWorkOrderDone(admin, 'zakazka-1', ctx.db, summer)).toEqual({ ok: false, error: 'unknown' });
+  expect(await move(id, 'done', { now: new Date('2026-08-01T10:00:00Z') })).toEqual({ ok: true });
+
+  expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'done', completedOn: '2026-08-01' });
+});
+
+test('a move between rozpracované statuses leaves the Dátum dokončenia as it was', async () => {
+  const id = await workOrderIn('waitingForParts', '2026-07-15');
+
+  expect(await move(id, 'inProgress')).toEqual({ ok: true });
+
+  expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'inProgress', completedOn: '2026-07-15' });
+});
+
+test.each(['received', 'inProgress', 'waitingForParts'] as const)('a Zákazka that is %s is cancelled only once the cancelling is confirmed', async (status) => {
+  const id = await workOrderIn(status);
+
+  expect(await move(id, 'cancelled')).toEqual({ ok: false, error: 'confirmation-required' });
+  expect(await move(id, 'cancelled', { confirmed: false })).toEqual({ ok: false, error: 'confirmation-required' });
+  expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status, completedOn: null });
+
+  expect(await move(id, 'cancelled', { confirmed: true })).toEqual({ ok: true });
+  expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'cancelled', completedOn: null });
+});
+
+test('a cancelled Zákazka keeps its number and stays in the list, and the next Zákazka does not get the number', async () => {
+  const first = await newWorkOrderId();
+  await move(first, 'cancelled', { confirmed: true });
+
+  const second = await newWorkOrderId();
+
+  expect(await getWorkOrder(admin, first, ctx.db)).toMatchObject({ number: 'Z2026-0001', status: 'cancelled' });
+  expect(await getWorkOrder(admin, second, ctx.db)).toMatchObject({ number: 'Z2026-0002', status: 'received' });
+  expect((await listWorkOrders(admin, ctx.db)).map(({ number, status }) => ({ number, status }))).toEqual([
+    { number: 'Z2026-0002', status: 'received' },
+    { number: 'Z2026-0001', status: 'cancelled' },
+  ]);
+});
+
+test('a Zákazka that is Hotová, Vyfakturovaná or Zrušená is taken to no status by the user, and stays as it is', async () => {
+  for (const status of ['done', 'invoiced', 'cancelled'] as const) {
+    const id = await workOrderIn(status, status === 'done' ? '2026-07-15' : null);
+    const before = await getWorkOrder(admin, id, ctx.db);
+
+    for (const to of workOrderStatuses) {
+      expect(await move(id, to, { confirmed: true }), `${status} -> ${to}`).toEqual({ ok: false, error: 'not-allowed' });
+    }
+
+    expect(await getWorkOrder(admin, id, ctx.db)).toEqual(before);
+  }
+});
+
+test('a status the user may not reach from the current one is refused whatever the confirmation, and one that does not exist reads as unknown', async () => {
+  const id = await workOrderIn('invoiced');
+
+  expect(await move(id, 'received')).toEqual({ ok: false, error: 'not-allowed' });
+  expect(await move(id, 'cancelled')).toEqual({ ok: false, error: 'not-allowed' });
+  expect(await move(randomUUID(), 'done')).toEqual({ ok: false, error: 'unknown' });
+  expect(await move('zakazka-1', 'done')).toEqual({ ok: false, error: 'unknown' });
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'invoiced', completedOn: null });
 });
 
-test('a double click on "Označiť ako hotovú" marks the Zákazka once', async () => {
-  const id = await newWorkOrderId();
+test('a double click on "Označiť ako hotovú" marks the Zákazka once, and one on "Potvrdiť zrušenie" cancels it once', async () => {
+  const marked = await newWorkOrderId();
+  const cancelled = await newWorkOrderId();
 
-  const results = await Promise.all([markWorkOrderDone(admin, id, ctx.db, summer), markWorkOrderDone(admin, id, ctx.db, summer)]);
+  const marks = await Promise.all([move(marked, 'done'), move(marked, 'done')]);
+  const cancels = await Promise.all([move(cancelled, 'cancelled', { confirmed: true }), move(cancelled, 'cancelled', { confirmed: true })]);
 
-  expect(results).toContainEqual({ ok: true });
-  expect(results).toContainEqual({ ok: false, error: 'not-allowed' });
+  for (const results of [marks, cancels]) {
+    expect(results).toContainEqual({ ok: true });
+    expect(results).toContainEqual({ ok: false, error: 'not-allowed' });
+  }
 });
 
 test('work added while another request is marking the Zákazka as done waits for it and is then refused', async () => {
@@ -265,7 +354,7 @@ test('Zákazky are listed from the newest with number, customer, vehicle and sta
   const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   await newWorkOrderId();
   const second = await newWorkOrderId({ customerId: other });
-  await markWorkOrderDone(admin, second, ctx.db, summer);
+  await move(second, 'done');
 
   const list = await listWorkOrders(admin, ctx.db);
 
@@ -275,20 +364,20 @@ test('Zákazky are listed from the newest with number, customer, vehicle and sta
   ]);
 });
 
-test('a vehicle lists its Zákazky that are not Uzavretá, Prijatá and Hotová, and not an invoiced one or another vehicle’s', async () => {
+test('a vehicle lists every Zákazka that is not Uzavretá, so not a Vyfakturovaná or a Zrušená one, and not another vehicle’s', async () => {
   const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
-  const received = await newWorkOrderId();
-  const done = await newWorkOrderId();
-  await markWorkOrderDone(admin, done, ctx.db, summer);
-  const invoiced = await newWorkOrderId();
-  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
+  // One Zákazka per status, oldest first; Z2026-0001 is Prijatá, and so on in the order of the statuses.
+  const ids: Record<string, string> = {};
+  for (const status of workOrderStatuses) ids[status] = await workOrderIn(status);
   await newWorkOrderId({ vehicleId: otherVehicle });
 
   const unclosed = await listUnclosedWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
 
   expect(unclosed).toEqual([
-    { id: done, number: 'Z2026-0002', status: 'done' },
-    { id: received, number: 'Z2026-0001', status: 'received' },
+    { id: ids.done, number: 'Z2026-0004', status: 'done' },
+    { id: ids.waitingForParts, number: 'Z2026-0003', status: 'waitingForParts' },
+    { id: ids.inProgress, number: 'Z2026-0002', status: 'inProgress' },
+    { id: ids.received, number: 'Z2026-0001', status: 'received' },
   ]);
   expect(await listUnclosedWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
 });
