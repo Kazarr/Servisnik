@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
-import { UnauthenticatedError, type User } from '../src/dal/user.ts';
+import { UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
 import {
   addLabour,
@@ -12,9 +12,9 @@ import {
   listWorkOrders,
   markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
+import { admin, idOf } from './support/dal.ts';
 import { createTestDb } from './support/db.ts';
 
-const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
 const summer = new Date('2026-07-15T10:00:00Z');
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
@@ -29,11 +29,6 @@ beforeEach(async () => {
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 });
-
-function idOf(result: { ok: true; id: string } | { ok: false }) {
-  if (!result.ok) throw new Error('The record was expected to be saved.');
-  return result.id;
-}
 
 const intake = (overrides: { vehicleId?: string; customerId?: string; mileageKm?: string; customerRequest?: string } = {}) => ({
   vehicleId,
