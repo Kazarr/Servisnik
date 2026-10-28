@@ -296,7 +296,12 @@ th {
   overflow-wrap: anywhere;
 }
 
-/* A work order: sections under the details, amounts aligned to the right, the totals row. */
+/*
+ * Rules for every page, first used by the Zákazka detail: a section heading that is a direct child of
+ * .content (the vehicle and customer pages put theirs in .page-header, so it does not apply to them),
+ * amounts aligned to the right, the totals row of any table, a row of actions, and text that keeps
+ * its line breaks.
+ */
 .content > h2 {
   margin: var(--space-4) 0 var(--space-2);
 }
