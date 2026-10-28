@@ -78,7 +78,7 @@ const dataAccess = { 'customers.ts': customers, 'password.ts': password, 'settin
 const helpers = {
   'constraint.ts': { module: constraintModule, exports: ['violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
-  'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'requireUser'] },
+  'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
 };
 
