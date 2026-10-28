@@ -6,7 +6,9 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 // Better Auth owns user, session, account and verification (docs/adr/0001-stack.md). Keys and
-// column types follow what its Drizzle adapter expects; `role` is Servisník's own column.
+// column types follow what its Drizzle adapter expects. `role` is an enum, not the plain text the
+// admin plugin would make; the plugin's other columns (`banned`, `ban_reason`, `ban_expires`,
+// `impersonated_by`) are as it declares them.
 
 /** Rola: what a Používateľ may do (packages/domain/src/access). */
 export const role = pgEnum('role', roles);
@@ -28,6 +30,10 @@ export const user = pgTable('user', {
   image: text('image'),
   // Least privilege: anyone created without an explicit role is a mechanik.
   role: role('role').notNull().default('mechanik'),
+  /** Deaktivovaný používateľ (GLOSSARY): `banned` is true. An active user is one that is not. */
+  banned: boolean('banned').notNull().default(false),
+  banReason: text('ban_reason'),
+  banExpires: timestamp('ban_expires', { withTimezone: true }),
   ...timestamps,
 });
 
@@ -42,6 +48,7 @@ export const session = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
+    impersonatedBy: text('impersonated_by'),
     ...timestamps,
   },
   (table) => [index('session_user_id_idx').on(table.userId)],
