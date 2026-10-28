@@ -1,7 +1,17 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
 import { watchPage } from './page-problems.ts';
 
 export { expect };
+
+/**
+ * A tag for the data of one test. All specs, workers and `--repeat-each` runs share one database, so a test
+ * puts its tag in the names and unique keys it creates and asserts only the rows that carry it.
+ */
+export const runTag = () => randomBytes(3).toString('hex');
+
+/** A VIN no other test has used: the 11 characters of `prefix`, then the tag in capitals (hex digits are never I, O or Q). */
+export const vinOf = (tag: string, prefix = 'TMBZZZ5JZ3W') => `${prefix}${tag.toUpperCase()}`;
 
 /** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see page-problems.ts). */
 export const test = base.extend({
