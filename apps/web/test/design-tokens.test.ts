@@ -10,8 +10,8 @@ const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import
 // value in disguise unless it defines a token in :root.
 const RULES = {
   opacity: /opacity:\s*[\d.]+/,
-  viewport: /(?<![\w.#])-?\d*\.?\d+(?:vh|vw|dvh|svh|vmin|vmax)\b/,
-  length: /(?<![\w.#])-?\d*\.?\d+(?:px|rem|em|ch|ex|pt|cm|mm|in|pc)\b/,
+  viewport: /(?<![\w.#-])-?\d*\.?\d+(?:vh|vw|dvh|svh|vmin|vmax)\b/,
+  length: /(?<![\w.#-])-?\d*\.?\d+(?:px|rem|em|ch|ex|pt|cm|mm|in|pc)\b/,
   percentage: /\d*\.?\d+%/,
   fontWeight: /font-weight:\s*(?:\d+|normal|bold|bolder|lighter)\b/,
   lineHeight: /line-height:\s*[\d.]+(?![\w.%])/,
@@ -27,8 +27,10 @@ const rawValues = (css: string, rules: Record<string, RegExp> = RULES) => {
   return outside.match(raw) ?? [];
 };
 
-// Typed over every rule: a rule without a case does not compile.
-const CASES: Record<Rule, { raw: string; found: string[]; token: string }> = {
+// Typed over every rule: a rule without a case does not compile. `miss` holds the near-misses a guard of
+// the rule exists to let pass (a class name that ends in a number, a selector that looks like a hex
+// colour); the rule alone must not report them, even when another rule would.
+const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: string }> = {
   opacity: {
     raw: '.x { opacity: .6; }',
     found: ['opacity: .6'],
@@ -38,11 +40,13 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string }> = {
     raw: '.x { min-height: 100vh; width: .5vw; }',
     found: ['100vh', '.5vw'],
     token: '.x { min-height: var(--viewport-height); }',
+    miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; }',
   },
   length: {
     raw: '.x { padding: 0.5rem 8px -1em; margin: 0; }',
     found: ['0.5rem', '8px', '-1em'],
     token: '.x { padding: var(--space-2) var(--space-3); margin: 0; grid-template-columns: minmax(0, 1fr); }',
+    miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .y { background: url(icon.5px.png); }',
   },
   percentage: {
     raw: '.x { width: 100%; background: color-mix(in srgb, var(--a) 40%, var(--b)); }',
@@ -58,6 +62,7 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string }> = {
     raw: '.x { line-height: 1.5; }',
     found: ['line-height: 1.5'],
     token: '.x { line-height: var(--line-height-base); }',
+    miss: '.x { line-height: 1.5rem; } .y { line-height: 150%; }',
   },
   colorFunction: {
     raw: '.x { color: rgb(0 0 0 / 50%); border-color: hsl(210, 20%, 50%); }',
@@ -68,22 +73,27 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string }> = {
     raw: '.x { margin: calc(var(--space-1) * 1.5); padding: calc(2 * var(--space-1)); }',
     found: ['* 1.5', '2 *'],
     token: '.x { margin: var(--space-6); } *, *::before { box-sizing: border-box; }',
+    miss: 'h1 * { margin: 0; } .col-2 * { margin: 0; } *.x { margin: 0; }',
   },
   hex: {
     raw: '.x { color: #fff; background: #1D5FC4; }',
     found: ['#fff', '#1D5FC4'],
     token: '.x { color: var(--color-text); }',
+    miss: '#main { margin: 0; } #feedbag { margin: 0; }',
   },
 };
 
-test.each(Object.entries(CASES))('the %s rule finds exactly the raw values, and lets the tokens pass', (rule, { raw, found, token }) => {
-  expect(rawValues(raw, { [rule]: RULES[rule as Rule] })).toEqual(found);
+test.each(Object.entries(CASES))('the %s rule finds exactly the raw values, and lets the tokens and the near-misses pass', (rule, { raw, found, token, miss = '' }) => {
+  const only = { [rule]: RULES[rule as Rule] };
+
+  expect(rawValues(raw, only)).toEqual(found);
+  expect(rawValues(miss, only)).toEqual([]);
   expect(rawValues(token)).toEqual([]);
 });
 
 test('raw values are fine where tokens are defined, in :root and in comments, and nowhere else', () => {
   const css = `
-    /* 100% of #69: opacity: 0.6; 8px */
+    /* 100% of #219: opacity: 0.6; 8px */
     :root { --a: 0.6; --b: #fff; --space-6: calc(var(--space-1) * 1.5); }
     .x { margin: 2px; }
     @media (forced-colors: active) { :root { --c: 2px; } }
