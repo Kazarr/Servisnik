@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { forbiddenMessage, orForbidden } from '../src/app/(app)/forbidden.ts';
 import * as settingsActions from '../src/app/(app)/nastavenia/actions.ts';
+import * as userActions from '../src/app/(app)/nastavenia/user-actions.ts';
 import * as vehicleActions from '../src/app/(app)/vozidla/actions.ts';
 import * as workOrderActions from '../src/app/(app)/zakazky/actions.ts';
 import * as customerActions from '../src/app/(app)/zakaznici/actions.ts';
@@ -15,6 +16,8 @@ import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
 const { touched } = vi.hoisted(() => ({ touched: [] as string[] }));
 vi.mock('../src/dal/current-user.ts', async () => ({ currentUser: async () => (await import('./support/dal-users.ts')).mechanic }));
 vi.mock('../src/db/index.ts', () => ({ getDb: () => new Proxy({}, { get: (_target, property) => (touched.push(String(property)), undefined) }) }));
+// The actions of Používatelia hand the request's headers, with the admin's session, to Better Auth; outside a request there are none to read.
+vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
 
 test('orForbidden gives the result of the call', async () => {
   expect(await orForbidden(Promise.resolve({ ok: true }))).toEqual({ ok: true });
@@ -61,17 +64,29 @@ const actions = {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),
     answer: formRefused,
   },
+  createUserAction: {
+    call: () =>
+      userActions.createUserAction(null, form({ newUserName: 'Nový Mechanik', newUserEmail: 'novy@autoservis.test', newUserRole: 'mechanik', newUserPassword: 'pociatocne-heslo-1234' })),
+    answer: formRefused,
+  },
+  updateUserAction: {
+    call: () => userActions.updateUserAction(null, form({ userId: id, userName: 'Premenovaný', userEmail: 'premenovany@autoservis.test', userRole: 'admin' })),
+    answer: formRefused,
+  },
+  setUserPasswordAction: { call: () => userActions.setUserPasswordAction(null, form({ userId: id, userPassword: 'nove-heslo-5678' })), answer: formRefused },
+  deactivateUserAction: { call: () => userActions.deactivateUserAction(null, form({ userId: id })), answer: { error: forbiddenMessage } },
+  activateUserAction: { call: () => userActions.activateUserAction(null, form({ userId: id })), answer: { error: forbiddenMessage } },
 };
 
-// Every actions.ts under app/(app), found by the file system rather than listed, so that a new one is not missed.
-const actionFiles = import.meta.glob<Record<string, unknown>>('../src/app/[(]app[)]/**/actions.ts', { eager: true });
+// Every file of Server Actions under app/(app), found by the file system rather than listed, so that a new one is not missed.
+const actionFiles = import.meta.glob<Record<string, unknown>>('../src/app/[(]app[)]/**/{actions,user-actions}.ts', { eager: true });
 /**
  * Server Actions the DAL does not refuse a mechanik: signOut uses no DAL, and changePassword needs
  * `password.change`, which is on the mechanik's list.
  */
 const notRefusedToMechanik = ['signOut', 'changePassword'];
 
-test('the table has a row for every Server Action of every actions.ts under app/(app) that the DAL can refuse a mechanik, and for nothing else', () => {
+test('the table has a row for every Server Action of every file of them under app/(app) that the DAL can refuse a mechanik, and for nothing else', () => {
   expect(Object.keys(actionFiles).length).toBeGreaterThan(0);
 
   const exported = Object.values(actionFiles).flatMap((module) => Object.keys(module));
