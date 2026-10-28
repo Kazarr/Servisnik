@@ -50,6 +50,13 @@
       "when": 1793196360907,
       "tag": "0006_vehicle_details",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793199663771,
+      "tag": "0007_workshop_details",
+      "breakpoints": true
     }
   ]
 }
