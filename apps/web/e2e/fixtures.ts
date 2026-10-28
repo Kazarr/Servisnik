@@ -1,9 +1,9 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
-import { watchPage } from './page-problems.ts';
+import { watchPage } from './watch-page.ts';
 
 export { expect };
 
-/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see page-problems.ts). */
+/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see watch-page.ts). */
 export const test = base.extend({
   page: async ({ page }, use) => {
     const problems = watchPage(page);
