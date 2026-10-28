@@ -105,7 +105,7 @@ test('the admin opens a work order on a vehicle, adds work, sees the amounts and
   await expect(main.getByRole('button', { name: 'Pridať prácu' })).toHaveCount(0);
   await expect(main.getByRole('row', { name: /Spolu/ }).getByRole('cell')).toHaveText(['68,33 €', '15,72 €', '84,05 €']);
 
-  // The vehicle links to its open work order, and the list of work orders shows it.
+  // The vehicle links to its work order that is not closed, and the list of work orders shows it.
   await page.goto(vehicleUrl);
   await main.getByRole('link', { name: number }).click();
   await expect(page).toHaveURL(orderUrl);

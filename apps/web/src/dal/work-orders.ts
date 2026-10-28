@@ -2,7 +2,7 @@ import {
   amountsOf,
   canAddItems,
   formatWorkOrderNumber,
-  isOpen,
+  isClosed,
   localYear,
   parseLabour,
   parseWorkOrder,
@@ -116,14 +116,14 @@ export async function listWorkOrders(user: User | null, db: Database = getDb()) 
     .orderBy(desc(workOrder.createdAt));
 }
 
-/** The open Zákazky of a Vozidlo (not yet invoiced), newest first. */
-export async function listOpenWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
+/** The Zákazky of a Vozidlo that are not Uzavretá, newest first. */
+export async function listUnclosedWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
   if (!isUuid(vehicleId)) return [];
   return db
     .select({ id: workOrder.id, number: workOrder.number, status: workOrder.status })
     .from(workOrder)
-    .where(and(eq(workOrder.vehicleId, vehicleId), inArray(workOrder.status, workOrderStatuses.filter(isOpen))))
+    .where(and(eq(workOrder.vehicleId, vehicleId), inArray(workOrder.status, workOrderStatuses.filter((status) => !isClosed(status)))))
     .orderBy(desc(workOrder.createdAt));
 }
 

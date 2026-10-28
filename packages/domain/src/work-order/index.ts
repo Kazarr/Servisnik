@@ -24,8 +24,8 @@ export function transition(
   return to === 'done' ? { ok: true, status: to, completedOn: localDate(now) } : { ok: true, status: to };
 }
 
-/** A Zákazka is open until it is invoiced. */
-export const isOpen = (status: WorkOrderStatus): boolean => status !== 'invoiced';
+/** Uzavretá zákazka (GLOSSARY): of the statuses here only Vyfakturovaná closes a Zákazka. */
+export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoiced';
 
 /** Items change the amounts an invoice is made from, so they are added only while the Zákazka is Prijatá. */
 export const canAddItems = (status: WorkOrderStatus): boolean => status === 'received';

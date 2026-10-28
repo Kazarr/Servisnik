@@ -4,7 +4,7 @@ import {
   canAddItems,
   defaultVatRate,
   formatWorkOrderNumber,
-  isOpen,
+  isClosed,
   localDate,
   localYear,
   parseLabour,
@@ -90,11 +90,11 @@ describe('status transitions', () => {
 
 describe('what a status allows', () => {
   test.each([
-    ['received', true],
-    ['done', true],
-    ['invoiced', false],
-  ] as const)('%s is open: %s', (status, open) => {
-    expect(isOpen(status)).toBe(open);
+    ['received', false],
+    ['done', false],
+    ['invoiced', true],
+  ] as const)('%s is closed: %s', (status, closed) => {
+    expect(isClosed(status)).toBe(closed);
   });
 
   test.each([

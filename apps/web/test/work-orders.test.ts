@@ -8,7 +8,7 @@ import {
   addLabour,
   createWorkOrder,
   getWorkOrder,
-  listOpenWorkOrdersOfVehicle,
+  listUnclosedWorkOrdersOfVehicle,
   listWorkOrders,
   markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
@@ -55,7 +55,7 @@ test('without a user every function rejects, and nothing is written', async () =
     markWorkOrderDone(null, id, ctx.db, summer),
     getWorkOrder(null, id, ctx.db),
     listWorkOrders(null, ctx.db),
-    listOpenWorkOrdersOfVehicle(null, vehicleId, ctx.db),
+    listUnclosedWorkOrdersOfVehicle(null, vehicleId, ctx.db),
   ];
   for (const call of rejected) await expect(call).rejects.toBeInstanceOf(UnauthenticatedError);
 
@@ -275,7 +275,7 @@ test('Zákazky are listed from the newest with number, customer, vehicle and sta
   ]);
 });
 
-test('a vehicle lists its open Zákazky, Prijatá and Hotová, and not an invoiced one or another vehicle’s', async () => {
+test('a vehicle lists its Zákazky that are not Uzavretá, Prijatá and Hotová, and not an invoiced one or another vehicle’s', async () => {
   const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   const received = await openWorkOrder();
   const done = await openWorkOrder();
@@ -284,13 +284,13 @@ test('a vehicle lists its open Zákazky, Prijatá and Hotová, and not an invoic
   await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
   await openWorkOrder({ vehicleId: otherVehicle });
 
-  const open = await listOpenWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
+  const unclosed = await listUnclosedWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
 
-  expect(open).toEqual([
+  expect(unclosed).toEqual([
     { id: done, number: 'Z2026-0002', status: 'done' },
     { id: received, number: 'Z2026-0001', status: 'received' },
   ]);
-  expect(await listOpenWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
+  expect(await listUnclosedWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
 });
 
 test('a Zákazka that does not exist, or an id that is not one, reads as nothing', async () => {
