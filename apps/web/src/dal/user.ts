@@ -25,8 +25,10 @@ export class ForbiddenError extends Error {
 }
 
 /**
- * First line of a DAL function only the admin may use (customers and vehicles, docs/adr/0001-stack.md):
- * no user and nothing happens, a mechanik and nothing happens either.
+ * First line of a DAL function only the admin may use: no user and nothing happens, a mechanik and
+ * nothing happens either (GLOSSARY, Rola: a mechanik sees only the zákazky, without prices). Only the
+ * customers use it so far; the other areas stay on assertUser until #118 (Prístup) replaces it with
+ * its capability check.
  */
 export function assertAdmin(user: User | null): asserts user is User {
   assertUser(user);
