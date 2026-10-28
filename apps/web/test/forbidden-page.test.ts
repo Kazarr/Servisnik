@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { expect, test } from 'vitest';
 import { ForbiddenError } from '../src/dal/user.ts';
 
@@ -23,7 +23,14 @@ test('a ForbiddenError thrown while a page renders redirects to Zákazky, the pa
   expect(error.digest).toBe(digestOfRedirect('/zakazky'));
 });
 
-test('the ForbiddenError still names the refused capability, for the log and for orForbidden', () => {
+// unstable_rethrow is Next's own classifier: it throws what Next treats as control flow (a redirect, a
+// not-found) and lets any other error pass, so it proves the digest from the public API.
+test('Next itself takes a ForbiddenError for a redirect, and a plain error for an error', () => {
+  expect(() => unstable_rethrow(new ForbiddenError('customers.read'))).toThrow();
+  expect(() => unstable_rethrow(new Error('connect ECONNREFUSED'))).not.toThrow();
+});
+
+test('the ForbiddenError names the refused capability in its message', () => {
   const error = new ForbiddenError('customers.read');
 
   expect(error).toBeInstanceOf(ForbiddenError);
