@@ -30,8 +30,10 @@ async function guarded(answer: () => Promise<Response>) {
 }
 
 /**
- * The body of `request`, or null when it is longer than `limit`. It never reads more than `limit` + 1
- * bytes: a sender that declares nothing, or lies, cannot make it hold a body without end.
+ * The body of `request`, or null when it is longer than `limit`. A Content-Length over the limit is
+ * refused before anything is read. Otherwise it reads whole chunks, as the sender made them, and stops at
+ * the first one that takes the total over `limit`: it holds at most `limit` bytes and that one chunk, and
+ * a body that declares nothing, lies or never ends is cut there and its stream cancelled.
  */
 async function readBody(request: Request, limit: number) {
   if (Number(request.headers.get('Content-Length')) > limit) return null;
@@ -63,7 +65,11 @@ export const getLogoResponse = (user: User | null, db: Database) =>
     });
   });
 
-/** Replaces the logo with the body of the request. The Rola is asked before the body is read. */
+/**
+ * Replaces the logo with the body of the request. The Rola is asked first, and the body is read only for
+ * the admin. That holds because proxy.ts does not run for /api/logo: for a path it covers, Next copies
+ * the body before this function is called.
+ */
 export const putLogoResponse = (user: User | null, request: Request, db: Database) =>
   guarded(async () => {
     assertCan(user, 'settings.write');
