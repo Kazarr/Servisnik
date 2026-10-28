@@ -1,14 +1,18 @@
 'use client';
 
-import { defaultVatRate } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
+import { formatEuroInput } from '../../../../format.ts';
 import { Field, FormError } from '../../field.tsx';
-import { addWorkToOrder } from '../actions.ts';
+import { valueIn } from '../../form-value.ts';
+import { addLabourToWorkOrder } from '../actions.ts';
 
-/** Adds a Práca: hours, a unit price without VAT, and a VAT rate that starts at 23 %. */
-export function LabourForm({ workOrderId }: { workOrderId: string }) {
-  const [state, formAction, pending] = useActionState(addWorkToOrder, null);
-  const value = (name: string) => state?.values[name];
+/**
+ * Adds a Práca: hours, a unit price without VAT and a VAT rate. The form starts with the default VAT rate
+ * and the hourly rate of Nastavenia (no price when there is none), and again after each save.
+ */
+export function LabourForm({ workOrderId, defaultVatRate, hourlyRateCents }: { workOrderId: string; defaultVatRate: number; hourlyRateCents: number | null }) {
+  const [state, formAction, pending] = useActionState(addLabourToWorkOrder, null);
+  const value = valueIn(state, { vatRate: String(defaultVatRate), unitPrice: formatEuroInput(hourlyRateCents) });
 
   return (
     <form action={formAction} className="form">
@@ -25,7 +29,7 @@ export function LabourForm({ workOrderId }: { workOrderId: string }) {
         autoComplete="off"
         required
       />
-      <Field label="Sadzba DPH (%)" name="vatRate" inputMode="numeric" defaultValue={value('vatRate') ?? String(defaultVatRate)} error={state?.errors.vatRate} autoComplete="off" required />
+      <Field label="Sadzba DPH (%)" name="vatRate" inputMode="numeric" defaultValue={value('vatRate')} error={state?.errors.vatRate} autoComplete="off" required />
       <button type="submit" disabled={pending}>
         Pridať prácu
       </button>

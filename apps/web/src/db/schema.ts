@@ -158,7 +158,7 @@ export const workOrder = pgTable(
     mileageKm: integer('mileage_km').notNull(),
     customerRequest: text('customer_request').notNull(),
     status: workOrderStatus('status').notNull().default('received'),
-    /** The delivery date, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
+    /** The Dátum dokončenia, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
     completedOn: date('completed_on', { mode: 'string' }),
     ...timestamps,
   },
@@ -167,6 +167,31 @@ export const workOrder = pgTable(
     index('work_order_customer_id_idx').on(table.customerId),
     index('work_order_vehicle_id_idx').on(table.vehicleId),
     check('work_order_mileage_km_check', sql`${table.mileageKm} >= 0`),
+  ],
+);
+
+/**
+ * Autoservis: the one row of values for the whole workshop (GLOSSARY: Nastavenia). The migration
+ * creates it and nothing inserts another: the primary key is always 1. Other parts of Nastavenia add
+ * their columns here. Here are the rates (packages/domain/src/settings): the VAT rates with the default
+ * one, the hourly rate in cents without VAT (null when none) and the markup on parts in whole percent.
+ */
+export const workshop = pgTable(
+  'workshop',
+  {
+    id: integer('id').primaryKey().default(1),
+    vatRates: integer('vat_rates').array().notNull(),
+    defaultVatRate: integer('default_vat_rate').notNull(),
+    hourlyRateCents: integer('hourly_rate_cents'),
+    markupPercent: integer('markup_percent').notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    check('workshop_single_row_check', sql`${table.id} = 1`),
+    check('workshop_vat_rates_check', sql`0 <= all(${table.vatRates}) and 100 >= all(${table.vatRates})`),
+    check('workshop_default_vat_rate_check', sql`${table.defaultVatRate} = any(${table.vatRates})`),
+    check('workshop_hourly_rate_cents_check', sql`${table.hourlyRateCents} >= 0`),
+    check('workshop_markup_percent_check', sql`${table.markupPercent} >= 0`),
   ],
 );
 

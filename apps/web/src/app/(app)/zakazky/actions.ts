@@ -9,7 +9,7 @@ import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 export type WorkOrderFormState = {
-  values: Record<string, string>;
+  values: Record<'mileageKm' | 'customerRequest', string>;
   errors: { mileageKm?: string; customerRequest?: string; form?: string };
 } | null;
 
@@ -18,7 +18,7 @@ export type WorkOrderFormState = {
  * and the action is a public endpoint. The customer is the one chosen on the form, the vehicle's
  * Majiteľ unless the admin picked another.
  */
-export async function openWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
+export async function addWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
   const user = await currentUser();
   const values = { mileageKm: field(formData, 'mileageKm'), customerRequest: field(formData, 'customerRequest') };
 
@@ -38,12 +38,12 @@ export async function openWorkOrder(_state: WorkOrderFormState, formData: FormDa
 }
 
 export type LabourFormState = {
-  values: Record<string, string>;
+  values: Record<'name' | 'quantity' | 'unitPrice' | 'vatRate', string>;
   errors: { name?: string; quantity?: string; unitPrice?: string; vatRate?: string; form?: string };
 } | null;
 
 /** Server Action of the add-work form; it checks the session itself, like every action. */
-export async function addWorkToOrder(_state: LabourFormState, formData: FormData): Promise<LabourFormState> {
+export async function addLabourToWorkOrder(_state: LabourFormState, formData: FormData): Promise<LabourFormState> {
   const user = await currentUser();
   const workOrderId = field(formData, 'workOrderId');
   const values = {

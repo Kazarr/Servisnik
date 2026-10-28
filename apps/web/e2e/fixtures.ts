@@ -73,6 +73,22 @@ export async function addCustomer(
   await expect(page.locator('main h1')).toHaveText(name);
 }
 
+/** From a customer's detail: opens the form for a new vehicle and fills VIN, make and model. The form is not sent. */
+export async function fillVehicleForm(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await page.getByLabel('VIN').fill(vin);
+  await page.getByLabel('Značka').fill(make);
+  await page.getByLabel('Model').fill(model);
+}
+
+/** From a customer's detail: adds a vehicle through the form and opens its detail. */
+export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await fillVehicleForm(page, vin, make, model);
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await page.locator('main').getByRole('link', { name: vin }).click();
+  await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
+}
+
 /**
  * Types `text` into the search field of the customer list, searches, and waits until the page of that
  * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
