@@ -13,6 +13,7 @@ import {
   type ItemInput,
   type WorkOrderErrors,
   type WorkOrderInput,
+  type WorkOrderItem,
   type WorkOrderStatus,
 } from '@servisnik/domain/work-order';
 import { asc, desc, eq, sql } from 'drizzle-orm';
@@ -84,6 +85,14 @@ export type AddItemResult =
   | { ok: true; id: string }
   | { ok: false; errors: ItemErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
+/** The one place an item is added to a Zákazka, for every way of adding one: under lockForItems, so a Zákazka that is no longer Rozpracovaná takes none. */
+async function insertItem(tx: Transaction, workOrderId: string, item: WorkOrderItem): Promise<AddItemResult> {
+  const locked = await lockForItems(tx, workOrderId);
+  if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
+  const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...item }).returning({ id: workOrderItem.id });
+  return { ok: true, id: saved!.id };
+}
+
 /**
  * Adds a Práca or a Diel to a Zákazka that is still Rozpracovaná. The item keeps the VAT rate it has now: one of the
  * rates of Nastavenia, the default one when none is given (read with getRates, so a Rola that may write work but
@@ -94,12 +103,7 @@ export async function addItem(user: User | null, workOrderId: string, input: Ite
   const parsed = parseItem(input, await getRates(user, db));
   if (!parsed.ok) return parsed;
 
-  return db.transaction(async (tx) => {
-    const locked = await lockForItems(tx, workOrderId);
-    if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
-    const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...parsed.item }).returning({ id: workOrderItem.id });
-    return { ok: true, id: saved!.id };
-  });
+  return db.transaction((tx) => insertItem(tx, workOrderId, parsed.item));
 }
 
 export type AddItemFromPriceListResult =
@@ -122,12 +126,9 @@ export async function addItemFromPriceList(
   assertCan(user, 'price-list.read');
 
   return db.transaction(async (tx) => {
-    const locked = await lockForItems(tx, workOrderId);
-    if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
     const [source] = await rowsIfUuid(priceListItemId, tx.select().from(priceListItem).where(eq(priceListItem.id, priceListItemId)));
     if (!source) return { ok: false, errors: { priceListItem: 'unknown' } };
-    const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...workOrderItemFromPriceListItem(source) }).returning({ id: workOrderItem.id });
-    return { ok: true, id: saved!.id };
+    return insertItem(tx, workOrderId, workOrderItemFromPriceListItem(source));
   });
 }
 
