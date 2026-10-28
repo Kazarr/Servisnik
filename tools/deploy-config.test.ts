@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { parse } from 'yaml';
+import { parse, parseAllDocuments } from 'yaml';
 
 // Spec #77, "Nasadenie". Nothing here deploys: a cloud account, a token and a person are needed for
 // that. These tests hold the files that drive a deploy to what the ticket and the research decided,
@@ -55,6 +55,24 @@ test('the image is Debian-based node:24-slim and runs as a non-root user', () =>
   expect(new Set(bases)).toEqual(new Set(['node:24-slim']));
   expect(users.at(-1)).toBe('node');
   expect(dockerfile.lastIndexOf('USER node')).toBeLessThan(dockerfile.lastIndexOf('CMD'));
+});
+
+test('the image carries Chromium for printing: the version the lockfile locks for playwright-core, with the fonts of Slovak, in a directory the app finds, above the code', () => {
+  const dockerfile = read('Dockerfile');
+  // pnpm-lock.yaml holds two YAML documents: the one of pnpm itself, then the one of the workspace.
+  const locked = parseAllDocuments(read('pnpm-lock.yaml'))
+    .flatMap((document) => Object.keys((document.toJS() as { packages?: Record<string, unknown> }).packages ?? {}))
+    .filter((key) => key.startsWith('playwright-core@'))
+    .map((key) => key.slice('playwright-core@'.length));
+  const version = /^ARG PLAYWRIGHT_VERSION=(\S+)$/m.exec(dockerfile)?.[1];
+
+  // One playwright-core in the lockfile, and the image installs the browser of exactly that one: another version looks for another build of Chromium.
+  expect(locked).toEqual([version]);
+  expect(dockerfile).toMatch(/npx --yes playwright-core@\$\{PLAYWRIGHT_VERSION\} install [^\n]*--with-deps[^\n]*chromium/);
+  expect(dockerfile).toMatch(/^ENV PLAYWRIGHT_BROWSERS_PATH=\/ms-playwright$/m); // set for the install and left set for the app
+  expect(dockerfile).toContain('fonts-liberation');
+  // Above the code, so that a new commit does not download the browser again.
+  expect(dockerfile.indexOf('playwright-core@${PLAYWRIGHT_VERSION}')).toBeLessThan(dockerfile.indexOf('COPY --from=build'));
 });
 
 test('the migration tooling is a workspace install, not `pnpm deploy`, whose copy of @servisnik/domain lands in node_modules', () => {
