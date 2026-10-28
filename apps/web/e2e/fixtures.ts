@@ -131,6 +131,26 @@ export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda'
   await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
 }
 
+/** On a vehicle's detail: opens the form for a new work order. */
+export async function startWorkOrder(page: Page) {
+  await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
+  await expect(page.locator('main h1')).toHaveText('Nová zákazka');
+}
+
+/** On the form for a new work order: fills the intake and sends it. */
+export async function fillIntake(page: Page, mileage: string, request: string) {
+  await page.getByLabel('Kilometre pri príjme').fill(mileage);
+  await page.getByLabel('Požiadavka zákazníka').fill(request);
+  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
+}
+
+/** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
+export async function numberOnTheDetail(page: Page) {
+  const heading = page.locator('main h1');
+  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
+  return (await heading.textContent())!;
+}
+
 /**
  * Types `text` into the search field called `label`, searches, and waits until the page of that
  * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
@@ -144,6 +164,9 @@ async function searchList(page: Page, label: string, text: string) {
 
 /** Searches the list of customers for `text` (see searchList). */
 export const searchCustomers = (page: Page, text: string) => searchList(page, 'Hľadať zákazníka', text);
+
+/** On a page that picks a Majiteľ (the new vehicle, a Prepis): searches the customers for `text` (see searchList). */
+export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľadať majiteľa', text);
 
 /** Searches the list of vehicles for `text` (see searchList). */
 export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);

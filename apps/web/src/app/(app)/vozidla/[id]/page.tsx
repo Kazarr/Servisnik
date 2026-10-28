@@ -26,7 +26,12 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
     ['Palivo', vehicle.fuel && fuelLabels[vehicle.fuel]],
     ['Stav km', vehicle.mileageKm !== null && `${formatWhole(vehicle.mileageKm)} km`],
     ['Poznámka', vehicle.note],
-    ['Majiteľ', <Link href={`/zakaznici/${vehicle.owner.id}`}>{vehicle.owner.name}</Link>],
+    [
+      'Majiteľ',
+      <>
+        <Link href={`/zakaznici/${vehicle.owner.id}`}>{vehicle.owner.name}</Link> · <Link href={`/vozidla/${vehicle.id}/prepis`}>Prepísať na iného zákazníka</Link>
+      </>,
+    ],
   ];
 
   return (

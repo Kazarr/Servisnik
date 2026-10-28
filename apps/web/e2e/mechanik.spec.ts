@@ -39,6 +39,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/vozidla/novy?zakaznik=${order.customerId}`,
     `/vozidla/${order.vehicleId}`,
     `/vozidla/${order.vehicleId}/upravit`,
+    `/vozidla/${order.vehicleId}/prepis`,
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
     `/zakazky/${order.orderId}`,
     `/zakazky/${order.orderId}/upravit`,
