@@ -2,6 +2,7 @@ import { parseCustomer, type CustomerErrors, type CustomerInput } from '@servisn
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
+import { violates } from './constraint.ts';
 import { assertAdmin, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
@@ -15,15 +16,12 @@ export type UpdateCustomerResult =
   | { ok: true }
   | { ok: false; errors: CustomerSaveErrors & { customer?: 'unknown' }; existing?: Existing };
 
-/** PostgreSQL refused a second Zákazník with an IČO (the unique index decides, so two saves at once cannot both get through). */
-function isIcoTaken(error: unknown) {
-  // Drizzle wraps the driver's error as `cause`.
-  return error instanceof Error && (error.cause as { constraint?: string } | undefined)?.constraint === 'customer_ico_idx';
-}
-
-/** The failure for an IČO that is taken; any other error is not ours to handle. */
+/**
+ * The failure for an IČO that is taken: PostgreSQL refused a second Zákazník with it (the unique index
+ * decides, so two saves at once cannot both get through). Any other error is not ours to handle.
+ */
 async function icoTaken(error: unknown, ico: string | null, db: Database) {
-  if (!ico || !isIcoTaken(error)) throw error;
+  if (!ico || !violates(error, 'customer_ico_idx')) throw error;
   const [existing] = await db.select({ id: customer.id, name: customer.name }).from(customer).where(eq(customer.ico, ico));
   return { ok: false, errors: { ico: 'taken' }, existing } as const;
 }

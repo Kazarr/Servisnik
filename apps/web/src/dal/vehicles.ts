@@ -2,6 +2,7 @@ import { parseVehicle, type VehicleErrors, type VehicleInput, type VinError } fr
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
+import { violates } from './constraint.ts';
 import { assertAdmin, assertUser, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
@@ -9,16 +10,11 @@ export type CreateVehicleResult =
   | { ok: true; id: string }
   | { ok: false; errors: Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken'; owner?: 'unknown' } };
 
-/** PostgreSQL refused a Vozidlo whose Majiteľ is no Zákazník (the foreign key decides, so no check can go stale before the insert). */
-function isUnknownOwner(error: unknown) {
-  // Drizzle wraps the driver's error as `cause`.
-  return error instanceof Error && (error.cause as { constraint?: string } | undefined)?.constraint === 'vehicle_owner_id_customer_id_fk';
-}
-
 /**
  * Saves a Vozidlo for `ownerId`, the Zákazník it is added from; only the admin may (GLOSSARY, Rola).
  * The domain normalises the VIN, and the unique index on it decides a duplicate: two attempts at once
- * cannot both get through. An `ownerId` that is no Zákazník, or not even an id, comes back as `owner: 'unknown'`.
+ * cannot both get through. An `ownerId` that is no Zákazník, or not even an id, comes back as
+ * `owner: 'unknown'`; the foreign key decides that too, so no check can go stale before the insert.
  */
 export async function createVehicle(
   user: User | null,
@@ -38,7 +34,7 @@ export async function createVehicle(
       .returning({ id: vehicle.id });
     return saved ? { ok: true, id: saved.id } : { ok: false, errors: { vin: 'taken' } };
   } catch (error) {
-    if (!isUnknownOwner(error)) throw error;
+    if (!violates(error, 'vehicle_owner_id_customer_id_fk')) throw error;
     return { ok: false, errors: { owner: 'unknown' } };
   }
 }
