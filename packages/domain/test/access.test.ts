@@ -41,8 +41,8 @@ describe('Prístup', () => {
     expect(can('mechanik', 'work-orders.write')).toBe(false);
   });
 
-  // The zákazkový list has no price (spec #95, Mechanik): he prints it for the car, but still reads and changes no Zákazka.
-  test('the mechanik prints the zákazkový list without being able to read or change a Zákazka', () => {
+  // The zákazkový list has no price (spec #95, Mechanik): he prints it for the car, but still does not read a Zákazka with its prices or change it.
+  test('the mechanik prints the zákazkový list without reading a Zákazka with its prices or changing it', () => {
     expect(capabilities).toContain('work-orders.job-sheet');
     expect(can('admin', 'work-orders.job-sheet')).toBe(true);
     expect(can('mechanik', 'work-orders.job-sheet')).toBe(true);
