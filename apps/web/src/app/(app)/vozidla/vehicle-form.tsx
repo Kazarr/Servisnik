@@ -72,7 +72,7 @@ export function VehicleForm({
           </option>
         ))}
       </SelectField>
-      <Field label="Najazdené km" name="mileageKm" defaultValue={value('mileageKm')} error={errors.mileageKm} inputMode="numeric" autoComplete="off" />
+      <Field label="Stav km" name="mileageKm" defaultValue={value('mileageKm')} error={errors.mileageKm} inputMode="numeric" autoComplete="off" />
       <TextAreaField label="Poznámka" name="note" defaultValue={value('note')} />
       <button type="submit" disabled={pending}>
         Uložiť vozidlo
