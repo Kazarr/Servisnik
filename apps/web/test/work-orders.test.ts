@@ -304,6 +304,7 @@ test('a status the user may not reach from the current one is refused whatever t
 
   expect(await move(id, 'received')).toEqual({ ok: false, error: 'not-allowed' });
   expect(await move(id, 'cancelled')).toEqual({ ok: false, error: 'not-allowed' });
+  expect(await move(id, 'cancelled', { confirmed: true })).toEqual({ ok: false, error: 'not-allowed' });
   expect(await move(randomUUID(), 'done')).toEqual({ ok: false, error: 'unknown' });
   expect(await move('zakazka-1', 'done')).toEqual({ ok: false, error: 'unknown' });
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'invoiced', completedOn: null });
