@@ -225,7 +225,9 @@ test('a vehicle that does not exist, or an id that is not one, is not corrected'
 
 test('the migration gives the ŠPZ of the vehicles that exist before it the form the domain gives it', async () => {
   // Plates as the vehicles saved before the ŠPZ was normalised hold them: as typed, and trimmed at best.
-  const before = ['ba-123 ab', 'BA123AB', 'ke 456 cd', 'tn-789-ef', 'zv 111 gh', 'Ľ-1 x', '-', ''];
+  const nbsp = String.fromCharCode(0xa0);
+  const thinSpace = String.fromCharCode(0x2009);
+  const before = ['ba-123 ab', 'BA123AB', 'ke 456 cd', 'tn-789-ef', `zv${nbsp}111${nbsp}gh`, `Ľ-1${thinSpace}x`, '-', ''];
   for (const [i, plate] of before.entries()) {
     await ctx.db.execute(
       sql`insert into vehicle (vin, owner_id, license_plate, make, model) values (${`WVWZZZ1JZ3W00001${i}`}, ${ownerId}, ${plate}, 'Škoda', 'Fabia')`,
