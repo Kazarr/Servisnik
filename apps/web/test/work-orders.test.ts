@@ -10,11 +10,13 @@ import {
   getWorkOrder,
   listUnclosedWorkOrdersOfVehicle,
   listWorkOrders,
+  listWorkOrdersOfVehicle,
   markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { findPriceKeys } from './support/price-keys.ts';
 
 const summer = new Date('2026-07-15T10:00:00Z');
 
@@ -56,6 +58,7 @@ test('without a user every function rejects, and nothing is written', async () =
     getWorkOrder(null, id, ctx.db),
     listWorkOrders(null, ctx.db),
     listUnclosedWorkOrdersOfVehicle(null, vehicleId, ctx.db),
+    listWorkOrdersOfVehicle(null, vehicleId, ctx.db),
   ];
   for (const call of rejected) await expect(call).rejects.toBeInstanceOf(UnauthenticatedError);
 
@@ -291,6 +294,35 @@ test('a vehicle lists its Zákazky that are not Uzavretá, Prijatá and Hotová,
     { id: received, number: 'Z2026-0001', status: 'received' },
   ]);
   expect(await listUnclosedWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
+});
+
+test('a vehicle lists all its Zákazky from the newest with their customer, whatever the status and whoever the owner is, and not another vehicle’s', async () => {
+  const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
+  const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
+  const received = await newWorkOrderId();
+  const done = await newWorkOrderId({ customerId: other }); // its customer is not the owner of the vehicle
+  await markWorkOrderDone(admin, done, ctx.db, summer);
+  const invoiced = await newWorkOrderId();
+  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
+  await newWorkOrderId({ vehicleId: otherVehicle });
+
+  const history = await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
+
+  expect(history.map(({ id, number, status, customer }) => ({ id, number, status, customer: customer.name }))).toEqual([
+    { id: invoiced, number: 'Z2026-0003', status: 'invoiced', customer: 'Firma s.r.o.' },
+    { id: done, number: 'Z2026-0002', status: 'done', customer: 'Ján Novák' },
+    { id: received, number: 'Z2026-0001', status: 'received', customer: 'Firma s.r.o.' },
+  ]);
+  expect(findPriceKeys(history)).toEqual([]);
+});
+
+test('a vehicle with no Zákazky, one that does not exist and an id that is not one list nothing', async () => {
+  const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
+  await newWorkOrderId({ vehicleId: otherVehicle });
+
+  expect(await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db)).toEqual([]);
+  expect(await listWorkOrdersOfVehicle(admin, randomUUID(), ctx.db)).toEqual([]);
+  expect(await listWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
 });
 
 test('a Zákazka that does not exist, or an id that is not one, reads as nothing', async () => {
