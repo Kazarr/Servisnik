@@ -2,35 +2,67 @@
 
 import { parseMileageKm } from '../vehicle/index.ts';
 
-/** The Stav zákazky (GLOSSARY) by its code name: `received` Prijatá, `done` Hotová, `invoiced` Vyfakturovaná. A new one is added here and in `transitions`. */
-export const workOrderStatuses = ['received', 'done', 'invoiced'] as const;
+/**
+ * The Stav zákazky (GLOSSARY) by its code name: `received` Prijatá, `inProgress` V práci, `waitingForParts`
+ * Čaká na diely, `done` Hotová, `invoiced` Vyfakturovaná, `cancelled` Zrušená. A new one is added here, in
+ * `transitions`, and in `isActive` or `isClosed`.
+ */
+export const workOrderStatuses = ['received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled'] as const;
 export type WorkOrderStatus = (typeof workOrderStatuses)[number];
+
+/** Rozpracovaná zákazka (GLOSSARY): Prijatá, V práci or Čaká na diely. */
+const activeStatuses: readonly WorkOrderStatus[] = ['received', 'inProgress', 'waitingForParts'];
+export const isActive = (status: WorkOrderStatus): boolean => activeStatuses.includes(status);
+
+/** Uzavretá zákazka (GLOSSARY): Vyfakturovaná or Zrušená. Hotová is neither Rozpracovaná nor Uzavretá. */
+export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoiced' || status === 'cancelled';
+
+/**
+ * The one lock of a Zákazka: its items change only while it is Rozpracovaná, because from Hotová on an
+ * invoice is made from them. `addLabour` checks it under the row lock; every later write of an item, the
+ * discount or the header (kilometres, request, deadline, note) must call `canEdit` the same way, since a
+ * hidden button is not enough. Hotová stays locked until ledger question 9 is answered.
+ */
+export const canEdit = (status: WorkOrderStatus): boolean => isActive(status);
 
 /** `user` is the admin's own button; `invoice` is the invoice being issued, the only way to Vyfakturovaná. */
 export type TransitionTrigger = 'user' | 'invoice';
 
-/** Every allowed change of status, in one table. Anything not listed here is refused. */
-const transitions: readonly { from: WorkOrderStatus; to: WorkOrderStatus; by: TransitionTrigger }[] = [
-  { from: 'received', to: 'done', by: 'user' },
+type Transition = { from: WorkOrderStatus; to: WorkOrderStatus; by: TransitionTrigger; confirm?: true };
+
+/**
+ * Every allowed change of status, in one table. Anything not listed here is refused. From each
+ * Rozpracovaná status the user may go to each other one, to Hotová, and, once he confirmed it, to Zrušená.
+ */
+const transitions: readonly Transition[] = [
+  ...activeStatuses.flatMap((from): Transition[] => [
+    ...activeStatuses.filter((to) => to !== from).map((to): Transition => ({ from, to, by: 'user' })),
+    { from, to: 'done', by: 'user' },
+    { from, to: 'cancelled', by: 'user', confirm: true },
+  ]),
   { from: 'done', to: 'invoiced', by: 'invoice' },
 ];
 
-/** The new status, with the Dátum dokončenia (a day in Europe/Bratislava) when the Zákazka becomes Hotová; or why not. */
+/**
+ * The new status, with the Dátum dokončenia (a day in Europe/Bratislava) when the Zákazka becomes Hotová,
+ * every time it does; or why not. A transition that needs the user's confirmation is refused without it.
+ */
 export function transition(
   from: WorkOrderStatus,
   to: WorkOrderStatus,
   by: TransitionTrigger,
   now: Date,
-): { ok: true; status: WorkOrderStatus; completedOn?: string } | { ok: false; error: 'not-allowed' } {
-  if (!transitions.some((t) => t.from === from && t.to === to && t.by === by)) return { ok: false, error: 'not-allowed' };
+  { confirmed = false }: { confirmed?: boolean } = {},
+): { ok: true; status: WorkOrderStatus; completedOn?: string } | { ok: false; error: 'not-allowed' | 'confirmation-required' } {
+  const allowed = transitions.find((t) => t.from === from && t.to === to && t.by === by);
+  if (!allowed) return { ok: false, error: 'not-allowed' };
+  if (allowed.confirm && !confirmed) return { ok: false, error: 'confirmation-required' };
   return to === 'done' ? { ok: true, status: to, completedOn: localDate(now) } : { ok: true, status: to };
 }
 
-/** Uzavretá zákazka (GLOSSARY): of the statuses here only Vyfakturovaná closes a Zákazka. */
-export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoiced';
-
-/** Items change the amounts an invoice is made from, so they are added only while the Zákazka is Prijatá. */
-export const canAddItems = (status: WorkOrderStatus): boolean => status === 'received';
+/** The buttons of a Zákazka in this status: where the user may take it, and whether he must confirm first. */
+export const userTransitions = (from: WorkOrderStatus): { to: WorkOrderStatus; confirm: boolean }[] =>
+  transitions.filter((t) => t.from === from && t.by === 'user').map(({ to, confirm = false }) => ({ to, confirm }));
 
 /** `Z<year>-<sequence on four places>`; the sequence restarts at 1 every year, the database hands it out. */
 export function formatWorkOrderNumber(year: number, sequence: number): string {
