@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi, type MockInstance } from 'vitest';
 import { createAuth } from '../src/auth.ts';
+import { changeOwnPassword, type PasswordChange } from '../src/dal/password.ts';
 import { signInWithPassword } from '../src/dal/sign-in.ts';
 import { createTestDb } from './support/db.ts';
 import { seedUser } from './support/users.ts';
@@ -15,19 +16,25 @@ vi.mock('next/headers.js', () => ({
 }));
 
 const password = 'spravne-heslo-1234';
+const newPassword = 'nove-heslo-5678';
+const wrongPassword = 'zle-heslo-1234';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let auth: ReturnType<typeof createAuth>;
-let verifiesPassword: MockInstance<(typeof auth.api)['signInEmail']>;
+let checksSignIn: MockInstance<(typeof auth.api)['signInEmail']>;
+let checksCurrentPassword: MockInstance<(typeof auth.api)['changePassword']>;
 beforeAll(async () => {
   ctx = await createTestDb();
   // Better Auth limits only when NODE_ENV is production, unless told to: the tests tell it to.
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123', rateLimit: { enabled: true } });
-  verifiesPassword = vi.spyOn(auth.api, 'signInEmail');
+  checksSignIn = vi.spyOn(auth.api, 'signInEmail');
+  checksCurrentPassword = vi.spyOn(auth.api, 'changePassword');
 });
 afterAll(() => ctx.close());
 beforeEach(() => {
-  verifiesPassword.mockClear(); // not returned: vitest runs a function a hook returns as its cleanup
+  // Not returned: vitest runs a function a hook returns as its cleanup.
+  checksSignIn.mockClear();
+  checksCurrentPassword.mockClear();
 });
 afterEach(() => vi.useRealTimers());
 
@@ -39,19 +46,94 @@ async function newUser() {
   return account;
 }
 
-/** The headers of a request from a client of its own: the address the limit counts by is in the first one. */
+/** The headers of a request from a client address of its own, with those a form post carries too. */
 const client = () => new Headers({ 'x-forwarded-for': `203.0.113.${++counter}`, 'content-type': 'multipart/form-data', 'content-length': '120' });
+
+/** The same client with the cookie of a session of this Používateľ: Better Auth is asked directly, which no limit counts. */
+async function signedIn(account: { email: string }, from: Headers) {
+  const { headers } = await auth.api.signInEmail({ body: { email: account.email, password }, returnHeaders: true });
+  const withCookie = new Headers(from);
+  withCookie.set('cookie', headers.getSetCookie().map((cookie) => cookie.split(';')[0]).join('; '));
+  checksSignIn.mockClear();
+  return withCookie;
+}
+
+const signIn = (account: { email: string }, from: Headers, withPassword = password) => signInWithPassword(from, { email: account.email, password: withPassword }, auth);
+const change = (from: Headers, input: Partial<PasswordChange> = {}) =>
+  changeOwnPassword(from, { currentPassword: password, newPassword, confirmation: newPassword, ...input }, auth);
+
+const refused = { ok: false, reason: 'refused' } as const;
+const tooManyAttempts = { ok: false, reason: 'tooManyAttempts' } as const;
+const tooManyChanges = { ok: false, errors: { form: 'tooManyAttempts' } } as const;
 
 test('the fourth attempt to sign in within 10 seconds is refused, with the right password too, and the password is not checked', async () => {
   const account = await newUser();
   const from = client();
+  for (let attempt = 0; attempt < 3; attempt++) expect(await signIn(account, from, wrongPassword)).toEqual(refused);
+  expect(checksSignIn).toHaveBeenCalledTimes(3);
+
+  const fourth = await signIn(account, from);
+
+  expect(fourth).toEqual(tooManyAttempts);
+  expect(checksSignIn).toHaveBeenCalledTimes(3);
+});
+
+test('10 seconds after the last attempt that was let through the client signs in again, not a moment before', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(Date.UTC(2026, 9, 28, 12));
+  const account = await newUser();
+  const from = client();
+  for (let attempt = 0; attempt < 3; attempt++) await signIn(account, from, wrongPassword);
+  expect(await signIn(account, from)).toEqual(tooManyAttempts);
+
+  vi.setSystemTime(Date.UTC(2026, 9, 28, 12, 0, 9, 999));
+  expect(await signIn(account, from)).toEqual(tooManyAttempts);
+  vi.setSystemTime(Date.UTC(2026, 9, 28, 12, 0, 10));
+
+  expect(await signIn(account, from)).toEqual({ ok: true });
+});
+
+test("a client is not limited by another client's attempts", async () => {
+  const account = await newUser();
+  const busy = client();
+  for (let attempt = 0; attempt < 3; attempt++) await signIn(account, busy, wrongPassword);
+  expect(await signIn(account, busy)).toEqual(tooManyAttempts);
+
+  expect(await signIn(account, client())).toEqual({ ok: true });
+});
+
+test('the fourth attempt to change the password within 10 seconds is refused, with the right current password too, and nothing is checked or changed', async () => {
+  const account = await newUser();
+  const from = await signedIn(account, client());
   for (let attempt = 0; attempt < 3; attempt++) {
-    expect(await signInWithPassword(from, { email: account.email, password: 'zle-heslo-1234' }, auth)).toEqual({ ok: false, reason: 'refused' });
+    expect(await change(from, { currentPassword: wrongPassword })).toEqual({ ok: false, errors: { currentPassword: 'wrong' } });
   }
-  expect(verifiesPassword).toHaveBeenCalledTimes(3);
+  expect(checksCurrentPassword).toHaveBeenCalledTimes(3);
 
-  const fourth = await signInWithPassword(from, { email: account.email, password }, auth);
+  const fourth = await change(from);
 
-  expect(fourth).toEqual({ ok: false, reason: 'tooManyAttempts' });
-  expect(verifiesPassword).toHaveBeenCalledTimes(3);
+  expect(fourth).toEqual(tooManyChanges);
+  expect(checksCurrentPassword).toHaveBeenCalledTimes(3);
+  expect(await signIn(account, client())).toEqual({ ok: true }); // the password is still the old one
+  expect(await signIn(account, client(), newPassword)).toEqual(refused);
+});
+
+test('a new password or a repeat that is refused before the current password is checked is not an attempt', async () => {
+  const account = await newUser();
+  const from = await signedIn(account, client());
+  for (const bad of [{ newPassword: '1234567', confirmation: '1234567' }, { confirmation: `${newPassword}!` }, { newPassword: '', confirmation: '' }, { newPassword: 'a'.repeat(129), confirmation: 'a'.repeat(129) }]) {
+    expect((await change(from, bad)).ok).toBe(false);
+  }
+  expect(checksCurrentPassword).not.toHaveBeenCalled();
+
+  expect(await change(from)).toEqual({ ok: true });
+});
+
+test('attempts to sign in and attempts to change the password are counted apart', async () => {
+  const account = await newUser();
+  const from = await signedIn(account, client());
+  for (let attempt = 0; attempt < 3; attempt++) await signIn(account, from, wrongPassword);
+  expect(await signIn(account, from)).toEqual(tooManyAttempts);
+
+  expect(await change(from)).toEqual({ ok: true });
 });
