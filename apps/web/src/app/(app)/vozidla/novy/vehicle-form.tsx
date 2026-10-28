@@ -2,11 +2,12 @@
 
 import { useActionState } from 'react';
 import { Field, FormError } from '../../field.tsx';
+import { valueIn } from '../../form-value.ts';
 import { addVehicle } from '../actions.ts';
 
 export function VehicleForm({ ownerId }: { ownerId: string }) {
   const [state, formAction, pending] = useActionState(addVehicle, null);
-  const value = (name: string) => state?.values[name];
+  const value = valueIn(state);
 
   return (
     <form action={formAction} className="form">

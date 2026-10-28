@@ -2,12 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer, listCustomers, updateCustomer } from '../src/dal/customers.ts';
-import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
+import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
+import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
-
-const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
-const mechanic: User = { id: 'user-2', email: 'mechanik@autoservis.test', name: 'Mechanik', role: 'mechanik' };
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => {
