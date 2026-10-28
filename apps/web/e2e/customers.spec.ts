@@ -1,11 +1,10 @@
-import { randomBytes } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { addCustomer, expect, newIco, signIn, test } from './fixtures.ts';
+import { addCustomer, expect, newIco, runTag, signIn, test } from './fixtures.ts';
 
 const save = (page: Page) => page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
 
 test('the admin is told at the field what is wrong, and a second firma with the same IČO leads to the first', async ({ page }) => {
-  const tag = randomBytes(3).toString('hex');
+  const tag = runTag();
   const [firstName, secondName] = [`Prvá Firma ${tag}`, `Druhá Firma ${tag}`];
   const ico = newIco();
   const main = page.locator('main');
@@ -61,7 +60,7 @@ test('the admin is told at the field what is wrong, and a second firma with the 
 });
 
 test('the admin adds a firma with only a name and an IČO, and two customers with the same name', async ({ page }) => {
-  const tag = randomBytes(3).toString('hex');
+  const tag = runTag();
   const name = `Ján Novák ${tag}`;
   await signIn(page);
 
@@ -74,7 +73,7 @@ test('the admin adds a firma with only a name and an IČO, and two customers wit
 });
 
 test('the admin edits a customer, and a firma changed to an osoba loses its IČO, DIČ and IČ DPH', async ({ page }) => {
-  const tag = randomBytes(3).toString('hex');
+  const tag = runTag();
   const [oldName, newName] = [`Stará Firma ${tag}`, `Ján Novák ${tag}`];
   const ico = newIco();
   const main = page.locator('main');
