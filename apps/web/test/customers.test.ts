@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer, listCustomers, updateCustomer } from '../src/dal/customers.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
 import { createTestDb } from './support/db.ts';
+import { idOf } from './support/id-of.ts';
 
 const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
 const mechanic: User = { id: 'user-2', email: 'mechanik@autoservis.test', name: 'Mechanik', role: 'mechanik' };
@@ -14,11 +15,6 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(() => ctx.db.execute(sql`truncate customer cascade`));
-
-function idOf(result: { ok: true; id: string } | { ok: false }) {
-  if (!result.ok) throw new Error('The customer was expected to be saved.');
-  return result.id;
-}
 
 test('without a user every function rejects, and nothing is written', async () => {
   const saved = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));

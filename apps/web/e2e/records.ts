@@ -1,3 +1,4 @@
+import { idOf } from '../test/support/id-of.ts';
 import { vinOf } from './fixtures.ts';
 import { createCustomer } from '../src/dal/customers.ts';
 import type { User } from '../src/dal/user.ts';
@@ -10,11 +11,6 @@ export const admin: User = { id: 'e2e-records', email: 'admin@autoservis.test', 
 
 /** A connection to the database of the run (see global-setup.ts); the spec closes it with `db.$client.end()`. */
 export const openDatabase = () => createDb(process.env.E2E_DATABASE_URL!);
-
-function idOf(result: { ok: true; id: string } | { ok: false }) {
-  if (!result.ok) throw new Error('The record was expected to be saved.');
-  return result.id;
-}
 
 /**
  * A Zákazník with a Vozidlo and a Zákazka (Prijatá), made through the DAL as the admin and named by

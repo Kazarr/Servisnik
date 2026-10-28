@@ -1,12 +1,16 @@
 import { readdirSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'vitest';
+import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
+import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../src/db/schema.ts';
 import { createTestDb } from './support/db.ts';
+import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 
 // Every function of the Data Access Layer checks the Rola's capability, not only the sign-in
@@ -27,11 +31,6 @@ beforeAll(async () => {
   idOf(await workOrders.addLabour(admin, orderId, { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
 });
 afterAll(() => ctx.close());
-
-function idOf(result: { ok: true; id: string } | { ok: false }) {
-  if (!result.ok) throw new Error('The record was expected to be saved.');
-  return result.id;
-}
 
 type Call = (user: User | null, db: Database) => Promise<unknown>;
 
@@ -55,16 +54,32 @@ const calls: Record<string, Call> = {
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
 const mechanikMay = ['listWorkOrders'];
 
+/** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = { 'customers.ts': customers, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders };
-/** Files of src/dal that hold no data access: the user, the id check and the page-side wrapper. */
-const helperFiles = ['current-user.ts', 'user.ts', 'uuid.ts'];
+/**
+ * The files of src/dal that hold no data access, with their exports pinned by name: the user, the id
+ * check and the page-side wrapper. An export added to one of them fails the test below, so whoever
+ * adds it decides: a function that reads or writes data goes in a data access file and in `calls`,
+ * anything else goes in this list.
+ */
+const helpers = {
+  'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
+  'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'requireUser'] },
+  'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
+};
 
-test('the table has a row for every exported function of every data access module', () => {
-  const files = readdirSync(new URL('../src/dal/', import.meta.url)).filter((file) => !helperFiles.includes(file));
-  expect(files.sort()).toEqual(Object.keys(dataAccess).sort());
+test('every file of src/dal is either a data access file or a helper with its exports pinned', () => {
+  const files = readdirSync(new URL('../src/dal/', import.meta.url));
+  expect(files.sort()).toEqual([...Object.keys(dataAccess), ...Object.keys(helpers)].sort());
+});
 
-  const exported = Object.values(dataAccess).flatMap((module) => Object.entries(module).filter(([, value]) => typeof value === 'function').map(([name]) => name));
+test('the table has a row for every export of every data access file, and no row for anything else', () => {
+  const exported = Object.values(dataAccess).flatMap((module) => Object.keys(module));
   expect(exported.sort()).toEqual(Object.keys(calls).sort());
+});
+
+test.each(Object.entries(helpers))('%s exports nothing but what is pinned', (_file, { module, exports }) => {
+  expect(Object.keys(module).sort()).toEqual([...exports].sort());
 });
 
 /** Hands `db` to a function and records every property it touched: a function that never touches it read and wrote nothing. */
