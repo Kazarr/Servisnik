@@ -1,4 +1,5 @@
 import { expect, test, vi } from 'vitest';
+import * as priceListActions from '../src/app/(app)/cennik/actions.ts';
 import { forbiddenMessage, orForbidden } from '../src/app/(app)/forbidden.ts';
 import * as settingsActions from '../src/app/(app)/nastavenia/actions.ts';
 import * as userActions from '../src/app/(app)/nastavenia/user-actions.ts';
@@ -67,6 +68,19 @@ const actions = {
     answer: formRefused,
   },
   deleteItemOfWorkOrder: { call: () => workOrderActions.deleteItemOfWorkOrder(null, form({ itemId: id, workOrderId: id })), answer: { error: forbiddenMessage } },
+  addPriceListItemToWorkOrder: {
+    call: () => workOrderActions.addPriceListItemToWorkOrder(null, form({ workOrderId: id, priceListItemId: id })),
+    answer: { error: forbiddenMessage },
+  },
+  addToPriceList: {
+    call: () => priceListActions.addToPriceList(null, form({ kind: 'part', name: 'Brzdová doštička', unit: 'ks', unitPrice: '30', vatRate: '23' })),
+    answer: formRefused,
+  },
+  editPriceListItem: {
+    call: () => priceListActions.editPriceListItem(null, form({ itemId: id, name: 'Brzdová doštička', unit: 'ks', unitPrice: '30', vatRate: '23' })),
+    answer: formRefused,
+  },
+  deleteFromPriceList: { call: () => priceListActions.deleteFromPriceList(null, form({ itemId: id })), answer: { error: forbiddenMessage } },
   changeStatus: { call: () => workOrderActions.changeStatus(null, form({ workOrderId: id, to: 'done' })), answer: { error: forbiddenMessage } },
   saveRatesAction: {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),

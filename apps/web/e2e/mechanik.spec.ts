@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { listCustomers } from '../src/dal/customers.ts';
+import { searchPriceList } from '../src/dal/price-list.ts';
 import { getRates } from '../src/dal/settings.ts';
 import { listUsers } from '../src/dal/users.ts';
 import { searchVehicles } from '../src/dal/vehicles.ts';
@@ -48,6 +49,9 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
     `/zakazky/${order.orderId}`,
     `/zakazky/${order.orderId}/polozky/${randomUUID()}`,
+    '/cennik',
+    '/cennik/nova/diel',
+    `/cennik/${randomUUID()}/upravit`,
     '/nastavenia',
   ];
   for (const path of elsewhere) {
@@ -89,6 +93,10 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const itemPage = await context.newPage();
   await itemPage.goto(`/zakazky/${order.orderId}/polozky/${itemId}`);
   await itemPage.getByLabel('Názov', { exact: true }).fill('Nemal by sa zmeniť');
+  const priceListPage = await context.newPage();
+  await priceListPage.goto('/cennik/nova/diel');
+  await priceListPage.getByLabel('Názov', { exact: true }).fill(`Nemal by sa uložiť ${tag}`);
+  await priceListPage.getByLabel('Predajná cena za jednotku bez DPH (€)').fill('10');
   const settingsPage = await context.newPage();
   await settingsPage.goto('/nastavenia');
   await settingsPage.getByLabel('Prirážka na diely (%)').fill('77');
@@ -118,6 +126,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message, message]);
   await itemPage.getByRole('button', { name: 'Uložiť zmeny' }).click();
   await expect(itemPage.locator('main').getByRole('alert')).toHaveText(message);
+  await priceListPage.getByRole('button', { name: 'Pridať do cenníka' }).click();
+  await expect(priceListPage.locator('main').getByRole('alert')).toHaveText(message);
   await settingsPage.getByRole('button', { name: 'Uložiť sadzby' }).click();
   await expect(settingsPage.locator('main').getByRole('alert')).toHaveText(message);
   await usersPage.getByRole('button', { name: 'Založiť používateľa' }).click();
@@ -133,6 +143,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const orders = (await listWorkOrders(admin, db)).filter((found) => found.customer.name === order.customerName);
   expect(orders.map(({ number }) => number)).toEqual([order.number]);
   expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [{ id: itemId, name: 'Zostane' }] });
+  expect((await searchPriceList(admin, { query: tag }, db)).items).toEqual([]);
   expect(await getRates(admin, db)).toMatchObject({ markupPercent: 0 });
   expect((await listUsers(admin, db)).filter(({ email }) => email.includes(tag)).map(({ email }) => email)).toEqual([user.email]);
 });
