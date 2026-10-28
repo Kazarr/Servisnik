@@ -114,6 +114,32 @@ export function parseVatRate(typed: string): number | null {
   return rate === null || rate > maxVatRate ? null : rate;
 }
 
+// Prirážka (GLOSSARY) is never stored: a form turns it into a Predajná cena and back. It is counted in
+// tenths of a percent (125 is 12,5 %), the precision it is shown with, so no amount here is a float.
+
+/** A Prirážka typed in a field: from 0 percent, at most one decimal after a comma or a point; as tenths of a percent, or null. */
+export function parseMarkup(typed: string): number | null {
+  const match = /^(\d{1,7})(?:[.,](\d))?$/.exec(typed.replace(/\s/g, ''));
+  return match ? Number(match[1]) * 10 + Number(match[2] ?? 0) : null;
+}
+
+/** The Predajná cena in cents that a Prirážka makes of a Nákupná cena, rounded half up to the cent; null above the largest price a Položka may have. */
+export function salePriceFromMarkup(purchasePriceCents: number, markupTenths: number): number | null {
+  const salePriceCents = roundedDivide(purchasePriceCents * (1000 + markupTenths), 1000);
+  return salePriceCents > maxUnitPriceCents ? null : salePriceCents;
+}
+
+/**
+ * The Prirážka, in tenths of a percent, that makes a Predajná cena of a Nákupná cena: rounded half away
+ * from zero, negative when sold below the purchase price. Null on a purchase price of 0, which has no percentage.
+ */
+export function markupFromSalePrice(purchasePriceCents: number, salePriceCents: number): number | null {
+  if (purchasePriceCents === 0) return null;
+  const difference = salePriceCents - purchasePriceCents;
+  const tenths = roundedDivide(Math.abs(difference) * 1000, purchasePriceCents);
+  return difference < 0 ? 0 - tenths : tenths; // not -tenths, which is -0 when the difference rounds to nothing
+}
+
 export type WorkOrderInput = { mileageKm: string; customerRequest: string };
 export type WorkOrderErrors = { mileageKm?: 'invalid'; customerRequest?: 'required' };
 
