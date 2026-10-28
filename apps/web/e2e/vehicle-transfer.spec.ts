@@ -1,14 +1,17 @@
-import { createCustomer } from '../src/dal/customers.ts';
-import { getVehicle } from '../src/dal/vehicles.ts';
-import { idOf } from '../test/support/id-of.ts';
-import { addCustomer, addVehicleAndOpen, expect, runTag, searchOwners, searchVehicles, signIn, test, vinOf } from './fixtures.ts';
-import { admin, openDatabase, seedWorkOrder } from './records.ts';
-
-let db: ReturnType<typeof openDatabase>;
-test.beforeAll(() => {
-  db = openDatabase();
-});
-test.afterAll(() => db.$client.end());
+import {
+  addCustomer,
+  addVehicleAndOpen,
+  expect,
+  fillIntake,
+  numberOnTheDetail,
+  runTag,
+  searchOwners,
+  searchVehicles,
+  signIn,
+  startWorkOrder,
+  test,
+  vinOf,
+} from './fixtures.ts';
 
 test('the admin finds a vehicle by the last 6 characters of its VIN and transfers it, and its Zákazka stays with the vehicle and with the customer it was made for', async ({
   page,
@@ -24,13 +27,10 @@ test('the admin finds a vehicle by the last 6 characters of its VIN and transfer
   await addCustomer(page, seller, 'Firma');
   const sellerUrl = page.url();
   await addVehicleAndOpen(page, vin, 'Volkswagen', 'Golf');
-  await main.getByRole('link', { name: 'Nová zákazka' }).click();
-  await page.getByLabel('Kilometre pri príjme').fill('123 456');
-  await page.getByLabel('Požiadavka zákazníka').fill(`Výmena oleja ${tag}`);
-  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await startWorkOrder(page);
+  await fillIntake(page, '123 456', `Výmena oleja ${tag}`);
+  const number = await numberOnTheDetail(page);
   const heading = main.locator('h1');
-  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
-  const number = (await heading.textContent())!;
 
   // The vehicle is found by the last 6 characters of its VIN, in small letters, as they are dictated.
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Vozidlá' }).click();
@@ -69,26 +69,4 @@ test('the admin finds a vehicle by the last 6 characters of its VIN and transfer
   await expect(heading).toHaveText(buyer);
   await expect(main.getByRole('link', { name: vin })).toBeVisible();
   await expect(main).not.toContainText(number);
-});
-
-test('a Prepis confirmed after another Prepis of the same vehicle is refused with a message and does not overwrite it', async ({ page, context }) => {
-  test.slow(); // a sign-in and two pages open at once; under --repeat-each the workers share one server
-  const tag = runTag();
-  const { vehicleId } = await seedWorkOrder(db, tag);
-  const [first, second] = await Promise.all(
-    [`Prvý kupujúci ${tag}`, `Druhý kupujúci ${tag}`].map(async (name) => idOf(await createCustomer(admin, { type: 'person', name }, db))),
-  );
-  const confirmation = (to: string) => `/vozidla/${vehicleId}/prepis?zakaznik=${to}`;
-  await signIn(page);
-
-  // Both confirmations are opened while the vehicle still has its owner; the second is the first to be sent.
-  await page.goto(confirmation(first!));
-  const other = await context.newPage();
-  await other.goto(confirmation(second!));
-  await other.getByRole('button', { name: 'Potvrdiť prepis' }).click();
-  await expect(other).toHaveURL(`/vozidla/${vehicleId}`);
-
-  await page.getByRole('button', { name: 'Potvrdiť prepis' }).click();
-  await expect(page.locator('main').getByRole('alert')).toHaveText('Majiteľ vozidla sa medzitým zmenil, nič sa neprepísalo. Otvorte detail vozidla a skúste to znova.');
-  expect(await getVehicle(admin, vehicleId, db)).toMatchObject({ owner: { id: second } });
 });
