@@ -53,7 +53,7 @@ export async function createUser(user: User | null, input: NewUserInput, auth: A
     return { ok: true, id: created.id };
   } catch (error) {
     // The e-mail is already used (Better Auth compares it in lower case, as the domain stores it), or has a shape its own check refuses.
-    if (error instanceof APIError && error.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') return { ok: false, errors: { email: 'taken' } };
+    if (isEmailTaken(error)) return { ok: false, errors: { email: 'taken' } };
     if (error instanceof APIError && error.body?.code === 'INVALID_EMAIL') return { ok: false, errors: { email: 'format' } };
     throw error;
   }
