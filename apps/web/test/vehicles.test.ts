@@ -55,6 +55,23 @@ test('a vehicle for an owner that does not exist, or an id that is not one, is n
   expect(await listVehicles(admin, ctx.db)).toEqual([]);
 });
 
+test('a field error, and a VIN that is taken, are answered before an owner that does not exist', async () => {
+  idOf(await createVehicle(admin, golf(), ctx.db));
+  const nobody = randomUUID();
+
+  // Every input below also names an owner that does not exist, or one that is not an id.
+  await expect(createVehicle(admin, golf({ ownerId: nobody, vin: 'WVWZZZ1JZ3W38675O' }), ctx.db)).resolves.toEqual({
+    ok: false,
+    errors: { vin: 'characters' },
+  });
+  await expect(createVehicle(admin, golf({ ownerId: 'zakaznik-1', vin: 'WVWZZZ1JZ3W38675O' }), ctx.db)).resolves.toEqual({
+    ok: false,
+    errors: { vin: 'characters' },
+  });
+  await expect(createVehicle(admin, golf({ ownerId: nobody }), ctx.db)).resolves.toEqual({ ok: false, errors: { vin: 'taken' } });
+  expect(await listVehicles(admin, ctx.db)).toHaveLength(1);
+});
+
 test('a vehicle is saved with its VIN normalised and read back with its owner', async () => {
   const id = idOf(await createVehicle(admin, golf({ vin: 'wvw zzz1jz-3w386752', licensePlate: ' ' }), ctx.db));
 
