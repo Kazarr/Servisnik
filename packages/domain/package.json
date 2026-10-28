@@ -3,8 +3,13 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./access": "./src/access/index.ts",
     "./customer": "./src/customer/index.ts",
+    "./price-list": "./src/price-list/index.ts",
+    "./print": "./src/print/index.ts",
+    "./settings": "./src/settings/index.ts",
     "./vehicle": "./src/vehicle/index.ts",
-    "./work-order": "./src/work-order/index.ts"
+    "./work-order": "./src/work-order/index.ts",
+    "./workshop": "./src/workshop/index.ts"
   }
 }

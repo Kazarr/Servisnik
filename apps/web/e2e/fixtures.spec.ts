@@ -3,12 +3,14 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
-import { watchPage } from './page-problems.ts';
+import { watchPage } from './watch-page.ts';
 
-// The `page` fixture of fixtures.ts is a check (testing-strategy), tested in two parts. The rules it
+// The `context` fixture of fixtures.ts, which watches every page of the context (the `page` fixture's
+// and any other the test opens), is a check (testing-strategy), tested in two parts. The rules it
 // applies are tested below with plain `test`, because the fixture would fail those tests: each asserts
-// the exact list watchPage collects. That the fixture fails a test on a problem is tested by running
-// fixture-probe/probe.ts, which uses the fixture's own `test`, as a Playwright of its own.
+// the exact list watchPage collects. That the fixture fails a test on a problem, on the `page` and on
+// another page of the context, is tested by running fixture-probe/probe.ts, which uses the fixture's
+// own `test`, as a Playwright of its own.
 // The 5xx rule alone is tested in test/e2e-checks.test.ts: Chromium also logs a failed response as a
 // console error, so a real 5xx always reports twice.
 
@@ -32,16 +34,23 @@ function runProbe() {
   );
 }
 
-test('the page fixture passes a clean page and fails a test on a console error, naming it', () => {
+/** The probe test failed once, with the fixture's message and exactly the one problem `line`. */
+function expectFailedOn({ status, errors }: { status: string; errors: string[] }, line: string) {
+  expect(status).toBe('failed');
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toContain('a page reported errors');
+  expect(errors[0]!.match(/^\+ {3}".*",$/gm)).toEqual([`+   "${line}",`]);
+}
+
+test('the fixture passes a clean page and fails a test on a console error of its page, naming it', () => {
   const outcomes = runProbe();
 
   expect(outcomes['clean page']).toEqual({ status: 'passed', errors: [] });
-  const failed = outcomes['page with a console error']!;
-  expect(failed.status).toBe('failed');
-  expect(failed.errors).toHaveLength(1);
-  const message = failed.errors[0]!;
-  expect(message).toContain('the page reported errors');
-  expect(message.match(/^\+ {3}".*",$/gm)).toEqual(['+   "console.error: boom",']);
+  expectFailedOn(outcomes['page with a console error']!, 'console.error: boom');
+});
+
+test('the fixture fails a test on a console error of a second page of its context too', () => {
+  expectFailedOn(runProbe()['second page of the context with a console error']!, 'console.error: boom on the second page');
 });
 
 test.describe('watchPage reports', () => {

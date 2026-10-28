@@ -34,13 +34,13 @@ pnpm db:seed       # založí admina z ADMIN_EMAIL a ADMIN_PASSWORD, alebo mu na
 pnpm dev           # http://localhost:3000 presmeruje na prihlásenie
 ```
 
-Registrácia v appke nie je, prihlásiť sa dá len admin zo seedu. Zmenu schémy (`apps/web/src/db/schema.ts`) premietne `pnpm --filter @servisnik/web db:generate` do novej migrácie, ktorú commitni.
+Registrácia v appke nie je: prvého admina založí seed a ďalších používateľov admin v Nastaveniach. Zmenu schémy (`apps/web/src/db/schema.ts`) premietne `pnpm --filter @servisnik/web db:generate` do novej migrácie, ktorú commitni.
 
 ## Testy
 
 ```powershell
 pnpm verify                            # ticket tier: typecheck a testy; Testcontainers spustí PostgreSQL 17, Docker musí bežať
-pnpm e2e:install                       # raz, stiahne prehliadač pre e2e
+pnpm e2e:install                       # raz, stiahne Chromium: potrebuje ho e2e aj tlač PDF, ktorú testuje `pnpm verify`
 pnpm e2e                               # batch tier: build appky, čerstvá databáza, špecifikácie z apps/web/e2e
 pnpm smoke http://localhost:3000       # deploy tier: prihlasovacia stránka a /api/health odpovedia 200, inak nenulový exit
 ```
@@ -67,33 +67,37 @@ pnpm smoke http://localhost:3000
 docker rm -f servisnik-app
 ```
 
-`pnpm smoke <url>` je deploy tier: overí, že prihlasovacia stránka a `/api/health` odpovedajú 200 (bez presmerovania), inak vypíše, čo zlyhalo, a skončí nenulovým exitom.
+`pnpm smoke <url>` je deploy tier: overí, že prihlasovacia stránka a `/api/health` odpovedajú 200 (bez presmerovania), inak vypíše, čo zlyhalo, a skončí nenulovým exitom. Image zostavený s `--build-arg GIT_SHA=<commit>` hlási commit v `/api/health` a `pnpm smoke <url> <commit>` ho overí.
+
+Tlač PDF (zákazkový list) beží v image na Chromiu z `/ms-playwright` a na písmach Liberation Sans, ktoré majú slovenskú diakritiku. Overenie v bežiacom kontajneri `servisnik-app`: prihlás sa na http://localhost:3000, otvor zákazku a tlačidlom „Zákazkový list“ stiahni PDF. Má jednu stranu A4, v päte „Strana 1/1“ a diakritika (ľščťžýáíéôäňĺŕ) je v ňom čitateľná. Písma v súbore vypíše príkaz nižšie, majú byť len `LiberationSans`.
+
+```powershell
+docker exec servisnik-app ls /ms-playwright   # chromium_headless_shell-…
+Select-String -Path .\Z2026-0001-zakazkovy-list.pdf -Pattern '/BaseFont /\S+' -AllMatches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique
+```
 
 ### Čo urobí Kazarr raz
 
 Agent nič z toho neurobí: ide o účet, platbu, token a tajomstvá.
 
 1. **Účet na DigitalOcean:** registrácia, 2FA, platobná karta.
-2. **Register:** Container Registry vo FRA1 (jeden na účet; názov si workflow zistí sám).
+2. **Register:** Container Registry vo FRA1 (jeden na účet; názov si workflow zistí sám). Úroveň Starter je zadarmo a drží 500 MiB, preto workflow po každom pushi image, aj keď nasadenie potom zlyhalo, ponechá len najnovšie tagy a tagy, ktoré práve beží nasadená appka (počet je v [`tools/registry-retention.ts`](tools/registry-retention.ts)), ostatné zmaže a spustí garbage collection. Tá beží ďalej po skončení behu a drží register len na čítanie, preto ďalší beh pred pushom počká, kým skončí (najviac 10 minút). Ak sa živý tag nedá zistiť, krok nič nezmaže a zlyhá. Ak sa image nezmestí ani tak, treba vyššiu úroveň registra.
 3. **Databáza:** spravovaný cluster PostgreSQL 17 vo FRA1, najmenšia veľkosť, s názvom `servisnik-test-db` (ten je v `.do/app.yaml`). V paneli Databases > Create, alebo `doctl`:
 
    ```powershell
    doctl databases create servisnik-test-db --engine pg --version 17 --region fra1 --size db-s-1vcpu-1gb --num-nodes 1
    ```
 
-4. **Token:** API token s právom čítať a zapisovať App Platform a Container Registry (DigitalOcean > API > Generate New Token).
-5. **GitHub Environment `test`:** workflow `deploy` beží na ľubovoľnej vetve a vetva si môže priniesť vlastné workflow, preto deploy secrets nepatria do repo secrets, ale do prostredia obmedzeného na `main`. Hodnoty secrets nech sú z písmen, číslic a `-_.`: action ich vkladá ako text do `.do/app.yaml`. Hodnotu každého vypýta `gh`. Workflow pred zostavením skontroluje štyri povinné a vypíše tie, ktoré chýbajú.
+4. **Token:** API token (DigitalOcean > API > Generate New Token) s právami: App Platform čítať a zapisovať (nasadenie; workflow z neho číta aj zoznam appiek a ich logy) a Container Registry čítať, zapisovať a mazať (push image, `delete-tag` starých tagov a garbage collection).
+5. **GitHub Environment `test`:** workflow `deploy` beží na ľubovoľnej vetve a vetva si môže priniesť vlastné workflow, preto deploy secrets nepatria do repo secrets, ale do prostredia obmedzeného na `main`. Hodnoty secrets nech sú z písmen, číslic a `-_.`: action ich vkladá ako text do `.do/app.yaml`. Hodnotu každého vypýta `gh`.
 
    ```powershell
    '{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}' | gh api --method PUT repos/Kazarr/Servisnik/environments/test --input -
    gh api --method POST repos/Kazarr/Servisnik/environments/test/deployment-branch-policies -f name=main
-   node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"   # hodnota pre BETTER_AUTH_SECRET
-   foreach ($name in 'DIGITALOCEAN_ACCESS_TOKEN', 'BETTER_AUTH_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD') {
-     gh secret set $name --env test --repo Kazarr/Servisnik
-   }
+   gh secret set <MENO> --env test --repo Kazarr/Servisnik   # raz pre každé <MENO>
    ```
 
-   `KROS_API_URL`, `KROS_API_TOKEN`, `KROS_WEBHOOK_SECRET` a `KROS_VAT_PAYER_TYPE` pridaj do toho istého prostredia s #81 (`gh secret set <meno> --env test`). Appka ich zatiaľ nečíta, workflow ich nevyžaduje a nenastavené odovzdá spec prázdne.
+   Povinné `<MENO>` sú v kroku `Check that the secrets are set` workflowu [`deploy`](.github/workflows/deploy.yml): pred zostavením vypíše tie, ktoré chýbajú. `BETTER_AUTH_SECRET` vygeneruj ako v časti „Spustenie appky“. Ostatné zástupky, ktoré [`.do/app.yaml`](.do/app.yaml) pozná a ktoré workflow nevyžaduje, appka zatiaľ nečíta: pridaj ich do toho istého prostredia s #81 a dovtedy ich spec odovzdá prázdne.
 6. **Appka zo specu:** prvý beh workflow vytvorí appku `servisnik-test` z `.do/app.yaml` (službu, väzbu na cluster, pre-deploy migráciu aj post-deploy seed admina), každý ďalší ju aktualizuje. Admin z `ADMIN_EMAIL` a `ADMIN_PASSWORD` vznikne po nasadení sám.
 
    ```powershell
@@ -103,7 +107,7 @@ Agent nič z toho neurobí: ide o účet, platbu, token a tajomstvá.
 
 ### Čo workflow robí
 
-Spúšťa sa len cez `workflow_dispatch` a job beží len z vetvy `main`, v prostredí `test`. V tomto poradí: skontroluje secrets, odmietne commit, ktorého check `ticket` nie je zelený, zostaví image označený SHA commitu a pošle ho do registra, nasadí `.do/app.yaml`, počká na dokončenie a spustí `pnpm smoke` proti adrese nasadenej appky. Migrácia zlyhá pred prepnutím a stará verzia beží ďalej. Akcie, ktoré dostanú token DigitalOcean, sú pripnuté na SHA commitu, logy nasadenia sa do verejného logu nevypisujú.
+Spúšťa sa len cez `workflow_dispatch` a job beží len z vetvy `main`, v prostredí `test`. V tomto poradí: skontroluje secrets, odmietne commit, ktorého check `ticket` nie je zelený, počká na dobehnutie garbage collection v registri, zostaví image označený SHA commitu (ten dostane aj ako `GIT_SHA`) a pošle ho do registra, uloží log bežiacej verzie, nasadí `.do/app.yaml`, počká na dokončenie a spustí `pnpm smoke` proti adrese nasadenej appky. Smoke okrem odpovedí 200 overí, že `/api/health` hlási práve nasadený commit. Potom porovná log po nasadení s tým pred ním: nový riadok s chybou zhodí beh, ale jeho text sa nevypíše, lebo log behu verejného repa je verejný (prečítaš ho cez `doctl apps logs`). Nakoniec vyčistí register (viď Register vyššie); to robí po pushi aj vtedy, keď nasadenie alebo smoke zlyhali. Migrácia zlyhá pred prepnutím a stará verzia beží ďalej. Akcie, ktoré dostanú token DigitalOcean, sú pripnuté na SHA commitu, logy nasadenia sa do verejného logu nevypisujú.
 
 ### Databáza a TLS
 
@@ -112,4 +116,4 @@ DigitalOcean podpisuje databázy vlastnou CA, ktorú Node nepozná. Spec preto v
 ### Známe obmedzenia
 
 - Seed beží po každom nasadení: ak admin zmení heslo v appke, ďalšie nasadenie ho vráti na `ADMIN_PASSWORD`. Zmena hesla v appke zatiaľ nie je.
-- Prvý skutočný beh workflow ešte nebežal: `deploy` je overený lokálne (image, migrácia, seed, `pnpm smoke`) a testmi konfigurácie, nie proti DigitalOcean. Neoverené zostáva, či DigitalOcean prijme `KROS_*` bez hodnoty; ak nie, nastav ich pri prvom behu na skutočné hodnoty z #61 a #62.
+- Prvý skutočný beh workflow ešte nebežal: `deploy` je overený lokálne (image, migrácia, seed, `pnpm smoke`) a testmi konfigurácie, nie proti DigitalOcean. Kroky s logom a registrom bežia v testoch proti `doctl`, ktorý len zapisuje volania, takže ich príkazy a formát výstupu (tagy ako JSON, log appky) sú podľa zdrojov `doctl`, nie podľa skutočného behu; chyby v logu hľadá [`tools/log-diff.ts`](tools/log-diff.ts) podľa slov, lebo formát logu ešte nikto nezaznamenal. Neoverené zostáva, či DigitalOcean prijme `KROS_*` bez hodnoty; ak nie, nastav ich pri prvom behu na skutočné hodnoty z #61 a #62.

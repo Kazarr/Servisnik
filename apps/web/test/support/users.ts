@@ -1,0 +1,25 @@
+import type { Role } from '@servisnik/domain/access';
+import { eq } from 'drizzle-orm';
+import type { Database } from '../../src/db/index.ts';
+import { user } from '../../src/db/schema.ts';
+import { seedAdmin } from '../../src/seed.ts';
+
+/**
+ * A Používateľ with this Rola, created straight in the database, with a password the test chose, without
+ * an admin who creates him (that is test/users.test.ts). `email` in lower case. The name is "Admin"
+ * unless the test gives one. Returns his id.
+ */
+export async function seedUser(db: Database, input: { email: string; password: string; role: Role; name?: string }) {
+  await seedAdmin(db, { email: input.email, password: input.password });
+  const [seeded] = await db
+    .update(user)
+    .set({ role: input.role, ...(input.name && { name: input.name }) })
+    .where(eq(user.email, input.email))
+    .returning({ id: user.id });
+  return seeded!.id;
+}
+
+/** Changes the Rola of the user with this e-mail. It counts from the user's next request: the session reads the Rola from the database each time. */
+export async function setRole(db: Database, email: string, role: Role) {
+  await db.update(user).set({ role }).where(eq(user.email, email));
+}

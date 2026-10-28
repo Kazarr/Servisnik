@@ -15,6 +15,8 @@ const config: NextConfig = {
   images: { unoptimized: true },
   transpilePackages: ['@servisnik/domain'], // the domain ships as TypeScript source
   outputFileTracingRoot: repoRoot, // the standalone build must trace workspace packages
+  // playwright-core reads browsers.json when it starts Chromium, with no require the trace can follow; every printed form is a route here.
+  outputFileTracingIncludes: { '/zakazky/*/*': ['./node_modules/playwright-core/browsers.json'] },
 };
 
 export default config;

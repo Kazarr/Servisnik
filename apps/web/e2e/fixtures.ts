@@ -1,41 +1,201 @@
-import { expect, test as base, type Browser, type Page } from '@playwright/test';
-import { watchPage } from './page-problems.ts';
+import { expect, test as base, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { randomBytes, randomInt } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import type { Database } from '../src/db/index.ts';
+import { readPdf } from '../test/support/pdf.ts';
+import { seedUser } from '../test/support/users.ts';
+import { watchPage } from './watch-page.ts';
 
 export { expect };
 
-/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see page-problems.ts). */
+/**
+ * A tag for the data of one test. All specs, workers and `--repeat-each` runs share one database, so a test
+ * puts its tag in the names and unique keys it creates and asserts only the rows that carry it.
+ */
+export const runTag = () => randomBytes(3).toString('hex');
+
+/** A VIN unique per tag (24 random bits): the 11 characters of `prefix`, then the tag in capitals (hex digits are never I, O or Q). */
+export const vinOf = (tag: string, prefix = 'TMBZZZ5JZ3W') => `${prefix}${tag.toUpperCase()}`;
+
+/**
+ * `context` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see
+ * watch-page.ts) of any page that opens in it: the `page` fixture, a `context.newPage()` of the test
+ * and a popup alike.
+ */
 export const test = base.extend({
-  page: async ({ page }, use) => {
-    const problems = watchPage(page);
+  context: async ({ context }, use) => {
+    const problems: string[][] = [];
+    context.on('page', (page) => problems.push(watchPage(page)));
 
-    await use(page);
+    await use(context);
 
-    expect(problems, 'the page reported errors').toEqual([]);
+    expect(problems.flat(), 'a page reported errors').toEqual([]);
   },
 });
 
-/** Submits the login form with the e-mail of the admin the global setup seeded; `password` is the admin's own unless a test wants a wrong one. */
-export async function submitLogin(page: Page, password = process.env.E2E_ADMIN_PASSWORD!) {
+const hasOwnAddress = new WeakSet<BrowserContext>();
+
+/**
+ * Gives the browser context a client address that no other has. The server limits the attempts to sign in and to
+ * change the password by the address of the client (src/dal/attempt-limit.ts), and every browser here connects
+ * from 127.0.0.1, so without it all tests would share the 3 attempts in 10 seconds. The e2e server is started with
+ * `CLIENT_IP_HEADER=x-forwarded-for` (global-setup.ts), where Better Auth takes a single address as the client's;
+ * on DigitalOcean the header is do-connecting-ip (.do/app.yaml). 24 random bits make two contexts meeting rare.
+ */
+async function useNewAddress(context: BrowserContext) {
+  const [a, b, c] = randomBytes(3);
+  await context.setExtraHTTPHeaders({ 'x-forwarded-for': `10.${a}.${b}.${c}` });
+  hasOwnAddress.add(context);
+}
+
+/**
+ * Submits the login form with the e-mail and password of the admin the global setup seeded, unless
+ * a test names another user or wants a wrong password. The context keeps the address it has, or gets one
+ * at its first login: a test that makes several attempts in a row, like the one of the limit, makes them from one.
+ */
+export async function submitLogin(page: Page, password = process.env.E2E_ADMIN_PASSWORD!, email = process.env.E2E_ADMIN_EMAIL!) {
+  if (!hasOwnAddress.has(page.context())) await useNewAddress(page.context());
   await page.goto('/login');
-  await page.getByLabel('E-mail').fill(process.env.E2E_ADMIN_EMAIL!);
+  await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Heslo').fill(password);
   await page.getByRole('button', { name: 'Prihlásiť sa' }).click();
 }
 
-/** Signs in as the admin the global setup seeded and waits for the first page after the login. */
+/**
+ * Signs in as the admin the global setup seeded and waits for the first page after the login. It is a way to get a
+ * session, so every call comes from a new address: a test that signs in again and again would meet the limit.
+ */
 export async function signIn(page: Page) {
+  await useNewAddress(page.context());
   await submitLogin(page);
   await expect(page).toHaveURL(/\/zakazky$/);
 }
 
-/** Adds a customer through the form and waits for its detail page. */
-export async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba') {
+/** Signs in as a user the spec created (see test/support/users.ts) and waits for the first page after the login, from a new address like signIn. */
+export async function signInAs(page: Page, { email, password }: { email: string; password: string }) {
+  await useNewAddress(page.context());
+  await submitLogin(page, password, email);
+  await expect(page).toHaveURL(/\/zakazky$/);
+}
+
+/** A mechanik made straight in the database, with the tag in his name and e-mail so that specs do not meet each other's users. */
+export async function seedMechanik(db: Database, tag: string, name = `Mechanik ${tag}`) {
+  const mechanik = { name, email: `mechanik-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
+  await seedUser(db, { ...mechanik, role: 'mechanik' });
+  return mechanik;
+}
+
+/**
+ * The day `offset` days from today in Europe/Bratislava, as a date field and the address of the list of work
+ * orders carry it (`YYYY-MM-DD`). A spec that reads the list asks for the days from today (`?od=`), so that the
+ * work orders other workers keep making do not push its own rows to a second page.
+ */
+export function dayFromToday(offset: number) {
+  const day = new Date(`${new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava' })}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + offset);
+  return day.toISOString().slice(0, 10);
+}
+
+/** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */
+export const newIco = () => String(randomInt(10_000_000, 100_000_000));
+
+/** Adds a customer through the form and waits for its detail page. A Firma gets `ico`, a new one unless given; `contact` fills the phone and e-mail. */
+export async function addCustomer(
+  page: Page,
+  name: string,
+  type: 'Osoba' | 'Firma' = 'Osoba',
+  ico = newIco(),
+  contact: { phone?: string; email?: string } = {},
+) {
   await page.goto('/zakaznici/novy');
   await page.getByLabel(type, { exact: true }).check();
   await page.getByLabel('Názov', { exact: false }).fill(name);
+  if (type === 'Firma') await page.getByLabel('IČO', { exact: true }).fill(ico);
+  if (contact.phone) await page.getByLabel('Telefón', { exact: true }).fill(contact.phone);
+  if (contact.email) await page.getByLabel('E-mail', { exact: true }).fill(contact.email);
   await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
   await expect(page.locator('main h1')).toHaveText(name);
 }
+
+/** On a form of a vehicle: fills VIN, make and model, which it requires. The form is not sent. */
+export async function fillVehicle(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await page.getByLabel('VIN').fill(vin);
+  await page.getByLabel('Značka').fill(make);
+  await page.getByLabel('Model').fill(model);
+}
+
+/** From a customer's detail: opens the form for a new vehicle and fills VIN, make and model. The form is not sent. */
+export async function fillVehicleForm(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await fillVehicle(page, vin, make, model);
+}
+
+/** From a customer's detail: adds a vehicle through the form and opens its detail. */
+export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await fillVehicleForm(page, vin, make, model);
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await page.locator('main').getByRole('link', { name: vin }).click();
+  await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
+}
+
+/** On a vehicle's detail: opens the form for a new work order. On Zákazky: opens the search of the vehicle it is for. */
+export async function startWorkOrder(page: Page) {
+  await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
+  await expect(page.locator('main h1')).toHaveText('Nová zákazka');
+}
+
+/** On the form for a new work order: fills the intake and sends it. */
+export async function fillIntake(page: Page, mileage: string, request: string) {
+  await page.getByLabel('Kilometre pri príjme').fill(mileage);
+  await page.getByLabel('Požiadavka zákazníka').fill(request);
+  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
+}
+
+/** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
+export async function numberOnTheDetail(page: Page) {
+  const heading = page.locator('main h1');
+  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
+  return (await heading.textContent())!;
+}
+
+/**
+ * Types `text` into the search field called `label`, searches, and waits until the page of that
+ * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
+ * `text` must differ from what the list was last searched for, or there is no new page to wait for.
+ */
+async function searchList(page: Page, label: string, text: string) {
+  await page.getByLabel(label).fill(text);
+  await page.getByRole('button', { name: 'Hľadať', exact: true }).click();
+  await page.waitForURL((url) => url.searchParams.get('q') === text);
+}
+
+/** Searches the list of customers for `text` (see searchList). */
+export const searchCustomers = (page: Page, text: string) => searchList(page, 'Hľadať zákazníka', text);
+
+/** On a page that picks a Majiteľ (the new vehicle, a Prepis): searches the customers for `text` (see searchList). */
+export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľadať majiteľa', text);
+
+/** Searches the list of vehicles for `text` (see searchList). */
+export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);
+
+/**
+ * On a page with a link in `main` to a printed form: clicks `linkName`, waits for the download and for the answer of `path` (the end of
+ * the address of the Route Handler), checks that it is a PDF, and gives the name the browser saves it under and the text of its first page.
+ */
+export async function downloadPdf(page: Page, linkName: string, path: string) {
+  const downloading = page.waitForEvent('download');
+  const answered = page.waitForResponse((response) => response.url().endsWith(path));
+  await page.locator('main').getByRole('link', { name: linkName }).click();
+  const download = await downloading;
+  expect((await answered).headers()['content-type'], linkName).toBe('application/pdf');
+  return { filename: download.suggestedFilename(), text: readPdf(readFileSync((await download.path())!))[0]!.text };
+}
+
+/** The value next to a label in the detail list of a page. */
+export const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
+
+/** Searches the Cenník, on its own page or in the section of a Zákazka, for `text` (see searchList). */
+export const searchPriceList = (page: Page, text: string) => searchList(page, 'Hľadať v cenníku', text);
 
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
 export async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {

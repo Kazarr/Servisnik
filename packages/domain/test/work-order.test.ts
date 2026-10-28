@@ -1,16 +1,21 @@
 import { describe, expect, test } from 'vitest';
 import {
   amountsOf,
-  canAddItems,
-  defaultVatRate,
+  canEdit,
   formatWorkOrderNumber,
-  isOpen,
+  isActive,
+  isClosed,
   localDate,
   localYear,
-  parseLabour,
+  mileageAtIntake,
+  parseListFilter,
+  parseVatRate,
   parseWorkOrder,
+  rowMark,
+  statusesOf,
   totalsOf,
   transition,
+  userTransitions,
   workOrderStatuses,
   type TransitionTrigger,
   type WorkOrderStatus,
@@ -54,63 +59,126 @@ describe('dates in Europe/Bratislava', () => {
 });
 
 describe('status transitions', () => {
+  const active = ['received', 'inProgress', 'waitingForParts'] as const;
+  const now = new Date('2026-12-31T23:30:00Z'); // already 1 January in Bratislava
+  const between = active.flatMap((from) => active.filter((to) => to !== from).map((to) => [from, to] as const));
+
+  // Every allowed transition, written out once. The number of all 6 x 6 x 2 combinations is pinned below.
   const allowed: [WorkOrderStatus, WorkOrderStatus, TransitionTrigger][] = [
-    ['received', 'done', 'user'],
+    ...between.map(([from, to]) => [from, to, 'user'] as [WorkOrderStatus, WorkOrderStatus, TransitionTrigger]),
+    ...active.map((from) => [from, 'done', 'user'] as [WorkOrderStatus, WorkOrderStatus, TransitionTrigger]),
+    ...active.map((from) => [from, 'cancelled', 'user'] as [WorkOrderStatus, WorkOrderStatus, TransitionTrigger]),
     ['done', 'invoiced', 'invoice'],
   ];
   const triggers: TransitionTrigger[] = ['user', 'invoice'];
   const every = workOrderStatuses.flatMap((from) => workOrderStatuses.flatMap((to) => triggers.map((by) => [from, to, by] as const)));
   const forbidden = every.filter(([from, to, by]) => !allowed.some(([f, t, b]) => f === from && t === to && b === by));
 
-  test('Prijatá becomes Hotová by the user, and the delivery date is the day in Europe/Bratislava', () => {
+  test('the statuses are the six of the glossary', () => {
+    expect(workOrderStatuses).toEqual(['received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled']);
+  });
+
+  test.each(between)('%s becomes %s by the user, in any order, with no Dátum dokončenia', (from, to) => {
+    expect(transition(from, to, 'user', now)).toEqual({ ok: true, status: to });
+  });
+
+  test.each(active)('%s becomes Hotová by the user, and the Dátum dokončenia is the day in Europe/Bratislava', (from) => {
     // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
-    expect(transition('received', 'done', 'user', new Date('2026-12-31T23:30:00Z'))).toEqual({
-      ok: true,
-      status: 'done',
-      completedOn: '2027-01-01',
-    });
+    expect(transition(from, 'done', 'user', now)).toEqual({ ok: true, status: 'done', completedOn: '2027-01-01' });
   });
 
-  test('Hotová becomes Vyfakturovaná by the invoice, and the delivery date stays as it was', () => {
-    expect(transition('done', 'invoiced', 'invoice', new Date('2026-12-31T23:30:00Z'))).toEqual({ ok: true, status: 'invoiced' });
+  test('every transition to Hotová carries the day of its own moment, so a later one overwrites an earlier one', () => {
+    expect(transition('inProgress', 'done', 'user', new Date('2026-07-15T10:00:00Z'))).toMatchObject({ completedOn: '2026-07-15' });
+    expect(transition('inProgress', 'done', 'user', new Date('2026-07-20T10:00:00Z'))).toMatchObject({ completedOn: '2026-07-20' });
   });
 
-  test('these two are the only transitions: the other 16 of 18 are refused', () => {
-    expect(every).toHaveLength(18);
-    expect(forbidden).toHaveLength(16);
+  test('Hotová becomes Vyfakturovaná by the invoice, and the Dátum dokončenia stays as it was', () => {
+    expect(transition('done', 'invoiced', 'invoice', now)).toEqual({ ok: true, status: 'invoiced' });
+  });
+
+  test.each(active)('%s becomes Zrušená only once the user confirmed it, and keeps its Dátum dokončenia', (from) => {
+    expect(transition(from, 'cancelled', 'user', now)).toEqual({ ok: false, error: 'confirmation-required' });
+    expect(transition(from, 'cancelled', 'user', now, { confirmed: false })).toEqual({ ok: false, error: 'confirmation-required' });
+    expect(transition(from, 'cancelled', 'user', now, { confirmed: true })).toEqual({ ok: true, status: 'cancelled' });
+  });
+
+  test('a transition that is refused and unconfirmed is refused, not asked to be confirmed', () => {
+    // Zrušená from Hotová is for the ticket that returns a Zákazka to work; here it is not in the table.
+    expect(transition('done', 'cancelled', 'user', now)).toEqual({ ok: false, error: 'not-allowed' });
+    expect(transition('invoiced', 'cancelled', 'user', now)).toEqual({ ok: false, error: 'not-allowed' });
+  });
+
+  test('the allowed transitions are 13 of 72, and the other 59 are refused, confirmed or not', () => {
+    expect(every).toHaveLength(72);
+    expect(allowed).toHaveLength(13);
+    expect(forbidden).toHaveLength(59);
     for (const [from, to, by] of forbidden) {
-      expect(transition(from, to, by, new Date()), `${from} -> ${to} by ${by}`).toEqual({ ok: false, error: 'not-allowed' });
+      expect(transition(from, to, by, now, { confirmed: true }), `${from} -> ${to} by ${by}, confirmed`).toEqual({ ok: false, error: 'not-allowed' });
+      expect(transition(from, to, by, now), `${from} -> ${to} by ${by}`).toEqual({ ok: false, error: 'not-allowed' });
     }
   });
 
-  test('Hotová cannot be reached again, so the delivery date is never overwritten', () => {
-    expect(transition('done', 'done', 'user', new Date())).toEqual({ ok: false, error: 'not-allowed' });
+  test('Hotová is not reached from Hotová, so the Dátum dokončenia is not overwritten by a second click', () => {
+    expect(transition('done', 'done', 'user', now)).toEqual({ ok: false, error: 'not-allowed' });
+  });
+});
+
+describe('the buttons of a status', () => {
+  test.each(['received', 'inProgress', 'waitingForParts'] as const)('%s offers the other two rozpracované statuses, Hotová, and Zrušená with its confirmation', (status) => {
+    const others = (['received', 'inProgress', 'waitingForParts'] as const).filter((to) => to !== status);
+
+    expect(userTransitions(status)).toEqual([
+      ...others.map((to) => ({ to, confirm: false })),
+      { to: 'done', confirm: false },
+      { to: 'cancelled', confirm: true },
+    ]);
+  });
+
+  test.each(['done', 'invoiced', 'cancelled'] as const)('%s offers no button: leaving it is for the invoice or a later ticket', (status) => {
+    expect(userTransitions(status)).toEqual([]);
   });
 });
 
 describe('what a status allows', () => {
   test.each([
     ['received', true],
-    ['done', true],
+    ['inProgress', true],
+    ['waitingForParts', true],
+    ['done', false],
     ['invoiced', false],
-  ] as const)('%s is open: %s', (status, open) => {
-    expect(isOpen(status)).toBe(open);
+    ['cancelled', false],
+  ] as const)('%s is rozpracovaná: %s', (status, active) => {
+    expect(isActive(status)).toBe(active);
+  });
+
+  test.each([
+    ['received', false],
+    ['inProgress', false],
+    ['waitingForParts', false],
+    ['done', false],
+    ['invoiced', true],
+    ['cancelled', true],
+  ] as const)('%s is Uzavretá: %s', (status, closed) => {
+    expect(isClosed(status)).toBe(closed);
   });
 
   test.each([
     ['received', true],
+    ['inProgress', true],
+    ['waitingForParts', true],
     ['done', false],
     ['invoiced', false],
-  ] as const)('items can be added in %s: %s', (status, allowed) => {
-    expect(canAddItems(status)).toBe(allowed);
+    ['cancelled', false],
+  ] as const)('items and the header can be edited in %s: %s', (status, allowed) => {
+    expect(canEdit(status)).toBe(allowed);
   });
 });
 
 // Money is whole cents and the quantity is in hundredths (150 = 1,5 h). Every expected value below
 // is worked out by hand: the exact amount, then rounded half up to the cent.
-describe('amounts of an item', () => {
-  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
+const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
 
+describe('amounts of an item', () => {
   test('1,5 h at 40 € without VAT, VAT 23 %', () => {
     expect(amountsOf(labour(150, 4000))).toEqual({ net: 6000, vat: 1380, gross: 7380 });
   });
@@ -138,8 +206,6 @@ describe('amounts of an item', () => {
 });
 
 describe('totals of a Zákazka', () => {
-  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
-
   test('a Zákazka with no item is worth nothing', () => {
     expect(totalsOf([])).toEqual({ net: 0, vat: 0, gross: 0 });
   });
@@ -162,19 +228,49 @@ describe('totals of a Zákazka', () => {
 });
 
 describe('a Zákazka as the admin types it', () => {
-  test('kilometres and the request are kept, trimmed', () => {
-    expect(parseWorkOrder({ mileageKm: '123456', customerRequest: ' Výmena oleja a filtrov ' })).toEqual({
+  test.each([
+    ['0', 0],
+    ['123456', 123456],
+    ['123 456', 123456],
+    ['00000001', 1],
+    [' 9999999 ', 9999999],
+  ])('kilometres "%s" are %i, and a Zákazka without a Termín or a note has none', (typed, km) => {
+    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toEqual({
       ok: true,
-      workOrder: { mileageKm: 123456, customerRequest: 'Výmena oleja a filtrov' },
+      workOrder: { mileageKm: km, customerRequest: 'Servis', deadline: null, note: null },
     });
   });
 
-  test.each([
-    ['0', 0],
-    ['123 456', 123456],
-    [' 9999999 ', 9999999],
-  ])('kilometres "%s" are %i', (typed, km) => {
-    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toMatchObject({ ok: true, workOrder: { mileageKm: km } });
+  test('the Termín is a day, kept as typed in a date field, and the note is kept trimmed', () => {
+    expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline: '2026-11-05', note: ' Zákazník čaká na diely z Nemecka ' })).toEqual({
+      ok: true,
+      workOrder: { mileageKm: 1, customerRequest: 'Servis', deadline: '2026-11-05', note: 'Zákazník čaká na diely z Nemecka' },
+    });
+  });
+
+  test.each(['', '  '])('a blank Termín "%s" and a blank note are none', (blank) => {
+    expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline: blank, note: blank })).toMatchObject({
+      ok: true,
+      workOrder: { deadline: null, note: null },
+    });
+  });
+
+  test.each(['2028-02-29', '2026-12-31', '2026-01-01'])('the day %s is a Termín', (deadline) => {
+    expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline })).toMatchObject({ ok: true, workOrder: { deadline } });
+  });
+
+  test.each(['2027-02-29', '2026-02-30', '2026-13-01', '2026-00-10', '2026-04-31', '5. 11. 2026', '2026-11-5', '0000-01-01', 'zajtra'])(
+    'the Termín "%s" is not a day',
+    (deadline) => {
+      expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline })).toEqual({ ok: false, errors: { deadline: 'invalid' } });
+    },
+  );
+
+  test('the request is kept trimmed', () => {
+    expect(parseWorkOrder({ mileageKm: '0', customerRequest: ' Výmena oleja a filtrov ' })).toMatchObject({
+      ok: true,
+      workOrder: { customerRequest: 'Výmena oleja a filtrov' },
+    });
   });
 
   test.each(['', '-1', '1,5', '12a', '10000000', 'veľa'])('kilometres "%s" are refused', (typed) => {
@@ -190,64 +286,99 @@ describe('a Zákazka as the admin types it', () => {
   });
 });
 
-describe('a work item (Práca) as the admin types it', () => {
-  const typed = { name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' };
-  const refused = (overrides: Partial<typeof typed>) => parseLabour({ ...typed, ...overrides });
-
-  test('is a labour item in hours, with the quantity in hundredths and the price in cents', () => {
-    expect(parseLabour(typed)).toEqual({
-      ok: true,
-      item: { kind: 'labour', name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', unitPriceCents: 4000, vatRate: 23 },
-    });
-  });
-
-  test('the VAT rate is 23 % unless typed otherwise', () => {
-    expect(defaultVatRate).toBe(23);
-    const { vatRate: _typed, ...withoutRate } = typed;
-    expect(parseLabour(withoutRate)).toMatchObject({ ok: true, item: { vatRate: 23 } });
-    expect(refused({ vatRate: '5' })).toMatchObject({ ok: true, item: { vatRate: 5 } });
-    expect(refused({ vatRate: '0' })).toMatchObject({ ok: true, item: { vatRate: 0 } });
-  });
-
-  // 1,15 * 100 is 114.99999999999999 as a float: the digits are read, never multiplied.
+// The one rule for a VAT rate typed anywhere: on a Položka zákazky, and in the list of rates of Nastavenia.
+describe('a VAT rate as it is typed', () => {
   test.each([
-    ['1,15', 115],
-    ['0,29', 29],
-    ['2.3', 230],
-    ['0,05', 5],
-    [' 12 ', 1200],
-    ['99999,99', 9999999],
-  ])('quantity "%s" is %i hundredths', (quantity, hundredths) => {
-    expect(refused({ quantity })).toMatchObject({ ok: true, item: { quantityHundredths: hundredths } });
-  });
-
-  test.each([
-    ['40,5', 4050],
-    ['40.50', 4050],
-    ['33,33', 3333],
     ['0', 0],
-    ['1 000 000', 100000000],
-  ])('unit price "%s" is %i cents', (unitPrice, cents) => {
-    expect(refused({ unitPrice })).toMatchObject({ ok: true, item: { unitPriceCents: cents } });
+    ['5', 5],
+    ['23', 23],
+    ['100', 100],
+    ['007', 7],
+    [' 23 ', 23],
+  ])('"%s" is %i', (typed, rate) => {
+    expect(parseVatRate(typed)).toBe(rate);
   });
 
-  test.each(['', '0', '0,00', '-1', '1,505', '1,2,3', 'hodina', '100000'])('quantity "%s" is refused', (quantity) => {
-    expect(refused({ quantity })).toEqual({ ok: false, errors: { quantity: 'invalid' } });
+  test.each(['', ' ', '101', '1000', '-1', '2,5', '2.5', '23 %', '2 3', 'plná', '99999999999999999999999'])('"%s" is not a whole percentage from 0 to 100', (typed) => {
+    expect(parseVatRate(typed)).toBeNull();
+  });
+});
+// How a row of the list of Zákazky looks (GLOSSARY: Termín). Today is the date in Europe/Bratislava.
+describe('the mark of a row in the list', () => {
+  const noon = new Date('2026-11-03T12:00:00Z'); // 3 November in Bratislava
+  const yesterday = '2026-11-02';
+  const today = '2026-11-03';
+  const tomorrow = '2026-11-04';
+
+  test.each(['received', 'inProgress', 'waitingForParts'] as const)('a Zákazka that is %s is late only when its Termín is before today', (status) => {
+    expect(rowMark(status, yesterday, noon)).toBe('late');
+    expect(rowMark(status, today, noon)).toBeNull();
+    expect(rowMark(status, tomorrow, noon)).toBeNull();
+    expect(rowMark(status, null, noon)).toBeNull();
   });
 
-  test.each(['', '-5', '40,505', '40 €', 'drahé', '1000000,01'])('unit price "%s" is refused', (unitPrice) => {
-    expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
+  test('a Zákazka that is Hotová is to be invoiced, whatever its Termín, and is not late', () => {
+    for (const deadline of [yesterday, today, tomorrow, null]) expect(rowMark('done', deadline, noon), `Termín ${deadline}`).toBe('toInvoice');
   });
 
-  test.each(['', '-1', '101', '2,5', '23 %', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
-    expect(refused({ vatRate })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
+  test.each(['invoiced', 'cancelled'] as const)('a Zákazka that is %s has no mark, even with a Termín long past', (status) => {
+    for (const deadline of ['2020-01-01', yesterday, today, null]) expect(rowMark(status, deadline, noon), `Termín ${deadline}`).toBeNull();
   });
 
-  test('a name is required, and every reason comes back at once', () => {
-    expect(refused({ name: '  ' })).toEqual({ ok: false, errors: { name: 'required' } });
-    expect(refused({ name: '', quantity: '0', unitPrice: '', vatRate: 'x' })).toEqual({
-      ok: false,
-      errors: { name: 'required', quantity: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
-    });
+  test.each([
+    ['winter, an hour before midnight, the Termín is still today', '2026-12-31', '2026-12-31T22:59:59Z', null],
+    ['winter, midnight has come, the Termín is yesterday', '2026-12-31', '2026-12-31T23:00:00Z', 'late'],
+    ['summer, two hours before midnight, the Termín is still today', '2026-06-30', '2026-06-30T21:59:59Z', null],
+    ['summer, midnight has come, the Termín is yesterday', '2026-06-30', '2026-06-30T22:00:00Z', 'late'],
+    ['half past midnight in Bratislava is still the 3rd in UTC', '2026-11-03', '2026-11-03T23:30:00Z', 'late'],
+  ] as const)('at the turn of the day: %s', (_what, deadline, instant, mark) => {
+    expect(rowMark('inProgress', deadline, new Date(instant))).toBe(mark);
+  });
+});
+
+describe('the filter of the list of Zákazky', () => {
+  test('without a filter the list shows the Zákazky that are not Uzavretá, from any day', () => {
+    expect(parseListFilter({})).toEqual({ status: 'unclosed', from: null, to: null });
+  });
+
+  test.each(['unclosed', 'all', 'received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled'])('the status "%s" is a filter', (status) => {
+    expect(parseListFilter({ status })).toMatchObject({ status });
+  });
+
+  test.each(['', 'open', 'Hotová', 'DONE', 'received,done'])('the status "%s" is not a filter, so the default one applies', (status) => {
+    expect(parseListFilter({ status })).toMatchObject({ status: 'unclosed' });
+  });
+
+  test('the period is the days from and to, as typed in a date field', () => {
+    expect(parseListFilter({ from: '2026-10-01', to: '2026-10-31' })).toEqual({ status: 'unclosed', from: '2026-10-01', to: '2026-10-31' });
+    expect(parseListFilter({ from: '2026-10-01' })).toMatchObject({ from: '2026-10-01', to: null });
+    expect(parseListFilter({ to: '2026-10-31' })).toMatchObject({ from: null, to: '2026-10-31' });
+  });
+
+  test.each(['', '1. 10. 2026', '2026-02-30', 'dnes'])('the day "%s" is no bound of the period', (day) => {
+    expect(parseListFilter({ from: day, to: day })).toMatchObject({ from: null, to: null });
+  });
+
+  test('Neuzavreté are every status but Vyfakturovaná and Zrušená, Všetky are all six, anything else is itself', () => {
+    expect(statusesOf('unclosed')).toEqual(['received', 'inProgress', 'waitingForParts', 'done']);
+    expect(statusesOf('all')).toEqual(['received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled']);
+    expect(statusesOf('waitingForParts')).toEqual(['waitingForParts']);
+    expect(statusesOf('cancelled')).toEqual(['cancelled']);
+  });
+});
+
+describe('kilometres at intake', () => {
+  // Stav km of the vehicle before, kilometres on the Zákazka, Stav km of the vehicle after, whether to warn.
+  test.each([
+    ['higher than the vehicle has', 100_000, 100_001, 100_001, false],
+    ['far higher than the vehicle has', 100_000, 250_000, 250_000, false],
+    ['the same as the vehicle has', 100_000, 100_000, 100_000, false],
+    ['lower than the vehicle has, by one', 100_000, 99_999, 100_000, true],
+    ['lower than the vehicle has, far', 250_000, 10_000, 250_000, true],
+    ['0, with the vehicle at 5 km', 5, 0, 5, true],
+    ['given to a vehicle that has no Stav km yet', null, 120_000, 120_000, false],
+    ['0, given to a vehicle that has no Stav km yet', null, 0, 0, false],
+  ])('%s: the vehicle had %s, the Zákazka has %s, the vehicle then has %s, warning: %s', (_what, before, atIntake, after, warning) => {
+    expect(mileageAtIntake(before, atIntake)).toEqual({ vehicleMileageKm: after, lowerThanVehicle: warning });
   });
 });

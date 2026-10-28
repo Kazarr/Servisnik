@@ -1,34 +1,69 @@
 // Work order area (GLOSSARY: Zákazka a faktúra). Pure rules: no framework, database or network.
 
-/** Prijatá, Hotová, Vyfakturovaná. Further statuses (V práci, Čaká na diely, Zrušená) are added here and in `transitions`. */
-export const workOrderStatuses = ['received', 'done', 'invoiced'] as const;
+import { parseMileageKm } from '../vehicle/index.ts';
+
+/**
+ * The Stav zákazky (GLOSSARY) by its code name: `received` Prijatá, `inProgress` V práci, `waitingForParts`
+ * Čaká na diely, `done` Hotová, `invoiced` Vyfakturovaná, `cancelled` Zrušená. A new one is added here, in
+ * `transitions`, and in `isActive` or `isClosed`.
+ */
+export const workOrderStatuses = ['received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled'] as const;
 export type WorkOrderStatus = (typeof workOrderStatuses)[number];
+
+/** Rozpracovaná zákazka (GLOSSARY): Prijatá, V práci or Čaká na diely. */
+const activeStatuses: readonly WorkOrderStatus[] = ['received', 'inProgress', 'waitingForParts'];
+export const isActive = (status: WorkOrderStatus): boolean => activeStatuses.includes(status);
+
+/** Uzavretá zákazka (GLOSSARY): Vyfakturovaná or Zrušená. Hotová is neither Rozpracovaná nor Uzavretá. */
+export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoiced' || status === 'cancelled';
+
+/**
+ * The one lock of a Zákazka: its items change only while it is Rozpracovaná, because from Hotová on an
+ * invoice is made from them. `lockForItems` of the Data Access Layer checks it under the row lock for
+ * every way of adding an item (`addItem`, `addItemFromPriceList`), `updateItem` and `deleteItem`; every
+ * later write of the discount or the header (kilometres, request, deadline, note) must call `canEdit`
+ * the same way, since a hidden button is not enough. Hotová stays locked until ledger question 9 is answered.
+ */
+export const canEdit = (status: WorkOrderStatus): boolean => isActive(status);
 
 /** `user` is the admin's own button; `invoice` is the invoice being issued, the only way to Vyfakturovaná. */
 export type TransitionTrigger = 'user' | 'invoice';
 
-/** Every allowed change of status, in one table. Anything not listed here is refused. */
-const transitions: readonly { from: WorkOrderStatus; to: WorkOrderStatus; by: TransitionTrigger }[] = [
-  { from: 'received', to: 'done', by: 'user' },
+type Transition = { from: WorkOrderStatus; to: WorkOrderStatus; by: TransitionTrigger; confirm?: true };
+
+/**
+ * Every allowed change of status, in one table. Anything not listed here is refused. From each
+ * Rozpracovaná status the user may go to each other one, to Hotová, and, once he confirmed it, to Zrušená.
+ */
+const transitions: readonly Transition[] = [
+  ...activeStatuses.flatMap((from): Transition[] => [
+    ...activeStatuses.filter((to) => to !== from).map((to): Transition => ({ from, to, by: 'user' })),
+    { from, to: 'done', by: 'user' },
+    { from, to: 'cancelled', by: 'user', confirm: true },
+  ]),
   { from: 'done', to: 'invoiced', by: 'invoice' },
 ];
 
-/** The new status, with the delivery date (a day in Europe/Bratislava) when the Zákazka becomes Hotová; or why not. */
+/**
+ * The new status, with the Dátum dokončenia (a day in Europe/Bratislava) when the Zákazka becomes Hotová,
+ * every time it does; or why not. A transition that needs the user's confirmation is refused without it.
+ */
 export function transition(
   from: WorkOrderStatus,
   to: WorkOrderStatus,
   by: TransitionTrigger,
   now: Date,
-): { ok: true; status: WorkOrderStatus; completedOn?: string } | { ok: false; error: 'not-allowed' } {
-  if (!transitions.some((t) => t.from === from && t.to === to && t.by === by)) return { ok: false, error: 'not-allowed' };
+  { confirmed = false }: { confirmed?: boolean } = {},
+): { ok: true; status: WorkOrderStatus; completedOn?: string } | { ok: false; error: 'not-allowed' | 'confirmation-required' } {
+  const allowed = transitions.find((t) => t.from === from && t.to === to && t.by === by);
+  if (!allowed) return { ok: false, error: 'not-allowed' };
+  if (allowed.confirm && !confirmed) return { ok: false, error: 'confirmation-required' };
   return to === 'done' ? { ok: true, status: to, completedOn: localDate(now) } : { ok: true, status: to };
 }
 
-/** A Zákazka is open until it is invoiced. */
-export const isOpen = (status: WorkOrderStatus): boolean => status !== 'invoiced';
-
-/** Items change the amounts an invoice is made from, so they are added only while the Zákazka is Prijatá. */
-export const canAddItems = (status: WorkOrderStatus): boolean => status === 'received';
+/** The buttons of a Zákazka in this status: where the user may take it, and whether he must confirm first. */
+export const userTransitions = (from: WorkOrderStatus): { to: WorkOrderStatus; confirm: boolean }[] =>
+  transitions.filter((t) => t.from === from && t.by === 'user').map(({ to, confirm = false }) => ({ to, confirm }));
 
 /** `Z<year>-<sequence on four places>`; the sequence restarts at 1 every year, the database hands it out. */
 export function formatWorkOrderNumber(year: number, sequence: number): string {
@@ -47,12 +82,33 @@ export function localDate(instant: Date): string {
 /** The year at this moment in Europe/Bratislava, which is the year of a new Zákazka's number. */
 export const localYear = (instant: Date): number => Number(localDate(instant).slice(0, 4));
 
+/**
+ * What the kilometres of a new Zákazka (Príjem vozidla) do to the Stav km of its Vozidlo: higher ones
+ * become its Stav km, as do any when it has none yet. Lower ones leave it as it was and ask for a
+ * warning, because the odometer may have been replaced; the Zákazka keeps them either way. Equal ones
+ * change nothing and need no warning.
+ */
+export function mileageAtIntake(vehicleMileageKm: number | null, intakeKm: number): { vehicleMileageKm: number; lowerThanVehicle: boolean } {
+  if (vehicleMileageKm === null || intakeKm > vehicleMileageKm) return { vehicleMileageKm: intakeKm, lowerThanVehicle: false };
+  return { vehicleMileageKm, lowerThanVehicle: intakeKm < vehicleMileageKm };
+}
+
 /** Money is whole cents and a quantity is in hundredths, so no amount here is ever a float. */
 export type Amounts = { net: number; vat: number; gross: number };
 export type Priced = { quantityHundredths: number; unitPriceCents: number; vatRate: number };
 
 /** `numerator / denominator` rounded half up; both are non-negative. */
 const roundedDivide = (numerator: number, denominator: number) => Math.floor((2 * numerator + denominator) / (2 * denominator));
+
+/**
+ * `part` as a percentage of `whole`, in tenths of a percent, rounded half away from zero; `part` is negative
+ * for a loss. Null when `whole` is 0, which has no percentage.
+ */
+function percentTenths(part: number, whole: number): number | null {
+  if (whole === 0) return null;
+  const tenths = roundedDivide(Math.abs(part) * 1000, whole);
+  return part < 0 ? 0 - tenths : tenths; // not -tenths, which is -0 when the part rounds to nothing
+}
 
 /**
  * What one item costs, rounded to cents once per item: first the amount without VAT, then the VAT
@@ -66,23 +122,29 @@ export function amountsOf({ quantityHundredths, unitPriceCents, vatRate }: Price
 
 /** What a Zákazka costs: the sum of its rounded items, never a rounding of the sums. */
 export function totalsOf(items: readonly Priced[]): Amounts {
-  const sum = (key: keyof Amounts) => items.reduce((total, item) => total + amountsOf(item)[key], 0);
-  return { net: sum('net'), vat: sum('vat'), gross: sum('gross') };
+  return items.map(amountsOf).reduce(
+    (total, item) => ({ net: total.net + item.net, vat: total.vat + item.vat, gross: total.gross + item.gross }),
+    { net: 0, vat: 0, gross: 0 },
+  );
 }
 
-/** Práca or Diel. The model has both from the start; only Práca is added anywhere so far. */
+/** Práca or Diel. */
 export const itemKinds = ['labour', 'part'] as const;
 export type ItemKind = (typeof itemKinds)[number];
 
-/** Položka zákazky; the price is per unit and without VAT (ledger question 8 is open). */
-export type WorkOrderItem = Priced & { kind: ItemKind; name: string; unit: string };
+/** The unit a Položka starts with: hours for a Práca, pieces for a Diel. */
+export const defaultUnits: Record<ItemKind, string> = { labour: 'h', part: 'ks' };
 
-export const defaultVatRate = 23;
+/**
+ * Položka zákazky. Its prices are per unit and without VAT (ledger question 8 is open): `unitPriceCents`
+ * is the Predajná cena, `purchasePriceCents` the Nákupná cena of a Diel, which is none when it is not known
+ * and always none for a Práca.
+ */
+export type WorkOrderItem = Priced & { kind: ItemKind; code: string | null; name: string; unit: string; purchasePriceCents: number | null };
 
 // Limits keep every product below 2^53 and every stored number inside a PostgreSQL integer.
 const maxQuantityHundredths = 9_999_999; // 99 999,99
 const maxUnitPriceCents = 100_000_000; // 1 000 000,00 €
-const maxMileageKm = 9_999_999;
 
 /**
  * A number typed with a decimal comma or point and at most two decimals, as hundredths, or null.
@@ -93,48 +155,200 @@ function hundredths(typed: string): number | null {
   return match ? Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0')) : null;
 }
 
-/** A whole number such as the kilometres or a VAT rate; spaces may group the digits. */
-function wholeNumber(typed: string): number | null {
-  const digits = typed.replace(/\s/g, '');
-  return /^\d+$/.test(digits) ? Number(digits) : null;
+/** A price per unit typed in euros: cents from 0 up to the largest price an item may have, or null. */
+export function parseUnitPrice(typed: string): number | null {
+  const cents = hundredths(typed);
+  return cents === null || cents > maxUnitPriceCents ? null : cents;
 }
 
-export type WorkOrderInput = { mileageKm: string; customerRequest: string };
-export type WorkOrderErrors = { mileageKm?: 'invalid'; customerRequest?: 'required' };
+const maxVatRate = 100;
 
-/** A Zákazka ready to store: the kilometres at intake (a whole number, 0 is fine) and the customer's request. */
-export function parseWorkOrder(
-  input: WorkOrderInput,
-): { ok: true; workOrder: { mileageKm: number; customerRequest: string } } | { ok: false; errors: WorkOrderErrors } {
-  const mileageKm = wholeNumber(input.mileageKm);
-  const customerRequest = input.customerRequest.trim();
-  if (mileageKm === null || mileageKm > maxMileageKm || !customerRequest) {
-    const errors: WorkOrderErrors = {};
-    if (mileageKm === null || mileageKm > maxMileageKm) errors.mileageKm = 'invalid';
-    if (!customerRequest) errors.customerRequest = 'required';
-    return { ok: false, errors };
-  }
-  return { ok: true, workOrder: { mileageKm, customerRequest } };
+/** A Sadzba DPH: a whole percentage from 0 to 100, in digits only (no grouping, so "2 3" is not 23), or null. */
+export function parseVatRate(typed: string): number | null {
+  const digits = typed.trim();
+  const rate = /^\d+$/.test(digits) ? Number(digits) : null;
+  return rate === null || rate > maxVatRate ? null : rate;
 }
 
-/** What the form sends for a Práca; `vatRate` left out means the default, a blank one is a mistake. */
-export type LabourInput = { name: string; quantity: string; unitPrice: string; vatRate?: string };
-export type LabourErrors = { name?: 'required'; quantity?: 'invalid'; unitPrice?: 'invalid'; vatRate?: 'invalid' };
+/** A day as a date field sends it, `YYYY-MM-DD`, when it is a real day of the calendar; else null. */
+function parseDay(typed: string): string | null {
+  const day = typed.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) return null;
+  // A day that does not exist (30 February) or a year from 0000 to 0099 (which Date.UTC reads as 19xx) does not read back as itself.
+  const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return parsed.toISOString().slice(0, 10) === day ? day : null;
+}
+/**
+ * The Sadzby DPH an item that is edited may choose from: those of Nastavenia, and after them the one the item already
+ * has when they no longer offer it, so that an old item can still be edited. A rate any other than these is refused.
+ */
+export const vatRatesKeeping = (vatRates: readonly number[], vatRate: number): number[] =>
+  vatRates.includes(vatRate) ? [...vatRates] : [...vatRates, vatRate];
+
+/** What `marginOf` needs of an item: what it sells for, and what a Diel was bought for. */
+export type Costed = Priced & { kind: ItemKind; purchasePriceCents: number | null };
+
+/** The Marža of a Zákazka. `percentTenths` is of the sale without VAT, in tenths of a percent, and none at a sale of 0. */
+export type Margin = { purchaseNet: number; cents: number; percentTenths: number | null; partsWithoutPurchasePrice: number };
 
 /**
- * A Práca ready to store: hours (more than 0), a unit price without VAT (0 or more) and a whole VAT
- * percentage from 0 to 100.
+ * Marža (GLOSSARY): the sale without VAT less the Nákupná cena of the Diely, which is each Diel's quantity
+ * times its price rounded to cents once, like a Predajná cena. A Diel with no Nákupná cena costs 0 and is
+ * counted, so the page can say the Marža is incomplete. A percentage rounds half away from zero.
  */
-export function parseLabour(input: LabourInput): { ok: true; item: WorkOrderItem } | { ok: false; errors: LabourErrors } {
+export function marginOf(items: readonly Costed[]): Margin {
+  const parts = items.filter((item) => item.kind === 'part');
+  const purchaseNet = parts.reduce((sum, part) => sum + roundedDivide(part.quantityHundredths * (part.purchasePriceCents ?? 0), 100), 0);
+  const saleNet = totalsOf(items).net;
+  const cents = saleNet - purchaseNet;
+  return {
+    purchaseNet,
+    cents,
+    percentTenths: percentTenths(cents, saleNet),
+    partsWithoutPurchasePrice: parts.filter((part) => part.purchasePriceCents === null).length,
+  };
+}
+
+// Prirážka (GLOSSARY) is never stored: a form turns it into a Predajná cena and back. It is counted in
+// tenths of a percent (125 is 12,5 %), the precision it is shown with, so no amount here is a float.
+
+/** A Prirážka typed in a field: from 0 percent, at most one decimal after a comma or a point; as tenths of a percent, or null. */
+export function parseMarkup(typed: string): number | null {
+  const match = /^(\d{1,7})(?:[.,](\d))?$/.exec(typed.replace(/\s/g, ''));
+  return match ? Number(match[1]) * 10 + Number(match[2] ?? 0) : null;
+}
+
+/** The Predajná cena in cents that a Prirážka makes of a Nákupná cena, rounded half up to the cent; null above the largest price a Položka may have. */
+export function salePriceFromMarkup(purchasePriceCents: number, markupTenths: number): number | null {
+  const salePriceCents = roundedDivide(purchasePriceCents * (1000 + markupTenths), 1000);
+  return salePriceCents > maxUnitPriceCents ? null : salePriceCents;
+}
+
+/**
+ * The Prirážka, in tenths of a percent, that makes a Predajná cena of a Nákupná cena: rounded half away
+ * from zero, negative when sold below the purchase price. Null on a purchase price of 0, which has no percentage.
+ */
+export function markupFromSalePrice(purchasePriceCents: number, salePriceCents: number): number | null {
+  return percentTenths(salePriceCents - purchasePriceCents, purchasePriceCents);
+}
+
+
+/** What the form of a Zákazka sends; the Termín and the note may be left out or blank, which is none. */
+export type WorkOrderInput = { mileageKm: string; customerRequest: string; deadline?: string; note?: string };
+export type WorkOrderErrors = { mileageKm?: 'invalid'; customerRequest?: 'required'; deadline?: 'invalid' };
+
+/**
+ * A Zákazka ready to store: the kilometres at intake (a whole number, 0 is fine), the customer's request,
+ * the Termín (a day, or none) and the internal note (or none).
+ */
+export function parseWorkOrder(
+  input: WorkOrderInput,
+): { ok: true; workOrder: { mileageKm: number; customerRequest: string; deadline: string | null; note: string | null } } | { ok: false; errors: WorkOrderErrors } {
+  const mileageKm = parseMileageKm(input.mileageKm);
+  const customerRequest = input.customerRequest.trim();
+  const typedDeadline = (input.deadline ?? '').trim();
+  const deadline = typedDeadline ? parseDay(typedDeadline) : null;
+  const errors: WorkOrderErrors = {};
+  if (mileageKm === null) errors.mileageKm = 'invalid';
+  if (!customerRequest) errors.customerRequest = 'required';
+  if (typedDeadline && deadline === null) errors.deadline = 'invalid';
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, workOrder: { mileageKm: mileageKm!, customerRequest, deadline, note: (input.note ?? '').trim() || null } };
+}
+
+/** How a row of the list of Zákazky is marked: `late` (after its Termín, "Po termíne") or `toInvoice` ("Na fakturáciu"). */
+export type RowMark = 'late' | 'toInvoice';
+
+/**
+ * The mark of a Zákazka in the list, by its status, its Termín and today's date in Europe/Bratislava: a
+ * Rozpracovaná one whose Termín is before today is `late`, a Hotová one is `toInvoice` (also while its
+ * invoice is being made), any other has none. A Termín of today is not late yet.
+ */
+export function rowMark(status: WorkOrderStatus, deadline: string | null, now: Date): RowMark | null {
+  if (status === 'done') return 'toInvoice';
+  return isActive(status) && deadline !== null && deadline < localDate(now) ? 'late' : null;
+}
+
+/** What the list of Zákazky can be filtered by status: Neuzavreté (not Uzavretá, the default), Všetky, or one status. */
+export const statusFilters = ['unclosed', 'all', ...workOrderStatuses] as const;
+export type StatusFilter = (typeof statusFilters)[number];
+
+/** The statuses a Zákazka may have to pass the filter. */
+export const statusesOf = (filter: StatusFilter): readonly WorkOrderStatus[] =>
+  filter === 'all' ? workOrderStatuses : filter === 'unclosed' ? workOrderStatuses.filter((status) => !isClosed(status)) : [filter];
+
+/**
+ * The filter of the list as the address carries it: the status, and the days of intake the Zákazky are
+ * from and to (both included). Whatever is not a status or a day is left out, so a mangled address
+ * shows the default list, not an error.
+ */
+export function parseListFilter(typed: { status?: string; from?: string; to?: string }): { status: StatusFilter; from: string | null; to: string | null } {
+  return {
+    status: statusFilters.find((filter) => filter === typed.status) ?? 'unclosed',
+    from: parseDay(typed.from ?? ''),
+    to: parseDay(typed.to ?? ''),
+  };
+}
+
+/**
+ * What the form sends for a Položka. Left out, `unit` is the default of its kind and `vatRate` the default
+ * rate of Nastavenia; sent blank, either is a mistake. `purchasePrice` is only read for a Diel, blank is none.
+ */
+export type ItemInput = {
+  kind: ItemKind;
+  code?: string;
+  name: string;
+  quantity: string;
+  unit?: string;
+  purchasePrice?: string;
+  unitPrice: string;
+  vatRate?: string;
+};
+export type ItemErrors = {
+  name?: 'required';
+  quantity?: 'invalid';
+  unit?: 'required';
+  purchasePrice?: 'invalid';
+  unitPrice?: 'invalid';
+  vatRate?: 'invalid';
+};
+
+/**
+ * A Položka ready to store: a quantity of more than 0, prices without VAT (0 or more) and one of the
+ * `vatRates` of Nastavenia, `defaultVatRate` when none was typed.
+ */
+export function parseItem(
+  input: ItemInput,
+  rates: { defaultVatRate: number; vatRates: readonly number[] },
+): { ok: true; item: WorkOrderItem } | { ok: false; errors: ItemErrors } {
   const name = input.name.trim();
   const quantityHundredths = hundredths(input.quantity);
-  const unitPriceCents = hundredths(input.unitPrice);
-  const vatRate = input.vatRate === undefined ? defaultVatRate : wholeNumber(input.vatRate);
-  const errors: LabourErrors = {};
+  const unit = input.unit === undefined ? defaultUnits[input.kind] : input.unit.trim();
+  const typedPurchasePrice = input.kind === 'part' ? (input.purchasePrice ?? '').trim() : '';
+  const purchasePriceCents = typedPurchasePrice === '' ? null : parseUnitPrice(typedPurchasePrice);
+  const unitPriceCents = parseUnitPrice(input.unitPrice);
+  const vatRate = input.vatRate === undefined ? rates.defaultVatRate : parseVatRate(input.vatRate);
+  const errors: ItemErrors = {};
   if (!name) errors.name = 'required';
   if (quantityHundredths === null || quantityHundredths < 1 || quantityHundredths > maxQuantityHundredths) errors.quantity = 'invalid';
-  if (unitPriceCents === null || unitPriceCents > maxUnitPriceCents) errors.unitPrice = 'invalid';
-  if (vatRate === null || vatRate > 100) errors.vatRate = 'invalid';
+  if (!unit) errors.unit = 'required';
+  if (typedPurchasePrice !== '' && purchasePriceCents === null) errors.purchasePrice = 'invalid';
+  if (unitPriceCents === null) errors.unitPrice = 'invalid';
+  if (vatRate === null || !rates.vatRates.includes(vatRate)) errors.vatRate = 'invalid';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, item: { kind: 'labour', name, quantityHundredths: quantityHundredths!, unit: 'h', unitPriceCents: unitPriceCents!, vatRate: vatRate! } };
+  return {
+    ok: true,
+    item: {
+      kind: input.kind,
+      code: input.code?.trim() || null,
+      name,
+      quantityHundredths: quantityHundredths!,
+      unit,
+      purchasePriceCents,
+      unitPriceCents: unitPriceCents!,
+      vatRate: vatRate!,
+    },
+  };
 }
+

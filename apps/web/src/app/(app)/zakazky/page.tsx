@@ -1,46 +1,42 @@
+import { can } from '@servisnik/domain/access';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { currentUser } from '../../../dal/current-user.ts';
+import { currentUserWith } from '../../../dal/current-user.ts';
 import { listWorkOrders } from '../../../dal/work-orders.ts';
-import { workOrderStatusLabels } from './status-labels.ts';
+import { Pager } from '../pager.tsx';
+import { first, pageOf } from '../search-params.ts';
+import { listHref } from './list-href.ts';
+import { intakePaths } from './nova/paths.ts';
+import { WorkOrderFilter } from './work-order-filter.tsx';
+import { WorkOrderList } from './work-order-list.tsx';
 
 export const metadata: Metadata = { title: 'Zákazky' };
 
-export default async function WorkOrdersPage() {
-  const orders = await listWorkOrders(await currentUser());
+type Params = Partial<Record<'stav' | 'od' | 'do' | 'strana', string | string[]>>;
+
+/** The list: `?stav=`, `?od=`, `?do=` and `?strana=` are the filter and the page (list-href.ts); what is not valid is left out. */
+export default async function WorkOrdersPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const user = await currentUserWith('work-orders.list');
+  const params = await searchParams;
+  const { orders, page, pageCount, filter } = await listWorkOrders(user, {
+    status: first(params.stav),
+    from: first(params.od),
+    to: first(params.do),
+    page: pageOf(params.strana),
+  });
   return (
     <>
-      <h1>Zákazky</h1>
-      {orders.length === 0 ? (
-        <p>Zatiaľ tu nič nie je. Zákazku založíte na detaile vozidla.</p>
-      ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Číslo</th>
-                <th scope="col">Zákazník</th>
-                <th scope="col">Vozidlo</th>
-                <th scope="col">Stav</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <tr key={order.id}>
-                  <td>
-                    <Link href={`/zakazky/${order.id}`}>{order.number}</Link>
-                  </td>
-                  <td>{order.customer.name}</td>
-                  <td>
-                    {order.vehicle.make} {order.vehicle.model}, {order.vehicle.vin}
-                  </td>
-                  <td>{workOrderStatusLabels[order.status]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="page-header">
+        <h1>Zákazky</h1>
+        {can(user.role, 'work-orders.write') && (
+          <Link href={intakePaths.start} className="button">
+            Nová zákazka
+          </Link>
+        )}
+      </div>
+      <WorkOrderFilter filter={filter} />
+      <WorkOrderList orders={orders} role={user.role} now={new Date()} filter={filter} />
+      <Pager page={page} pageCount={pageCount} href={(n) => listHref(filter, n)} />
     </>
   );
 }

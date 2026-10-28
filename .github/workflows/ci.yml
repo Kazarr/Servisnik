@@ -23,6 +23,9 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Chromium prints the PDFs of the forms, and the tests of the ticket tier read them (apps/web/test/pdf.test.ts).
+      # The root script of the README, with the libraries of the runner and without the full browser, which no test opens.
+      - run: pnpm e2e:install --with-deps --only-shell
       - run: pnpm verify
         env:
           # The commit check reads origin/<base_ref>..HEAD. A push to main has no base_ref, so it falls

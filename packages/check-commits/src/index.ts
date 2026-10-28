@@ -6,7 +6,7 @@ export type Commit = { sha: string; subject: string; files: string[]; parent?: s
 const TEST_FILE = /(^|\/)([^/]*\.(test|spec)\.[^/]*|(e2e|test)\/.*)$/;
 const TYPE = /^(\w+)(\([^)]*\))?!?:/;
 
-// `commits` is oldest first; `allowed` shas (commits that predate the check) are skipped like merges.
+// `commits` is oldest first; `allowed` shas (commits that predate the rule they break) are skipped like merges.
 // Returns one "<sha> <subject>: <rule>" line per violation.
 export function checkCommits(commits: Commit[], allowed: ReadonlySet<string> = new Set()): string[] {
   const violations: string[] = [];
@@ -20,11 +20,17 @@ export function checkCommits(commits: Commit[], allowed: ReadonlySet<string> = n
     if (!merge && !allowed.has(sha)) {
       const type = TYPE.exec(subject)?.[1];
       const fail = (rule: string) => violations.push(`${sha} ${subject}: ${rule}`);
+      // Rule 1: a feat or fix changes no test file.
       if (type === 'feat' || type === 'fix') {
         const tests = files.filter((f) => TEST_FILE.test(f));
         if (tests.length) fail(`feat/fix changes test files: ${tests.join(', ')}`);
       }
-      if (type === 'test') tested = true;
+      // Rule 3: a test commit changes only test files. It still counts as the test of rule 2.
+      if (type === 'test') {
+        const others = files.filter((f) => !TEST_FILE.test(f));
+        if (others.length) fail(`test commit changes non-test files: ${others.join(', ')}`);
+        tested = true;
+      }
       if (type === 'feat') {
         if (!tested) fail('feat without a test commit since the previous feat or the branch base');
         tested = false;

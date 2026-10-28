@@ -1,8 +1,8 @@
 import { endSessionBehindThePage, expect, signIn, submitLogin, test } from './fixtures.ts';
 
-const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky'];
+const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky', 'Cenník', 'Nastavenia'];
 
-for (const path of ['/', '/zakaznici', '/vozidla', '/zakazky']) {
+for (const path of ['/', '/zakaznici', '/vozidla', '/zakazky', '/nastavenia']) {
   test(`without a session ${path} leads to the login page`, async ({ page }) => {
     await page.goto(path);
 
@@ -17,6 +17,21 @@ test('a wrong password keeps the user on the login page with a message', async (
   await expect(page.locator('main').getByRole('alert')).toHaveText('Nesprávny e-mail alebo heslo.');
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByLabel('E-mail')).toHaveValue(process.env.E2E_ADMIN_EMAIL!);
+});
+
+// Better Auth's default: 3 attempts in 10 seconds from one client address (test/attempt-limit.test.ts
+// proves the rule, with the reset after 10 seconds); this proves the Server Action shows it.
+test('the fourth attempt to sign in within 10 seconds is refused with a message, even with the right password', async ({ page }) => {
+  const alert = page.locator('main').getByRole('alert');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await submitLogin(page, 'nespravne-heslo');
+    await expect(alert).toHaveText('Nesprávny e-mail alebo heslo.');
+  }
+
+  await submitLogin(page);
+
+  await expect(alert).toHaveText('Príliš veľa pokusov. Skúste to znova o chvíľu.');
+  await expect(page).toHaveURL(/\/login$/);
 });
 
 test('the admin signs in, sees the menu on the left and signs out', async ({ page, context }) => {
@@ -75,7 +90,8 @@ test('the layout stays usable at 768 px', async ({ page }) => {
   await signIn(page);
 
   await expect(page.getByRole('navigation', { name: 'Hlavné menu' })).toBeInViewport({ ratio: 1 });
-  await expect(page.locator('main')).toBeInViewport({ ratio: 1 });
+  // The heading: the Zákazky list below it grows with every spec's data.
+  await expect(page.locator('main h1')).toBeInViewport({ ratio: 1 });
   const overflows = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflows).toBe(false);
 });

@@ -19,6 +19,18 @@ test('a listed sha is skipped for every rule, an unlisted identical commit fails
   ]);
 });
 
+test('a listed sha is skipped for rule 3 too, an unlisted identical test commit fails', () => {
+  const badTest = (sha: string): Commit => ({
+    sha,
+    subject: 'test: login',
+    files: ['test/login.test.ts', 'src/login.ts'],
+  });
+  expect(checkCommits([badTest(A)], new Set([A]))).toEqual([]);
+  expect(checkCommits([badTest(B)], new Set([A]))).toEqual([
+    `${B} test: login: test commit changes non-test files: src/login.ts`,
+  ]);
+});
+
 test('a listed sha neither counts as a test nor resets the test requirement', () => {
   const test_: Commit = { sha: 'a1', subject: 'test: x', files: ['test/x.test.ts'] };
   const listedFeat: Commit = { sha: A, subject: 'feat: listed', files: ['src/a.ts'] };

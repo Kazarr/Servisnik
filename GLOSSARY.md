@@ -20,7 +20,7 @@ _Avoid_: účet, pracovník
 Určuje, čo používateľ v Servisníku vidí: `admin` vidí všetko, `mechanik` len zákazky a bez cien.
 _Avoid_: oprávnenie, typ používateľa
 
-### Zákazníci a vozidlá
+### Zákazníci
 
 **Zákazník** (`Customer`):
 Osoba alebo firma, ktorej autoservis opravuje vozidlá a vystavuje faktúry. Je to buď osoba, alebo firma.
@@ -34,6 +34,8 @@ _Avoid_: fyzická osoba, súkromník
 Zákazník s IČO, teda právnická osoba aj živnostník.
 _Avoid_: podnikateľ, organizácia, SZČO
 
+### Vozidlá
+
 **Vozidlo** (`Vehicle`):
 Auto, ktoré autoservis eviduje a opravuje, určené svojím VIN.
 _Avoid_: auto, motorové vozidlo
@@ -42,9 +44,26 @@ _Avoid_: auto, motorové vozidlo
 17-miestny identifikačný kód vozidla. Určuje vozidlo v Servisníku jednoznačne.
 _Avoid_: číslo karosérie, výrobné číslo
 
+**Značka vozidla** (`make`):
+Výrobca vozidla, napríklad Volkswagen alebo Škoda. Pri vozidle (stĺpec, pole formulára) stačí „Značka“; ŠPZ sa tak nenazýva.
+
+**Model** (`model`):
+Označenie vozidla od jeho výrobcu, napríklad Golf alebo Octavia.
+_Avoid_: typ (to je osoba alebo firma)
+
+**Rok výroby** (`year`):
+Rok, v ktorom sa vozidlo vyrobilo, od 1950 po budúci rok.
+
+**Palivo** (`fuel`):
+Čím vozidlo jazdí: benzín, nafta, hybrid, elektro, LPG, CNG alebo iné.
+
+**Stav km** (`mileageKm`):
+Posledný známy stav tachometra vozidla v kilometroch. Zákazka si pri príjme nesie vlastné kilometre.
+_Avoid_: najazdené kilometre
+
 **ŠPZ** (`licensePlate`):
-Evidenčné číslo na značke vozidla. Neurčuje vozidlo, lebo sa môže zmeniť alebo prejsť na iné auto.
-_Avoid_: EČV, evidenčné číslo, značka
+Evidenčné číslo na tabuľke vozidla. Neurčuje vozidlo, lebo sa môže zmeniť alebo prejsť na iné auto.
+_Avoid_: EČV, evidenčné číslo, poznávacia značka, značka (to je výrobca vozidla)
 
 **Majiteľ** (`owner`):
 Zákazník, ku ktorému autoservis vozidlo práve eviduje. Je to ten, kto auto vozí a platí, nie vlastník z technického preukazu (pri lízingu je vlastníkom lízingová spoločnosť).
@@ -114,8 +133,12 @@ _Avoid_: otvorená, aktívna
 Zákazka v stave Vyfakturovaná alebo Zrušená. Zrušená zákazka si ponechá svoje číslo.
 _Avoid_: ukončená, archivovaná
 
+**Dátum dokončenia** (`completedOn`):
+Deň, keď zákazka prešla do stavu Hotová, podľa kalendára v Europe/Bratislava.
+_Avoid_: delivery date
+
 **Termín** (`deadline`):
-Deň, do ktorého autoservis zákazníkovi sľúbil vozidlo opraviť. Rozpracovaná zákazka po termíne je oneskorená.
+Deň, do ktorého autoservis zákazníkovi sľúbil vozidlo opraviť. Rozpracovaná zákazka po termíne je oneskorená (`late`); termín dnešného dňa ešte nie je po termíne.
 _Avoid_: dátum odovzdania, splatnosť (tá patrí faktúre)
 
 **Príjem vozidla** (`intake`):
@@ -183,6 +206,10 @@ _Avoid_: mapovanie, profil importu
 **Deaktivovaný používateľ** (`banned`):
 Používateľ, ktorého admin deaktivoval: neprihlási sa a jeho prihlásenia sa hneď ukončia. Používateľ sa nikdy nemaže, admin ho môže znova aktivovať.
 _Avoid_: zmazaný, zablokovaný, neaktívny účet
+
+**Schopnosť** (`Capability`):
+Jedna vec, ktorú rola smie robiť, napríklad zobraziť zoznam zákaziek. `admin` smie všetky, `mechanik` len tie na svojom zozname; nová schopnosť je mechanikovi zakázaná, kým ju niekto výslovne nepovolí.
+_Avoid_: oprávnenie, právo, permission
 
 **Nastavenia** (`Settings`):
 Hodnoty pre celý autoservis, ktoré mení len admin: údaje autoservisu, logo, sadzby DPH, hodinová sadzba, prirážka na diely, používatelia a prepojenie s KROS.
