@@ -18,7 +18,7 @@ test('the admin adds a Diel to the Cenník with a Prirážka, finds it without d
   // All specs share one database and a code is unique, so this one carries a tag in its code and its name.
   const tag = runTag();
   const order = await seedWorkOrder(db, tag);
-  const [code, name] = [`BR-${tag.toUpperCase()}`, `Brzdová doštička ${tag}`];
+  const [code, name] = [`BR-${tag.toUpperCase()}`, `Brzdová ${tag} doštička`];
   const main = page.locator('main');
   await signIn(page);
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Cenník' }).click();
@@ -65,7 +65,7 @@ test('the admin adds a Diel to the Cenník with a Prirážka, finds it without d
 
   // On a Zákazka the admin searches the Cenník and adds the item with one click: it is an item of quantity 1 with the values of the Cenník.
   await page.goto(`/zakazky/${order.orderId}`);
-  await searchPriceList(page, `dostick ${tag}`);
+  await searchPriceList(page, `${tag} dosticka`);
   const results = main.getByRole('table', { name: 'Výsledky hľadania v cenníku' });
   await expect(results.getByRole('row', { name: new RegExp(code) })).toHaveCount(1);
   await results.getByRole('button', { name: `Pridať ${name}` }).click();
@@ -83,7 +83,7 @@ test('the admin adds a Diel to the Cenník with a Prirážka, finds it without d
   await page.getByLabel('Predajná cena za jednotku bez DPH (€)').fill('99');
   await page.getByRole('button', { name: 'Uložiť zmeny' }).click();
   await expect(page).toHaveURL(/\/cennik$/);
-  await searchPriceList(page, `${tag} nová`);
+  await searchPriceList(page, `${tag} doštička nová`);
   await expect(rows.first().getByRole('cell')).toHaveText(['Diel', code, `${name} nová`, 'ks', '20,00 €', '99,00 €', '23 %', /Upraviť/]);
   await main.getByRole('button', { name: `Zmazať ${name} nová` }).click();
   await expect(rows).toHaveCount(0);
