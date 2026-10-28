@@ -25,3 +25,11 @@ export const can = (role: Role, capability: Capability) => role === 'admin' || m
 
 /** Only the admin sees prices, sums, VAT and margins. */
 export const canSeePrices = (role: Role) => role === 'admin';
+
+/** A password is 8 to 128 characters (Better Auth's own limits, which it counts in UTF-16 units like `length`), with no rule on which. */
+export const passwordLength = { min: 8, max: 128 } as const;
+export type PasswordError = 'tooShort' | 'tooLong';
+
+/** Why a password may not be set, or null when its length is fine. */
+export const passwordError = (password: string): PasswordError | null =>
+  password.length < passwordLength.min ? 'tooShort' : password.length > passwordLength.max ? 'tooLong' : null;
