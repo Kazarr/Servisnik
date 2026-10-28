@@ -81,18 +81,19 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
 });
 
 test('the admin adds a person without company fields, and the list is alphabetical, not newest first', async ({ page }) => {
-  // All specs share one database, and this one also runs repeated: its two customers carry a tag, and the list is searched for it.
+  // All specs share one database, and this one also runs repeated: its customers carry a tag, and the list is searched for it.
+  // They are added in neither the order of the alphabet nor its reverse, so neither oldest first nor newest first passes.
   const tag = runTag();
-  const [first, second] = [`Alfa Osobová ${tag}`, `Zeta Osobová ${tag}`];
+  const [middle, last, first] = [`Bravo Osobová ${tag}`, `Zeta Osobová ${tag}`, `Alfa Osobová ${tag}`];
   await signIn(page);
-  await addCustomer(page, first);
+  await addCustomer(page, middle);
   await expect(page.locator('main')).not.toContainText('IČO');
-  await addCustomer(page, second);
+  await addCustomer(page, last);
+  await addCustomer(page, first);
 
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
   await searchCustomers(page, tag);
-  // Retries until the list has rendered: the navigation from the detail page is client-side, and a plain read of the links would see the detail page.
-  await expect(page.locator('main').getByRole('link', { name: tag })).toHaveText([first, second]);
+  await expect(page.locator('main').getByRole('link', { name: tag })).toHaveText([first, middle, last]);
 
   await page.locator('main').getByRole('link', { name: first }).click();
   await expect(page.locator('main h1')).toHaveText(first);

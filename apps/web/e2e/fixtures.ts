@@ -59,10 +59,15 @@ export async function addCustomer(
   await expect(page.locator('main h1')).toHaveText(name);
 }
 
-/** Types `text` into the search field of the customer list and searches. */
+/**
+ * Types `text` into the search field of the customer list, searches, and waits until the page of that
+ * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
+ * `text` must differ from what the list was last searched for, or there is no new page to wait for.
+ */
 export async function searchCustomers(page: Page, text: string) {
   await page.getByLabel('Hľadať zákazníka').fill(text);
   await page.getByRole('button', { name: 'Hľadať', exact: true }).click();
+  await page.waitForURL((url) => url.searchParams.get('q') === text);
 }
 
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */

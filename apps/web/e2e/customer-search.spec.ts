@@ -54,7 +54,8 @@ test('the list is alphabetical, 25 to a page, and the pages of a search stay in 
   const main = page.locator('main');
   const rows = main.getByRole('link', { name: tag });
   await signIn(page);
-  for (const name of [...names].reverse()) await addCustomer(page, name); // not in the order of the list
+  // Added in neither the order of the list nor its reverse: the odd ones first, then the even ones.
+  for (const name of [...names.filter((_, i) => i % 2), ...names.filter((_, i) => !(i % 2))]) await addCustomer(page, name);
 
   await page.goto('/zakaznici');
   await search(page, `pager ${tag}`);
