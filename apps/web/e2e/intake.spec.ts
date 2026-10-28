@@ -47,7 +47,7 @@ test('the admin takes in a new vehicle with a new customer from Zákazky: one fo
 
   // The new customer is the Majiteľ of the new vehicle, whose Stav km are the kilometres at intake.
   await main.getByRole('link', { name: 'Škoda Octavia' }).click();
-  await expect(detail(main, 'Majiteľ')).toHaveText(owner);
+  await expect(detail(main, 'Majiteľ').getByRole('link', { name: owner })).toBeVisible();
   await expect(detail(main, 'Stav km')).toHaveText('45 000 km');
 });
 
