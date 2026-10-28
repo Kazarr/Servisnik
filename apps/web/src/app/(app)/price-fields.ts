@@ -1,5 +1,5 @@
 import { markupFromSalePrice, parseMarkup, parseUnitPrice, salePriceFromMarkup } from '@servisnik/domain/work-order';
-import { formatEuroInput, formatMarkupInput } from '../../../../format.ts';
+import { formatEuroInput, formatMarkupInput } from '../../format.ts';
 
 /** The three price fields of the form of a Diel, as typed. The Prirážka is only here, it is never saved. */
 export type PriceFields = { purchasePrice: string; markup: string; unitPrice: string };

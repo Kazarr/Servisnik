@@ -7,7 +7,7 @@ import { formatEuroInput, formatMarkupInput, formatQuantityInput } from '../../.
 import { Field, FormError, SelectField } from '../../field.tsx';
 import { valueIn } from '../../form-value.ts';
 import { addItemToWorkOrder, updateItemOfWorkOrder } from '../actions.ts';
-import { syncPriceFields, type PriceFields } from './price-fields.ts';
+import { syncPriceFields, type PriceFields } from '../../price-fields.ts';
 
 /** What the form needs to start from an item that is being edited. */
 export type EditedItem = {
