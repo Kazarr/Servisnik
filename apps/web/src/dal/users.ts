@@ -59,7 +59,29 @@ export async function createUser(user: User | null, input: NewUserInput, auth: A
   }
 }
 
-export type UpdateUserErrors = Omit<UserEditErrors, 'email' | 'role'> & { email?: 'format' | 'taken'; role?: 'invalid' | 'own' };
+export type DeactivateUserResult = { ok: true } | { ok: false; reason: 'self' };
+
+/**
+ * Makes the Používateľ `userId` a Deaktivovaný používateľ, with no date when it ends: Better Auth's
+ * `banUser` ends all his sessions in the same call, and his login then refuses him (app/login/sign-in.ts).
+ * The admin does not deactivate himself, so that an active admin is always left; the plugin refuses it
+ * too, but this answers in the app's way and touches nothing.
+ */
+export async function deactivateUser(user: User | null, requestHeaders: Headers, userId: string, auth?: Auth): Promise<DeactivateUserResult> {
+  assertCan(user, 'users.write');
+  if (userId === user.id) return { ok: false, reason: 'self' };
+  await (auth ?? getAuth()).api.banUser({ headers: requestHeaders, body: { userId } });
+  return { ok: true };
+}
+
+/** Lets a Deaktivovaný používateľ sign in again, with the password he had. */
+export async function activateUser(user: User | null, requestHeaders: Headers, userId: string, auth?: Auth): Promise<{ ok: true }> {
+  assertCan(user, 'users.write');
+  await (auth ?? getAuth()).api.unbanUser({ headers: requestHeaders, body: { userId } });
+  return { ok: true };
+}
+
+export type UpdateUserErrors =Omit<UserEditErrors, 'email' | 'role'> & { email?: 'format' | 'taken'; role?: 'invalid' | 'own' };
 export type UpdateUserResult = { ok: true } | { ok: false; errors: UpdateUserErrors };
 
 /**
