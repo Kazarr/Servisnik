@@ -1025,10 +1025,23 @@ test('a copy of an item of the Cenník is edited like any item, and the Cenník 
   expect((await ctx.db.execute(sql`select name, unit_price_cents from price_list_item`)).rows).toEqual([{ name: 'Brzdová doštička', unit_price_cents: 3000 }]);
 });
 
-test('an item of the Cenník keeps a VAT rate Nastavenia no longer offer when it is added', async () => {
+test('an item of the Cenník with a VAT rate Nastavenia no longer offer is refused, nothing is added, and it is added once the item of the Cenník has a rate they offer', async () => {
   const id = await newWorkOrderId();
   const fromList = await priceListItemId({ ...brake, vatRate: '5' });
   await ctx.db.execute(sql`update workshop set vat_rates = '{23,19}', default_vat_rate = 23`);
+  const before = await getWorkOrder(admin, id, ctx.db);
+
+  expect(await addItemFromPriceList(admin, id, fromList, ctx.db)).toEqual({ ok: false, errors: { vatRate: 'not-offered' } });
+
+  expect(await getWorkOrder(admin, id, ctx.db)).toEqual(before);
+  expect(await updatePriceListItem(admin, fromList, { ...brake, vatRate: '19' }, ctx.db)).toEqual({ ok: true });
+  expect(await addItemFromPriceList(admin, id, fromList, ctx.db)).toMatchObject({ ok: true });
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ vatRate: 19 }]);
+});
+
+test('an item of the Cenník with a rate that Nastavenia offer but do not default to is added with that rate', async () => {
+  const id = await newWorkOrderId();
+  const fromList = await priceListItemId({ ...brake, vatRate: '5' });
 
   expect(await addItemFromPriceList(admin, id, fromList, ctx.db)).toMatchObject({ ok: true });
 
@@ -1052,6 +1065,23 @@ test('a Zákazka that does not exist, or an id that is not one, is unknown', asy
   for (const unknown of [randomUUID(), 'zakazka-1']) {
     expect(await addItemFromPriceList(admin, unknown, fromList, ctx.db)).toEqual({ ok: false, errors: { workOrder: 'unknown' } });
   }
+});
+
+// The order of the reasons: an item that is not in the Cenník, then a VAT rate Nastavenia no longer offer, then the Zákazka.
+
+test('an item of the Cenník that does not exist is reported before the state of a Zákazka that is Hotová, and before a Zákazka that does not exist', async () => {
+  const done = await workOrderIn('done');
+
+  expect(await addItemFromPriceList(admin, done, randomUUID(), ctx.db)).toEqual({ ok: false, errors: { priceListItem: 'unknown' } });
+  expect(await addItemFromPriceList(admin, randomUUID(), randomUUID(), ctx.db)).toEqual({ ok: false, errors: { priceListItem: 'unknown' } });
+});
+
+test('a VAT rate Nastavenia no longer offer is reported before the state of a Zákazka that is Hotová', async () => {
+  const done = await workOrderIn('done');
+  const fromList = await priceListItemId({ ...brake, vatRate: '5' });
+  await ctx.db.execute(sql`update workshop set vat_rates = '{23,19}', default_vat_rate = 23`);
+
+  expect(await addItemFromPriceList(admin, done, fromList, ctx.db)).toEqual({ ok: false, errors: { vatRate: 'not-offered' } });
 });
 
 test.each([
