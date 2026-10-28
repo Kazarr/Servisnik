@@ -66,8 +66,10 @@ export function amountsOf({ quantityHundredths, unitPriceCents, vatRate }: Price
 
 /** What a Zákazka costs: the sum of its rounded items, never a rounding of the sums. */
 export function totalsOf(items: readonly Priced[]): Amounts {
-  const sum = (key: keyof Amounts) => items.reduce((total, item) => total + amountsOf(item)[key], 0);
-  return { net: sum('net'), vat: sum('vat'), gross: sum('gross') };
+  return items.map(amountsOf).reduce(
+    (total, item) => ({ net: total.net + item.net, vat: total.vat + item.vat, gross: total.gross + item.gross }),
+    { net: 0, vat: 0, gross: 0 },
+  );
 }
 
 /** Práca or Diel. The model has both from the start; only Práca is added anywhere so far. */
@@ -108,13 +110,11 @@ export function parseWorkOrder(
 ): { ok: true; workOrder: { mileageKm: number; customerRequest: string } } | { ok: false; errors: WorkOrderErrors } {
   const mileageKm = wholeNumber(input.mileageKm);
   const customerRequest = input.customerRequest.trim();
-  if (mileageKm === null || mileageKm > maxMileageKm || !customerRequest) {
-    const errors: WorkOrderErrors = {};
-    if (mileageKm === null || mileageKm > maxMileageKm) errors.mileageKm = 'invalid';
-    if (!customerRequest) errors.customerRequest = 'required';
-    return { ok: false, errors };
-  }
-  return { ok: true, workOrder: { mileageKm, customerRequest } };
+  const errors: WorkOrderErrors = {};
+  if (mileageKm === null || mileageKm > maxMileageKm) errors.mileageKm = 'invalid';
+  if (!customerRequest) errors.customerRequest = 'required';
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, workOrder: { mileageKm: mileageKm!, customerRequest } };
 }
 
 /** What the form sends for a Práca; `vatRate` left out means the default, a blank one is a mistake. */
