@@ -1,5 +1,5 @@
 {
-  "id": "34cbc061-e48c-4bc6-bbaa-cb2cea95c77e",
+  "id": "76f7ec9a-a857-424f-8c50-606adafe6928",
   "prevId": "a4d33db1-a293-40b5-8b7c-b894d9c7abba",
   "version": "7",
   "dialect": "postgresql",
@@ -477,6 +477,31 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel": {
+          "name": "fuel",
+          "type": "vehicle_fuel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_km": {
+          "name": "mileage_km",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -993,65 +1018,6 @@
         }
       },
       "isRLSEnabled": false
-    },
-    "public.workshop_logo": {
-      "name": "workshop_logo",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "default": 1
-        },
-        "content_type": {
-          "name": "content_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "data": {
-          "name": "data",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "workshop_logo_single_row_check": {
-          "name": "workshop_logo_single_row_check",
-          "value": "\"workshop_logo\".\"id\" = 1"
-        },
-        "workshop_logo_content_type_check": {
-          "name": "workshop_logo_content_type_check",
-          "value": "\"workshop_logo\".\"content_type\" in ('image/png', 'image/jpeg')"
-        },
-        "workshop_logo_size_check": {
-          "name": "workshop_logo_size_check",
-          "value": "octet_length(\"workshop_logo\".\"data\") between 1 and 1048576"
-        }
-      },
-      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -1069,6 +1035,19 @@
       "values": [
         "admin",
         "mechanik"
+      ]
+    },
+    "public.vehicle_fuel": {
+      "name": "vehicle_fuel",
+      "schema": "public",
+      "values": [
+        "petrol",
+        "diesel",
+        "hybrid",
+        "electric",
+        "lpg",
+        "cng",
+        "other"
       ]
     },
     "public.work_order_item_kind": {

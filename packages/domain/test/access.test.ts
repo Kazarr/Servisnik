@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { can, canSeePrices, capabilities, roles, type Capability } from '../src/access/index.ts';
+import { can, canSeePrices, capabilities, passwordError, passwordLength, roles, type Capability } from '../src/access/index.ts';
 
 // A capability the code has never heard of, e.g. one a newer version adds.
 const unknown = 'work-orders.delete' as Capability;
@@ -40,5 +40,15 @@ describe('Prístup', () => {
   test('only the admin sees prices', () => {
     expect(canSeePrices('admin')).toBe(true);
     expect(canSeePrices('mechanik')).toBe(false);
+  });
+
+  test('a password is 8 to 128 characters long, with no rule on what they are', () => {
+    expect(passwordLength).toEqual({ min: 8, max: 128 });
+    expect(passwordError('')).toBe('tooShort');
+    expect(passwordError('1234567')).toBe('tooShort');
+    expect(passwordError('12345678')).toBeNull();
+    expect(passwordError('a'.repeat(128))).toBeNull();
+    expect(passwordError('a'.repeat(129))).toBe('tooLong');
+    expect(passwordError('        ')).toBeNull();
   });
 });

@@ -8,5 +8,8 @@ export const menu: readonly { href: string; label: string; capability: Capabilit
   { href: '/nastavenia', label: 'Nastavenia', capability: 'settings.read' },
 ];
 
+/** Where the e-mail under the menu leads: the change of the own password, for a Rola that may do it. */
+export const ownPassword = { href: '/heslo', capability: 'password.change' } as const satisfies { href: string; capability: Capability };
+
 /** The items of the menu this Rola may open. */
 export const menuFor = (role: Role) => menu.filter(({ capability }) => can(role, capability));
