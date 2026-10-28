@@ -1,5 +1,5 @@
 {
-  "id": "3bf53671-beca-4526-8885-539fe31157f7",
+  "id": "76f7ec9a-a857-424f-8c50-606adafe6928",
   "prevId": "a4d33db1-a293-40b5-8b7c-b894d9c7abba",
   "version": "7",
   "dialect": "postgresql",
@@ -302,12 +302,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "impersonated_by": {
-          "name": "impersonated_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -412,25 +406,6 @@
           "notNull": true,
           "default": "'mechanik'"
         },
-        "banned": {
-          "name": "banned",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "ban_reason": {
-          "name": "ban_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ban_expires": {
-          "name": "ban_expires",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -502,6 +477,31 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel": {
+          "name": "fuel",
+          "type": "vehicle_fuel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_km": {
+          "name": "mileage_km",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1035,6 +1035,19 @@
       "values": [
         "admin",
         "mechanik"
+      ]
+    },
+    "public.vehicle_fuel": {
+      "name": "vehicle_fuel",
+      "schema": "public",
+      "values": [
+        "petrol",
+        "diesel",
+        "hybrid",
+        "electric",
+        "lpg",
+        "cng",
+        "other"
       ]
     },
     "public.work_order_item_kind": {

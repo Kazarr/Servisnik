@@ -47,8 +47,15 @@
     {
       "idx": 6,
       "version": "7",
-      "when": 1793198243132,
-      "tag": "0006_users_admin_plugin",
+      "when": 1793196360907,
+      "tag": "0006_vehicle_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793198983064,
+      "tag": "0007_work_order_statuses",
       "breakpoints": true
     }
   ]
