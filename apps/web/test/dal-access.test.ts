@@ -4,6 +4,7 @@ import { createAuth } from '../src/auth.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
@@ -49,6 +50,7 @@ const calls: Record<string, Call> = {
   updateVehicle: (user, db) =>
     vehicles.updateVehicle(user, vehicleId, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Passat' }, db),
   listVehicles: (user, db) => vehicles.listVehicles(user, db),
+  searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
   addLabour: (user, db) => workOrders.addLabour(user, orderId, { name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
@@ -77,6 +79,7 @@ const dataAccess = { 'customers.ts': customers, 'password.ts': password, 'settin
 const helpers = {
   'constraint.ts': { module: constraintModule, exports: ['violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
+  'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
 };
