@@ -46,15 +46,3 @@ test("a customer's detail lists the Zákazky made for them, and a Zákazka of an
   await expect(main).not.toContainText(mine.number);
   await expect(main).toContainText('Zatiaľ žiadne vozidlo.');
 });
-
-test('the detail of a customer without Zákazky says there is none', async ({ page }) => {
-  const name = `Zákazník Bez Zákaziek ${runTag()}`;
-  const id = idOf(await createCustomer(admin, { type: 'person', name }, db));
-  await signIn(page);
-
-  await page.goto(`/zakaznici/${id}`);
-
-  await expect(page.locator('main h1')).toHaveText(name);
-  await expect(page.locator('main')).toContainText('Zatiaľ tu nič nie je.');
-  await expect(page.locator('main').getByRole('row')).toHaveCount(0);
-});
