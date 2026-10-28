@@ -1,4 +1,7 @@
-# Commits the check skips for every rule: they predate the check and cannot be rewritten.
+# Commits the check skips for every rule: they predate the rule they break and cannot be rewritten.
 # One "<full 40-hex sha> <one-line reason>" per line. Add a line only for a commit that is already merged.
 e54c38e6da3084e3e77ff908c43963c20d354f6d #78: feat after feat with no test commit, and its e2e/** files belong in a test commit
 271f0412224e1c6bcc9aed5a7423656c229e7494 #78: feat after feat with no test commit
+0964a5f78393776deffc2519c9fdf03aea4f4ae6 #133: test commit that also moved vehicle-form.tsx (a production file) out of vozidla/novy/
+d0f60fe0bc161b02aa80c3246d5937cab0c756c8 #133: test commit that also changed apps/web/vitest.config.ts
+7c6ec8395eab912f1d691863045c3dff720ebd66 #133: test commit that also changed tools/vitest.config.ts
