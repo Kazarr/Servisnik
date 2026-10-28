@@ -25,11 +25,14 @@ test('the admin adds a vehicle from the list, picks its owner by search, and the
 
   // The form comes after the owner: he is picked by searching for him, and a search finds more than him.
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Vozidlá' }).click();
+  // Waited for: the customer's detail still on the page has a link of the same name, which opens the form for him.
+  await expect(main.locator('h1')).toHaveText('Vozidlá');
   await main.getByRole('link', { name: 'Pridať vozidlo' }).click();
   await expect(main.locator('h1')).toHaveText('Nové vozidlo');
   await expect(page.getByLabel('VIN')).toHaveCount(0);
   await page.getByLabel('Hľadať majiteľa').fill(tag);
   await page.getByRole('button', { name: 'Hľadať', exact: true }).click();
+  await page.waitForURL((url) => url.searchParams.get('q') === tag);
   await expect(main.getByRole('link', { name: tag })).toHaveText([other, owner]);
   await main.getByRole('link', { name: owner }).click();
   await expect(main.locator('h1')).toHaveText('Nové vozidlo');
