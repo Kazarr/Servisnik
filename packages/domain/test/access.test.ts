@@ -37,6 +37,15 @@ describe('Prístup', () => {
     }
   });
 
+  // The Údaje autoservisu are printed on the documents a mechanik prints (the job sheet), so he reads them; only the admin writes them, with settings.write.
+  test('the mechanik reads Údaje autoservisu, which the Nastavenia capabilities do not give him, and writes none', () => {
+    expect(capabilities).toContain('workshop.read');
+    expect(can('admin', 'workshop.read')).toBe(true);
+    expect(can('mechanik', 'workshop.read')).toBe(true);
+    expect(can('mechanik', 'settings.read')).toBe(false);
+    expect(can('mechanik', 'settings.write')).toBe(false);
+  });
+
   // The list of Používatelia and the creation of one are the admin's alone: they hand out access to everything.
   test('the mechanik may neither list nor create Používatelia, the admin does both', () => {
     for (const capability of ['users.read', 'users.write'] as const) {
