@@ -32,14 +32,28 @@ export async function signIn(page: Page) {
 /** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */
 export const newIco = () => String(randomInt(10_000_000, 100_000_000));
 
-/** Adds a customer through the form and waits for its detail page. A Firma gets `ico`, a new one unless given. */
-export async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Firma' = 'Osoba', ico = newIco()) {
+/** Adds a customer through the form and waits for its detail page. A Firma gets `ico`, a new one unless given; `contact` fills the phone and e-mail. */
+export async function addCustomer(
+  page: Page,
+  name: string,
+  type: 'Osoba' | 'Firma' = 'Osoba',
+  ico = newIco(),
+  contact: { phone?: string; email?: string } = {},
+) {
   await page.goto('/zakaznici/novy');
   await page.getByLabel(type, { exact: true }).check();
   await page.getByLabel('Názov', { exact: false }).fill(name);
   if (type === 'Firma') await page.getByLabel('IČO', { exact: true }).fill(ico);
+  if (contact.phone) await page.getByLabel('Telefón', { exact: true }).fill(contact.phone);
+  if (contact.email) await page.getByLabel('E-mail', { exact: true }).fill(contact.email);
   await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
   await expect(page.locator('main h1')).toHaveText(name);
+}
+
+/** Types `text` into the search field of the customer list and searches. */
+export async function searchCustomers(page: Page, text: string) {
+  await page.getByLabel('Hľadať zákazníka').fill(text);
+  await page.getByRole('button', { name: 'Hľadať', exact: true }).click();
 }
 
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
