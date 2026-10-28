@@ -4,7 +4,7 @@ import { vatPayerTypes, type VatPayerType, type WorkshopDetails } from '@servisn
 import { useActionState } from 'react';
 import { Field, FormError, SelectField, TextAreaField } from '../field.tsx';
 import { valueIn } from '../form-value.ts';
-import { saveWorkshopDetailsAction } from './workshop-actions.ts';
+import { saveWorkshopDetailsAction } from './actions.ts';
 
 const vatPayerTypeLabels: Record<VatPayerType, string> = { payer: 'Platiteľ', nonPayer: 'Neplatiteľ', section7: 'Registrovaný podľa §7' };
 
