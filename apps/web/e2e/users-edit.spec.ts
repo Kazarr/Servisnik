@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { Page } from '@playwright/test';
-import { seedUser } from '../test/support/users.ts';
-import { expect, runTag, signIn, signInAs, submitLogin, test } from './fixtures.ts';
+import { expect, runTag, seedMechanik, signIn, signInAs, submitLogin, test } from './fixtures.ts';
 import { openDatabase } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -9,13 +8,6 @@ test.beforeAll(() => {
   db = openDatabase();
 });
 test.afterAll(() => db.$client.end());
-
-/** A mechanik made straight in the database, with a tag in his name and e-mail so that specs do not meet each other's users. */
-async function seedMechanik(tag: string) {
-  const mechanik = { name: `Mechanik ${tag}`, email: `mechanik-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
-  await seedUser(db, { ...mechanik, role: 'mechanik' });
-  return mechanik;
-}
 
 /** The row of the list in Nastavenia that holds this e-mail. */
 const rowOf = (page: Page, email: string) => page.getByRole('region', { name: 'Používatelia' }).getByRole('row').filter({ hasText: email });
@@ -34,7 +26,7 @@ test('the admin changes a user, gives him a new password and sees it in the list
 }) => {
   test.slow(); // the production build is shared by the workers; this one signs in four times and sends the forms five times
   const tag = runTag();
-  const mechanik = await seedMechanik(tag);
+  const mechanik = await seedMechanik(db, tag);
   const renamed = { name: `Premenovaný ${tag}`, email: `premenovany-${tag}@autoservis.test` };
   const newPassword = randomBytes(12).toString('base64url');
   const elsewhere = await browser.newContext({ baseURL });
@@ -106,7 +98,7 @@ test('the admin has no way to change his own Rola, deactivate himself or give hi
 
 test('the admin deactivates a mechanik, who lands on the login with the reason, and activates him again', async ({ page, browser, baseURL }) => {
   test.slow(); // the production build is shared by the workers; this one signs in five times
-  const mechanik = await seedMechanik(runTag());
+  const mechanik = await seedMechanik(db, runTag());
   const elsewhere = await browser.newContext({ baseURL });
   const mechanikPage = await elsewhere.newPage();
   await signInAs(mechanikPage, mechanik);

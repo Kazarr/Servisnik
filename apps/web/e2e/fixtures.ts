@@ -1,5 +1,7 @@
 import { expect, test as base, type Browser, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
+import type { Database } from '../src/db/index.ts';
+import { seedUser } from '../test/support/users.ts';
 import { watchPage } from './watch-page.ts';
 
 export { expect };
@@ -50,6 +52,13 @@ export async function signIn(page: Page) {
 export async function signInAs(page: Page, { email, password }: { email: string; password: string }) {
   await submitLogin(page, password, email);
   await expect(page).toHaveURL(/\/zakazky$/);
+}
+
+/** A mechanik made straight in the database, with the tag in his name and e-mail so that specs do not meet each other's users. */
+export async function seedMechanik(db: Database, tag: string, name = `Mechanik ${tag}`) {
+  const mechanik = { name, email: `mechanik-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
+  await seedUser(db, { ...mechanik, role: 'mechanik' });
+  return mechanik;
 }
 
 /** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */

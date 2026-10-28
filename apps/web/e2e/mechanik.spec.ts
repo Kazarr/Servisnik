@@ -6,7 +6,7 @@ import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrders } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { expect, runTag, signInAs, test, vinOf } from './fixtures.ts';
+import { expect, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -15,17 +15,10 @@ test.beforeAll(() => {
 });
 test.afterAll(() => db.$client.end());
 
-/** A mechanik made straight in the database, with a tag in his e-mail so that specs do not meet each other's users. */
-async function seedMechanik(tag: string) {
-  const mechanik = { email: `mechanik-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
-  await seedUser(db, { ...mechanik, role: 'mechanik' });
-  return mechanik;
-}
-
 test('the mechanik signs in to Zákazky only, sees the number as text and no amount, and every other page leads him back', async ({ page }) => {
   const tag = runTag();
   const order = await seedWorkOrder(db, tag);
-  await signInAs(page, await seedMechanik(tag));
+  await signInAs(page, await seedMechanik(db, tag));
 
   const main = page.locator('main');
   await expect(page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link')).toHaveText(['Zákazky']);
