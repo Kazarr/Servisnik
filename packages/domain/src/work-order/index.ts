@@ -55,6 +55,16 @@ export type Priced = { quantityHundredths: number; unitPriceCents: number; vatRa
 const roundedDivide = (numerator: number, denominator: number) => Math.floor((2 * numerator + denominator) / (2 * denominator));
 
 /**
+ * `part` as a percentage of `whole`, in tenths of a percent, rounded half away from zero; `part` is negative
+ * for a loss. Null when `whole` is 0, which has no percentage.
+ */
+function percentTenths(part: number, whole: number): number | null {
+  if (whole === 0) return null;
+  const tenths = roundedDivide(Math.abs(part) * 1000, whole);
+  return part < 0 ? 0 - tenths : tenths; // not -tenths, which is -0 when the part rounds to nothing
+}
+
+/**
  * What one item costs, rounded to cents once per item: first the amount without VAT, then the VAT
  * taken from that rounded amount. `vatRate` is a whole percentage.
  */
@@ -121,6 +131,30 @@ export function parseVatRate(typed: string): number | null {
   return rate === null || rate > maxVatRate ? null : rate;
 }
 
+/** What `marginOf` needs of an item: what it sells for, and what a Diel was bought for. */
+export type Costed = Priced & { kind: ItemKind; purchasePriceCents: number | null };
+
+/** The Marža of a Zákazka. `percentTenths` is of the sale without VAT, in tenths of a percent, and none at a sale of 0. */
+export type Margin = { purchaseNet: number; cents: number; percentTenths: number | null; partsWithoutPurchasePrice: number };
+
+/**
+ * Marža (GLOSSARY): the sale without VAT less the Nákupná cena of the Diely, which is each Diel's quantity
+ * times its price rounded to cents once, like a Predajná cena. A Diel with no Nákupná cena costs 0 and is
+ * counted, so the page can say the Marža is incomplete. A percentage rounds half away from zero.
+ */
+export function marginOf(items: readonly Costed[]): Margin {
+  const parts = items.filter((item) => item.kind === 'part');
+  const purchaseNet = parts.reduce((sum, part) => sum + roundedDivide(part.quantityHundredths * (part.purchasePriceCents ?? 0), 100), 0);
+  const saleNet = totalsOf(items).net;
+  const cents = saleNet - purchaseNet;
+  return {
+    purchaseNet,
+    cents,
+    percentTenths: percentTenths(cents, saleNet),
+    partsWithoutPurchasePrice: parts.filter((part) => part.purchasePriceCents === null).length,
+  };
+}
+
 // Prirážka (GLOSSARY) is never stored: a form turns it into a Predajná cena and back. It is counted in
 // tenths of a percent (125 is 12,5 %), the precision it is shown with, so no amount here is a float.
 
@@ -141,10 +175,7 @@ export function salePriceFromMarkup(purchasePriceCents: number, markupTenths: nu
  * from zero, negative when sold below the purchase price. Null on a purchase price of 0, which has no percentage.
  */
 export function markupFromSalePrice(purchasePriceCents: number, salePriceCents: number): number | null {
-  if (purchasePriceCents === 0) return null;
-  const difference = salePriceCents - purchasePriceCents;
-  const tenths = roundedDivide(Math.abs(difference) * 1000, purchasePriceCents);
-  return difference < 0 ? 0 - tenths : tenths; // not -tenths, which is -0 when the difference rounds to nothing
+  return percentTenths(salePriceCents - purchasePriceCents, purchasePriceCents);
 }
 
 export type WorkOrderInput = { mileageKm: string; customerRequest: string };
