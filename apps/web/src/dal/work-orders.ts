@@ -138,7 +138,8 @@ export type AddItemFromPriceListResult =
  * Adds a Položka cenníka to a Zákazka that is still Rozpracovaná, under the lock of the other adds, as an item of
  * quantity 1 (packages/domain/src/price-list). What is added is a copy of its values and refers back to nothing, so a
  * later change or deletion in the Cenník leaves the Zákazka as it is. The item keeps the VAT rate it has, even
- * one Nastavenia no longer offer. Reading the Cenník is the admin's alone.
+ * one Nastavenia no longer offer. Reading the Cenník is the admin's alone. An item that is not in the Cenník is
+ * reported before the state of the Zákazka is looked at.
  */
 export async function addItemFromPriceList(
   user: User | null,

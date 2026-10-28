@@ -8,9 +8,10 @@ import { searchHref } from '../../search-params.ts';
 import { AddFromPriceListForm } from './add-from-price-list-form.tsx';
 
 /**
- * The section of a Zákazka that is still rozpracovaná where the admin finds a Položka cenníka by a part of its code
- * or name and adds it with a click. Nothing is listed until something is searched for; the search is the `?q=` of the
- * address, with the page in `?strana=`, so the results stay where they are while items are added.
+ * The section where the admin finds a Položka cenníka by a part of its code or name and adds it to the Zákazka with
+ * a click. The page of the Zákazka shows it only while the Zákazka is Rozpracovaná, and the DAL refuses an add to any
+ * other. Nothing is listed until something is searched for; the search is the `?q=` of the address, with the page in
+ * `?strana=`, so the results stay where they are while items are added.
  */
 export async function PriceListSearch({ user, workOrderId, query, page }: { user: User; workOrderId: string; query: string; page: number }) {
   const path = `/zakazky/${workOrderId}`;
