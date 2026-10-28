@@ -81,20 +81,29 @@ export const verification = pgTable(
 /** Osoba or Firma. */
 export const customerType = pgEnum('customer_type', customerTypes);
 
-/** Zákazník. The company fields stay empty for an osoba (packages/domain/src/customer). */
-export const customer = pgTable('customer', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  type: customerType('type').notNull(),
-  name: text('name').notNull(),
-  ico: text('ico'),
-  dic: text('dic'),
-  icDph: text('ic_dph'),
-  street: text('street'),
-  city: text('city'),
-  postalCode: text('postal_code'),
-  email: text('email'),
-  ...timestamps,
-});
+/**
+ * Zákazník. The company fields stay empty for an osoba (packages/domain/src/customer). The IČO is
+ * unique; PostgreSQL lets any number of rows have none, and the name is not unique at all.
+ */
+export const customer = pgTable(
+  'customer',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: customerType('type').notNull(),
+    name: text('name').notNull(),
+    ico: text('ico'),
+    dic: text('dic'),
+    icDph: text('ic_dph'),
+    street: text('street'),
+    city: text('city'),
+    postalCode: text('postal_code'),
+    phone: text('phone'),
+    email: text('email'),
+    note: text('note'),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex('customer_ico_idx').on(table.ico)],
+);
 
 /** Vozidlo, identified by its VIN; `ownerId` is its Majiteľ. */
 export const vehicle = pgTable(
