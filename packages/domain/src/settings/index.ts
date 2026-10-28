@@ -1,5 +1,5 @@
 // Settings area (GLOSSARY: Používatelia a nastavenia, Nastavenia). Pure rules: no framework, database or network.
-import { parseUnitPrice } from '../work-order/index.ts';
+import { parseUnitPrice, parseVatRate } from '../work-order/index.ts';
 
 /** Sadzby DPH, Hodinová sadzba and Prirážka as stored: the VAT rates and the markup in whole percent, the hourly rate in cents without VAT. */
 export type Rates = {
@@ -21,9 +21,12 @@ export type RatesErrors = {
   markup?: 'invalid';
 };
 
-/** There is no markup limit in the specification; this keeps a price computed from it inside a PostgreSQL integer and a safe number. */
+/**
+ * The specification sets no upper limit for the markup. This one only bounds the integer column that
+ * stores it (an int4 holds 2 147 483 647); the price made from a markup is bounded where it is made,
+ * by `maxUnitPriceCents` of the Zákazka area.
+ */
 export const maxMarkupPercent = 10_000;
-const maxVatRate = 100;
 
 /** Digits only, or null; a number too big for its field is the caller's `> max`. */
 const wholeNumber = (typed: string) => (/^\d+$/.test(typed) ? Number(typed) : null);
@@ -35,8 +38,8 @@ const wholeNumber = (typed: string) => (/^\d+$/.test(typed) ? Number(typed) : nu
 function parseVatRates(typed: string): number[] | NonNullable<RatesErrors['vatRates']> {
   const lines = typed.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length === 0) return 'required';
-  const rates = lines.map(wholeNumber);
-  if (rates.some((rate) => rate === null || rate > maxVatRate)) return 'invalid';
+  const rates = lines.map(parseVatRate);
+  if (rates.includes(null)) return 'invalid';
   return new Set(rates).size < rates.length ? 'duplicate' : (rates as number[]);
 }
 
@@ -50,8 +53,8 @@ export function parseRates(input: RatesInput): { ok: true; rates: Rates } | { ok
   const vatRates = parseVatRates(input.vatRates);
   if (!Array.isArray(vatRates)) errors.vatRates = vatRates;
 
-  const defaultVatRate = wholeNumber(input.defaultVatRate.trim());
-  if (defaultVatRate === null || defaultVatRate > maxVatRate) errors.defaultVatRate = 'invalid';
+  const defaultVatRate = parseVatRate(input.defaultVatRate);
+  if (defaultVatRate === null) errors.defaultVatRate = 'invalid';
   else if (Array.isArray(vatRates) && !vatRates.includes(defaultVatRate)) errors.defaultVatRate = 'not-in-list';
 
   const hourlyRate = input.hourlyRate.trim();

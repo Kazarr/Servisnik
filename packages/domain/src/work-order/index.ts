@@ -97,10 +97,19 @@ export function parseUnitPrice(typed: string): number | null {
   return cents === null || cents > maxUnitPriceCents ? null : cents;
 }
 
-/** A whole number such as the kilometres or a VAT rate; spaces may group the digits. */
+/** A whole number such as the kilometres; spaces may group the digits. */
 function wholeNumber(typed: string): number | null {
   const digits = typed.replace(/\s/g, '');
   return /^\d+$/.test(digits) ? Number(digits) : null;
+}
+
+const maxVatRate = 100;
+
+/** A Sadzba DPH: a whole percentage from 0 to 100, in digits only (no grouping, so "2 3" is not 23), or null. */
+export function parseVatRate(typed: string): number | null {
+  const digits = typed.trim();
+  const rate = /^\d+$/.test(digits) ? Number(digits) : null;
+  return rate === null || rate > maxVatRate ? null : rate;
 }
 
 export type WorkOrderInput = { mileageKm: string; customerRequest: string };
@@ -133,12 +142,12 @@ export function parseLabour(input: LabourInput, defaultVatRate: number): { ok: t
   const name = input.name.trim();
   const quantityHundredths = hundredths(input.quantity);
   const unitPriceCents = parseUnitPrice(input.unitPrice);
-  const vatRate = input.vatRate === undefined ? defaultVatRate : wholeNumber(input.vatRate);
+  const vatRate = input.vatRate === undefined ? defaultVatRate : parseVatRate(input.vatRate);
   const errors: LabourErrors = {};
   if (!name) errors.name = 'required';
   if (quantityHundredths === null || quantityHundredths < 1 || quantityHundredths > maxQuantityHundredths) errors.quantity = 'invalid';
   if (unitPriceCents === null) errors.unitPrice = 'invalid';
-  if (vatRate === null || vatRate > 100) errors.vatRate = 'invalid';
+  if (vatRate === null) errors.vatRate = 'invalid';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, item: { kind: 'labour', name, quantityHundredths: quantityHundredths!, unit: 'h', unitPriceCents: unitPriceCents!, vatRate: vatRate! } };
 }
