@@ -13,7 +13,7 @@ import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
-import { account, customer, user, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
+import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
@@ -113,7 +113,7 @@ const everything = async () => ({
   items: await ctx.db.select().from(workOrderItem),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
-  users: await ctx.db.select().from(user),
+  users: await ctx.db.select().from(userTable),
   accounts: await ctx.db.select().from(account),
 });
 
