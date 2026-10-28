@@ -8,7 +8,7 @@ import { customerTypeLabels } from '../zakaznici/type-labels.ts';
 
 /**
  * The search for a Majiteľ, the same as on the list of Zákazníci, for the pages that pick one: the form
- * of a new Vozidlo and a Prepis. Each result links to `path?zakaznik=<id>`, and `path` also receives the
+ * of a new Vozidlo, a Prepis, and the intake of a new Vozidlo with its Zákazka. Each result links to `path?zakaznik=<id>`, and `path` also receives the
  * search. `except` is the Majiteľ the Vozidlo has now, who is not offered.
  */
 export async function OwnerSearch({ user, query, page, path, except }: { user: User; query: string; page: number; path: string; except?: string }) {
