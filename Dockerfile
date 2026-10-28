@@ -35,7 +35,9 @@ ARG PLAYWRIGHT_VERSION=1.64.1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN npx --yes playwright-core@${PLAYWRIGHT_VERSION} install --with-deps --only-shell chromium \
  && apt-get install -y --no-install-recommends fonts-liberation \
- && rm -rf /var/lib/apt/lists/* /root/.npm
+ && apt-get clean \
+ && npm cache clean --force \
+ && rm -r /var/lib/apt/lists/*
 # The code belongs to root: the user that runs it cannot change it. Only .next/cache is writable.
 COPY --from=build /repo/apps/web/.next/standalone /app
 # The standalone server does not serve .next/static itself.
