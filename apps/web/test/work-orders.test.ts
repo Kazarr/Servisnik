@@ -61,6 +61,38 @@ async function workOrderIn(status: WorkOrderStatus, completedOn: string | null =
   return id;
 }
 
+/**
+ * Runs `act` while another request keeps what `hold` took in its transaction, and lets that request commit only once
+ * PostgreSQL shows a session of this database waiting for a lock (not after a timer), so `act` has met the lock and
+ * sees what the request left. The request commits whatever happens to `act`, so a failing test never hangs on it.
+ */
+async function whileHeld(hold: (tx: Parameters<Parameters<typeof ctx.db.transaction>[0]>[0]) => Promise<unknown>, act: () => Promise<unknown>) {
+  const holding = Promise.withResolvers<void>();
+  const committed = Promise.withResolvers<void>();
+  const other = ctx.db.transaction(async (tx) => {
+    await hold(tx);
+    holding.resolve();
+    await committed.promise;
+  });
+  other.catch(holding.reject);
+  await holding.promise;
+
+  const acting = act();
+  try {
+    await vi.waitFor(
+      async () => {
+        const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
+        expect(waiting.rows).toHaveLength(1);
+      },
+      { timeout: 10_000 },
+    );
+  } finally {
+    committed.resolve();
+    await other;
+  }
+  return acting;
+}
+
 test('without a user every function rejects, and nothing is written', async () => {
   const id = await newWorkOrderId();
   const itemId = idOf(await addItem(admin, id, oilChange, ctx.db));
@@ -333,29 +365,13 @@ test('a double click on "Označiť ako hotovú" marks the Zákazka once, and one
 
 test('work added while another request is marking the Zákazka as done waits for it and is then refused', async () => {
   const id = await newWorkOrderId();
-  const marking = Promise.withResolvers<void>();
-  const committed = Promise.withResolvers<void>();
-  // The other request: its update holds the row lock until `committed` is resolved.
-  const marked = ctx.db.transaction(async (tx) => {
-    await tx.execute(sql`update work_order set status = 'done', completed_on = '2026-07-15' where id = ${id}`);
-    marking.resolve();
-    await committed.promise;
-  });
-  await marking.promise;
 
-  const adding = addItem(admin, id, oilChange, ctx.db);
-  // Not a timer: go on only once PostgreSQL shows a session of this database waiting for a lock.
-  await vi.waitFor(
-    async () => {
-      const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
-      expect(waiting.rows).toHaveLength(1);
-    },
-    { timeout: 10_000 },
+  const adding = await whileHeld(
+    (tx) => tx.execute(sql`update work_order set status = 'done', completed_on = '2026-07-15' where id = ${id}`),
+    () => addItem(admin, id, oilChange, ctx.db),
   );
-  committed.resolve();
-  await marked;
 
-  expect(await adding).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
+  expect(adding).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
   expect((await getWorkOrder(admin, id, ctx.db))?.items).toEqual([]);
 });
 
@@ -646,11 +662,17 @@ test('an item of another Zákazka is not touched by changing or deleting this on
   const [first, second] = [await newWorkOrderId(), await newWorkOrderId()];
   const firstItem = idOf(await addItem(admin, first, oilChange, ctx.db));
   idOf(await addItem(admin, second, oilChange, ctx.db));
+  const secondBefore = await getWorkOrder(admin, second, ctx.db);
+
+  await updateItem(admin, firstItem, { name: 'Zmenená', quantity: '2', unitPrice: '1' }, ctx.db);
+
+  expect((await getWorkOrder(admin, first, ctx.db))?.items).toMatchObject([{ id: firstItem, name: 'Zmenená' }]);
+  expect(await getWorkOrder(admin, second, ctx.db)).toEqual(secondBefore);
 
   await deleteItem(admin, firstItem, ctx.db);
 
   expect((await getWorkOrder(admin, first, ctx.db))?.items).toEqual([]);
-  expect((await getWorkOrder(admin, second, ctx.db))?.items).toHaveLength(1);
+  expect(await getWorkOrder(admin, second, ctx.db)).toEqual(secondBefore);
 });
 
 test.each([
@@ -695,28 +717,33 @@ test.each([
 ])('an item %s while another request is marking the Zákazka as done waits for it and is then refused', async (_what, change, refusal) => {
   const id = await newWorkOrderId();
   const itemId = idOf(await addItem(admin, id, oilChange, ctx.db));
-  const marking = Promise.withResolvers<void>();
-  const committed = Promise.withResolvers<void>();
-  // The other request: its update holds the row lock until `committed` is resolved.
-  const marked = ctx.db.transaction(async (tx) => {
-    await tx.execute(sql`update work_order set status = 'done', completed_on = '2026-07-15' where id = ${id}`);
-    marking.resolve();
-    await committed.promise;
-  });
-  await marking.promise;
 
-  const changing = change(itemId);
-  // Not a timer: go on only once PostgreSQL shows a session of this database waiting for a lock.
-  await vi.waitFor(
-    async () => {
-      const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
-      expect(waiting.rows).toHaveLength(1);
-    },
-    { timeout: 10_000 },
+  const changing = await whileHeld(
+    (tx) => tx.execute(sql`update work_order set status = 'done', completed_on = '2026-07-15' where id = ${id}`),
+    () => change(itemId),
   );
-  committed.resolve();
-  await marked;
 
-  expect(await changing).toEqual(refusal);
+  expect(changing).toEqual(refusal);
   expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ id: itemId, name: 'Výmena oleja' }]);
+});
+
+test.each([
+  ['changed', (itemId: string) => updateItem(admin, itemId, { name: 'Zmenená', quantity: '2', unitPrice: '1' }, ctx.db), { ok: false, errors: { item: 'unknown' } }],
+  ['deleted', (itemId: string) => deleteItem(admin, itemId, ctx.db), { ok: false, error: 'unknown' }],
+])('an item %s while another request deletes it waits for that request and is then unknown', async (_what, change, refusal) => {
+  const id = await newWorkOrderId();
+  const itemId = idOf(await addItem(admin, id, oilChange, ctx.db));
+  const kept = idOf(await addItem(admin, id, { ...oilChange, name: 'Zostane' }, ctx.db));
+
+  // The other request takes the lock of the Zákazka as updateItem and deleteItem do, and deletes the item before they get it.
+  const changing = await whileHeld(
+    async (tx) => {
+      await tx.execute(sql`select 1 from work_order where id = ${id} for update`);
+      await tx.execute(sql`delete from work_order_item where id = ${itemId}`);
+    },
+    () => change(itemId),
+  );
+
+  expect(changing).toEqual(refusal);
+  expect((await getWorkOrder(admin, id, ctx.db))?.items).toMatchObject([{ id: kept, name: 'Zostane' }]);
 });
