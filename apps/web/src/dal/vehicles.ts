@@ -3,7 +3,7 @@ import { localYear } from '@servisnik/domain/work-order';
 import { count, desc, eq, or } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
-import { violates } from './constraint.ts';
+import { blockedByLink, violates } from './constraint.ts';
 import { contains, pageWindow } from './paging.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
@@ -124,4 +124,22 @@ export async function getVehicle(user: User | null, id: string, db: Database = g
   if (!isUuid(id)) return null;
   const [found] = await vehiclesWithOwner(db).where(eq(vehicle.id, id));
   return found ?? null;
+}
+
+export type DeleteVehicleResult = { ok: true } | { ok: false; error: 'unknown' | 'has-links' };
+
+/**
+ * Deletes a Vozidlo that has no Zákazka; one with any stays, as `has-links`, whatever the Stav of the
+ * Zákazka. Like deleteCustomer it relies on the foreign keys, which are `restrict`, not on a look first.
+ */
+export async function deleteVehicle(user: User | null, id: string, db: Database = getDb()): Promise<DeleteVehicleResult> {
+  assertCan(user, 'vehicles.write');
+  if (!isUuid(id)) return { ok: false, error: 'unknown' };
+  try {
+    const [deleted] = await db.delete(vehicle).where(eq(vehicle.id, id)).returning({ id: vehicle.id });
+    return deleted ? { ok: true } : { ok: false, error: 'unknown' };
+  } catch (error) {
+    if (!blockedByLink(error)) throw error;
+    return { ok: false, error: 'has-links' };
+  }
 }

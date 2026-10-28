@@ -6,7 +6,9 @@ import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getVehicle } from '../../../../dal/vehicles.ts';
 import { listWorkOrdersOfVehicle } from '../../../../dal/work-orders.ts';
 import { formatWhole } from '../../../../format.ts';
+import { DeleteForm } from '../../delete-form.tsx';
 import { WorkOrderList } from '../../zakazky/work-order-list.tsx';
+import { removeVehicle } from '../actions.ts';
 import { fuelLabels } from '../fuel-labels.ts';
 
 export const metadata: Metadata = { title: 'Vozidlo' };
@@ -55,6 +57,10 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
         </Link>
       </div>
       {orders.length === 0 ? <p>Zatiaľ žiadna zákazka.</p> : <WorkOrderList orders={orders} role={user.role} now={new Date()} without="vehicle" />}
+
+      {orders.length === 0 && (
+        <DeleteForm id={vehicle.id} action={removeVehicle} label="Zmazať vozidlo" question={`Zmazať vozidlo ${vehicle.make} ${vehicle.model} (${vehicle.vin})? Zmazanie nemožno vrátiť.`} />
+      )}
     </>
   );
 }
