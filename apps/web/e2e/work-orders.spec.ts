@@ -49,7 +49,7 @@ async function addLabour(page: Page, fields: { name: string; quantity: string; u
 }
 
 test('the admin opens a work order on a vehicle, adds work, sees the amounts and marks it done', async ({ page }) => {
-  test.slow(); // the longest flow; under --repeat-each the workers share one server and it took 34 s
+  test.slow(); // the longest flow; under --repeat-each the workers share one server
   // All specs share one database, and this one also runs repeated: its customer and VIN carry a tag, and the order is read by its own number.
   const tag = runTag();
   const [owner, vin] = [`Majiteľ Prvej Zákazky ${tag}`, vinOf(tag)];
@@ -117,7 +117,7 @@ test('the admin opens a work order on a vehicle, adds work, sees the amounts and
 });
 
 test('a work order for another customer than the owner keeps that customer, and a later one gets a higher number', async ({ page }) => {
-  test.slow(); // two customers, a vehicle and two work orders; under --repeat-each the workers share one server and it took 24 s
+  test.slow(); // two customers, a vehicle and two work orders; under --repeat-each the workers share one server
   const tag = runTag();
   const [other, owner] = [`Iný Zákazník Zákazky ${tag}`, `Majiteľ Druhej Zákazky ${tag}`];
   await signIn(page);
@@ -139,7 +139,7 @@ test('a work order for another customer than the owner keeps that customer, and 
   await expect(page.getByLabel('Zákazník', { exact: true }).locator('option:checked')).toHaveText(owner);
   await fillIntake(page, '10', 'Druhý príjem');
   await expect(detail(main, 'Zákazník')).toHaveText(owner);
-  // Not first + 1: workers share the year's counter, so other work orders take numbers in between (that the numbers run without a gap is tested in test/work-orders.test.ts).
+  // Workers share the year's counter, so only the order is checked; no gaps: apps/web/test/work-orders.test.ts.
   expect(sequenceOf(await numberOfOpenOrder(page))).toBeGreaterThan(first);
 });
 
@@ -159,7 +159,7 @@ test('a work order form with a bad kilometre count stays on the form, with the r
 });
 
 test('the work order forms and the done button, used after the session ended, are refused and change nothing', async ({ page, browser, baseURL }) => {
-  test.slow(); // four sign-ins and three ended sessions; under --repeat-each the workers share one server and it took 30 s
+  test.slow(); // four sign-ins and three ended sessions; under --repeat-each the workers share one server
   const tag = runTag();
   const owner = `Majiteľ Bez Relácie ${tag}`;
   await signIn(page);

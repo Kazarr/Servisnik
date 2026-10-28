@@ -10,7 +10,7 @@ export { expect };
  */
 export const runTag = () => randomBytes(3).toString('hex');
 
-/** A VIN no other test has used: the 11 characters of `prefix`, then the tag in capitals (hex digits are never I, O or Q). */
+/** A VIN unique per tag (24 random bits): the 11 characters of `prefix`, then the tag in capitals (hex digits are never I, O or Q). */
 export const vinOf = (tag: string, prefix = 'TMBZZZ5JZ3W') => `${prefix}${tag.toUpperCase()}`;
 
 /** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see watch-page.ts). */

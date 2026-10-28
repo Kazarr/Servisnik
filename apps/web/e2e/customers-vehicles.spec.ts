@@ -1,7 +1,7 @@
 import { addCustomer, endSessionBehindThePage, expect, newIco, runTag, signIn, test, vinOf } from './fixtures.ts';
 
 test('the admin adds a company and its vehicle, and a second vehicle with the same VIN is refused', async ({ page }) => {
-  test.slow(); // one long walk through the forms; under --repeat-each the workers share one server and it took 25 s
+  test.slow(); // one long walk through the forms; under --repeat-each the workers share one server
   // All specs share one database, and this one also runs repeated: the company and the VIN carry a tag.
   const tag = runTag();
   const company = `Autodoprava Kováč ${tag} s.r.o.`;
@@ -98,7 +98,7 @@ test('the admin adds a person without company fields, and the list starts with t
 });
 
 test('a customer form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
-  test.slow(); // two sign-ins and an ended session; under --repeat-each the workers share one server and it took 26 s
+  test.slow(); // two sign-ins and an ended session; under --repeat-each the workers share one server
   const name = `Nemal by sa uložiť ${runTag()}`;
   await signIn(page);
   await page.goto('/zakaznici/novy');
@@ -115,7 +115,7 @@ test('a customer form submitted after the session ended is refused and saves not
 });
 
 test('a vehicle form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
-  test.slow(); // two sign-ins and an ended session; under --repeat-each the workers share one server and it took 26 s
+  test.slow(); // two sign-ins and an ended session; under --repeat-each the workers share one server
   const tag = runTag();
   const vin = vinOf(tag);
   await signIn(page);
