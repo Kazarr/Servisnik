@@ -82,6 +82,17 @@ export function localDate(instant: Date): string {
 /** The year at this moment in Europe/Bratislava, which is the year of a new Zákazka's number. */
 export const localYear = (instant: Date): number => Number(localDate(instant).slice(0, 4));
 
+/**
+ * What the kilometres of a new Zákazka (Príjem vozidla) do to the Stav km of its Vozidlo: higher ones
+ * become its Stav km, as do any when it has none yet. Lower ones leave it as it was and ask for a
+ * warning, because the odometer may have been replaced; the Zákazka keeps them either way. Equal ones
+ * change nothing and need no warning.
+ */
+export function mileageAtIntake(vehicleMileageKm: number | null, intakeKm: number): { vehicleMileageKm: number; lowerThanVehicle: boolean } {
+  if (vehicleMileageKm === null || intakeKm > vehicleMileageKm) return { vehicleMileageKm: intakeKm, lowerThanVehicle: false };
+  return { vehicleMileageKm, lowerThanVehicle: intakeKm < vehicleMileageKm };
+}
+
 /** Money is whole cents and a quantity is in hundredths, so no amount here is ever a float. */
 export type Amounts = { net: number; vat: number; gross: number };
 export type Priced = { quantityHundredths: number; unitPriceCents: number; vatRate: number };

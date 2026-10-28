@@ -82,6 +82,17 @@ const calls: Record<string, Call> = {
   searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
+  createIntake: (user, db) =>
+    workOrders.createIntake(
+      user,
+      {
+        owner: { customer: { type: 'person', name: 'Nový Zákazník' } },
+        vehicle: { vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' },
+        mileageKm: '1',
+        customerRequest: 'Brzdy',
+      },
+      db,
+    ),
   // Whether a mechanik may change the header or the states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   updateWorkOrderHeader: (user, db) =>
     workOrders.updateWorkOrderHeader(user, orderId, { mileageKm: '2', customerRequest: 'Nová požiadavka', deadline: '2026-12-01', note: 'Poznámka' }, db),
