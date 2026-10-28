@@ -58,15 +58,32 @@ export type NewUserErrors = { name?: 'required'; email?: 'format'; role?: 'inval
  * included; Better Auth does not check its minimal length when an admin creates a user, so this does.
  */
 export function parseNewUser(input: NewUserInput): { ok: true; user: NewUser } | { ok: false; errors: NewUserErrors } {
+  const profile = parseUserEdit(input);
+  const errors: NewUserErrors = profile.ok ? {} : profile.errors;
+  const password = passwordError(input.password);
+  if (password) errors.password = password;
+  if (!profile.ok || !profile.edit.role || password) return { ok: false, errors };
+  return { ok: true, user: { ...profile.edit, role: profile.edit.role, password: input.password } };
+}
+
+/** What the form that edits a Používateľ sends, every value as typed. No `role` means that the Rola stays as it is. */
+export type UserEditInput = { name: string; email: string; role?: string };
+export type UserEdit = { name: string; email: string; role?: Role };
+export type UserEditErrors = { name?: 'required'; email?: 'format'; role?: 'invalid' };
+
+/**
+ * An edit of a Používateľ ready to be saved, or every reason it is not one. The name and the e-mail
+ * are cleaned like a new user's. A role that was sent must be one of ours, an empty one too; none
+ * means the edit leaves the Rola as it is.
+ */
+export function parseUserEdit(input: UserEditInput): { ok: true; edit: UserEdit } | { ok: false; errors: UserEditErrors } {
   const name = input.name.trim();
   const email = input.email.trim().toLowerCase();
   const role = roles.find((known) => known === input.role);
-  const errors: NewUserErrors = {};
+  const errors: UserEditErrors = {};
   if (!name) errors.name = 'required';
   if (!isEmail(email)) errors.email = 'format';
-  if (!role) errors.role = 'invalid';
-  const password = passwordError(input.password);
-  if (password) errors.password = password;
-  if (Object.keys(errors).length > 0 || !role) return { ok: false, errors };
-  return { ok: true, user: { name, email, role, password: input.password } };
+  if (input.role !== undefined && !role) errors.role = 'invalid';
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, edit: { name, email, ...(role && { role }) } };
 }
