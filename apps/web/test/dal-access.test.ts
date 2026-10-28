@@ -56,6 +56,17 @@ const calls: Record<string, Call> = {
   searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
+  createIntake: (user, db) =>
+    workOrders.createIntake(
+      user,
+      {
+        owner: { customer: { type: 'person', name: 'Nový Zákazník' } },
+        vehicle: { vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' },
+        mileageKm: '1',
+        customerRequest: 'Brzdy',
+      },
+      db,
+    ),
   addLabour: (user, db) => workOrders.addLabour(user, orderId, { name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
   // Whether a mechanik may change states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
