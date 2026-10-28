@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { createAuth } from '../src/auth.ts';
+import * as attemptLimit from '../src/dal/attempt-limit.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
@@ -8,6 +9,7 @@ import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
+import * as signIn from '../src/dal/sign-in.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
 import * as users from '../src/dal/users.ts';
@@ -118,9 +120,11 @@ const dataAccess = {
  * access file and in `calls`, anything else goes in this list.
  */
 const helpers = {
+  'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
+  'sign-in.ts': { module: signIn, exports: ['signInWithPassword'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
 };
