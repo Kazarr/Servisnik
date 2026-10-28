@@ -29,6 +29,7 @@ import { findPriceKeys } from './support/price-keys.ts';
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let auth: ReturnType<typeof createAuth>;
 let ownerId: string;
+let buyerId: string;
 let vehicleId: string;
 let idleCustomerId: string;
 let idleVehicleId: string;
@@ -38,6 +39,7 @@ beforeAll(async () => {
   ctx = await createTestDb();
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123' }); // on the real db, so that building it is not a touch of the watched one
   ownerId = idOf(await customers.createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
+  buyerId = idOf(await customers.createCustomer(admin, { type: 'person', name: 'Ján Kupujúci' }, ctx.db));
   vehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
   idleCustomerId = idOf(await customers.createCustomer(admin, { type: 'person', name: 'Bez väzieb' }, ctx.db)); // nothing links to these two, so an admin may delete them
   idleVehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
@@ -60,6 +62,7 @@ const calls: Record<string, Call> = {
   createVehicle: (user, db) => vehicles.createVehicle(user, { ownerId, vin: 'TMBZZZ5JZ3W000101', licensePlate: '', make: 'Škoda', model: 'Octavia' }, db),
   updateVehicle: (user, db) =>
     vehicles.updateVehicle(user, vehicleId, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Passat' }, db),
+  transferOwnership: (user, db) => vehicles.transferOwnership(user, vehicleId, { fromOwnerId: ownerId, toOwnerId: buyerId }, db),
   deleteVehicle: (user, db) => vehicles.deleteVehicle(user, idleVehicleId, db),
   searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
