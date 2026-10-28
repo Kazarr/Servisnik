@@ -2,32 +2,45 @@ import { parseVehicle, type VehicleErrors, type VehicleInput, type VinError } fr
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
-import { assertUser, type User } from './user.ts';
+import { assertAdmin, assertUser, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
 export type CreateVehicleResult =
   | { ok: true; id: string }
-  | { ok: false; errors: Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken' } };
+  | { ok: false; errors: Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken'; owner?: 'unknown' } };
+
+/** PostgreSQL refused a Vozidlo whose Majiteľ is no Zákazník (the foreign key decides, so no check can go stale before the insert). */
+function isUnknownOwner(error: unknown) {
+  // Drizzle wraps the driver's error as `cause`.
+  return error instanceof Error && (error.cause as { constraint?: string } | undefined)?.constraint === 'vehicle_owner_id_customer_id_fk';
+}
 
 /**
- * Saves a Vozidlo for `ownerId`, the Zákazník it is added from. The domain normalises the VIN, and the
- * unique index on it decides a duplicate: two attempts at once cannot both get through.
+ * Saves a Vozidlo for `ownerId`, the Zákazník it is added from; only the admin may (GLOSSARY, Rola).
+ * The domain normalises the VIN, and the unique index on it decides a duplicate: two attempts at once
+ * cannot both get through. An `ownerId` that is no Zákazník, or not even an id, comes back as `owner: 'unknown'`.
  */
 export async function createVehicle(
   user: User | null,
   input: VehicleInput & { ownerId: string },
   db: Database = getDb(),
 ): Promise<CreateVehicleResult> {
-  assertUser(user);
+  assertAdmin(user);
   const { ownerId, ...fields } = input;
   const parsed = parseVehicle(fields);
   if (!parsed.ok) return parsed;
-  const [saved] = await db
-    .insert(vehicle)
-    .values({ ...parsed.vehicle, ownerId })
-    .onConflictDoNothing({ target: vehicle.vin })
-    .returning({ id: vehicle.id });
-  return saved ? { ok: true, id: saved.id } : { ok: false, errors: { vin: 'taken' } };
+  if (!isUuid(ownerId)) return { ok: false, errors: { owner: 'unknown' } };
+  try {
+    const [saved] = await db
+      .insert(vehicle)
+      .values({ ...parsed.vehicle, ownerId })
+      .onConflictDoNothing({ target: vehicle.vin })
+      .returning({ id: vehicle.id });
+    return saved ? { ok: true, id: saved.id } : { ok: false, errors: { vin: 'taken' } };
+  } catch (error) {
+    if (!isUnknownOwner(error)) throw error;
+    return { ok: false, errors: { owner: 'unknown' } };
+  }
 }
 
 const withOwner = {
