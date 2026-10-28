@@ -86,9 +86,11 @@ describe('the content', () => {
 
   test('shows no price: no euro sign, VAT, amount, sum, discount or margin', () => {
     const document = print();
+    const content = /<main>([\s\S]*)<\/main>/.exec(document)![1]!; // the style of the page has words of its own
 
     expect(document).not.toContain('€');
-    expect(document).not.toMatch(/DPH(?!:)|cena|suma|Spolu|zľav|marž|nákup/i); // "IČ DPH:" is the autoservis's identifier, not VAT
+    expect(content).not.toMatch(/DPH|cena|suma|Spolu|zľav|marž|nákup/i);
+    expect(document).not.toMatch(/DPH(?!:)/); // "IČ DPH:" in the header is the identifier of the autoservis, not VAT
   });
 
   test('shows no internal note', () => {

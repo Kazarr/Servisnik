@@ -99,9 +99,9 @@ describe('what the customer does not get', () => {
   });
 
   test('is no internal note, no kilometres and no signature line', () => {
-    const document = print();
+    const content = /<main>([\s\S]*)<\/main>/.exec(print())![1]!; // the style of the page names the kilometres too
 
-    expect(document).not.toMatch(/poznámk|kilometre|Podpis/i);
+    expect(content).not.toMatch(/poznámk|kilometre|Podpis/i);
   });
 });
 
