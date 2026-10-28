@@ -1,9 +1,9 @@
 import { parseCustomer, parseCustomerSearch, searchKeys, type Customer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
 import { count, desc, eq, or, sql } from 'drizzle-orm';
-import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { violates } from './constraint.ts';
+import { contains, pageWindow } from './paging.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
@@ -72,17 +72,13 @@ export async function listCustomers(user: User | null, db: Database = getDb()) {
   return db.select().from(customer).orderBy(desc(customer.createdAt));
 }
 
-const customersPerPage = 25;
-
-const contains = (column: AnyPgColumn, part: string) => sql`strpos(${column}, ${part}) > 0`;
-
 /**
  * A page of Zákazníci that match `query`, alphabetically by name. The query is a part of the name,
  * IČO, e-mail or phone; the domain normalizes it the way the stored keys are (packages/domain/src/
  * customer). A blank query has nothing to look for, so every Zákazník matches. `page` counts from 1:
  * any page past the last is the last, and anything that is not a page number is the first. Admin only.
  */
-// ponytail: a scan of the table per search; a trigram index on the search columns if the table outgrows ~100k customers.
+// ponytail: a scan of the table per search; rewrite `contains` to an escaped LIKE and add a pg_trgm GIN index on the search columns if the table outgrows ~100k customers.
 export async function searchCustomers(
   user: User | null,
   { query = '', page = 1 }: { query?: string; page?: number } = {},
@@ -101,16 +97,15 @@ export async function searchCustomers(
 
   const [counted] = await db.select({ total: count() }).from(customer).where(matching);
   const total = counted!.total;
-  const pageCount = Math.max(1, Math.ceil(total / customersPerPage));
-  const current = Number.isInteger(page) ? Math.min(Math.max(page, 1), pageCount) : 1;
+  const { page: current, pageCount, limit, offset } = pageWindow(total, page);
   const customers = await db
     .select({ id: customer.id, type: customer.type, name: customer.name, ico: customer.ico, phone: customer.phone, email: customer.email })
     .from(customer)
     .where(matching)
     // The Slovak alphabet (č after c, ch after h, case and diacritics only after the letters), the same on every server.
     .orderBy(sql`${customer.name} collate "sk-x-icu"`, customer.id)
-    .limit(customersPerPage)
-    .offset((current - 1) * customersPerPage);
+    .limit(limit)
+    .offset(offset);
   return { customers, page: current, pageCount, total };
 }
 
