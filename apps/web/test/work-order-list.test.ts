@@ -38,15 +38,15 @@ test('the admin opens a Zákazka from its number', () => {
   expect(html).toContain('<a href="/zakazky/7d1c0a3e-0000-4000-8000-000000000001">Z2026-0001</a>');
 });
 
-test('the mechanik sees the number, customer, vehicle and status, and the number is only text', () => {
+// His detail of a Zákazka has no price (spec #95, Mechanik), so the number opens it for him too.
+test('the mechanik sees the number, customer, vehicle and status, and opens the detail from the number', () => {
   const html = render('mechanik');
 
-  expect(html).toContain('<td>Z2026-0001</td>');
+  expect(html).toContain('<a href="/zakazky/7d1c0a3e-0000-4000-8000-000000000001">Z2026-0001</a>');
   expect(html).toContain('<td>Firma s.r.o.</td>');
   expect(html).toContain('Volkswagen Golf, WVWZZZ1JZ3W386752');
   expect(html).toContain('<td>Prijatá</td>');
-  expect(html).not.toContain('<a');
-  expect(html).not.toContain('href');
+  expect(html.match(/<a /g)).toHaveLength(1);
 });
 
 test('the list on the detail of a vehicle leaves out the Vozidlo column and keeps the number, customer and status', () => {
