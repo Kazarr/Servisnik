@@ -1,4 +1,5 @@
 import { parseVehicle, type VehicleErrors, type VehicleInput, type VinError } from '@servisnik/domain/vehicle';
+import { localYear } from '@servisnik/domain/work-order';
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
@@ -20,7 +21,7 @@ export async function createVehicle(
 ): Promise<CreateVehicleResult> {
   assertCan(user, 'vehicles.write');
   const { ownerId, ...fields } = input;
-  const parsed = parseVehicle(fields);
+  const parsed = parseVehicle(fields, localYear(new Date()));
   if (!parsed.ok) return parsed;
   const [saved] = await db
     .insert(vehicle)

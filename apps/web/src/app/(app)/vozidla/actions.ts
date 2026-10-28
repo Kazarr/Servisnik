@@ -13,7 +13,8 @@ export type VehicleFormState = {
 
 const vinMessages = {
   length: 'VIN musí mať presne 17 znakov',
-  characters: 'VIN smie obsahovať len písmená A–Z a číslice 0–9, bez I, O a Q',
+  characters: 'VIN smie obsahovať len písmená A–Z a číslice 0–9',
+  confusable: 'VIN nemá písmená I, O ani Q: namiesto I patrí 1, namiesto O a Q patrí 0',
   taken: 'Vozidlo s týmto VIN už existuje',
 };
 
