@@ -17,7 +17,7 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 beforeEach(async () => {
   await ctx.db.execute(sql`truncate customer cascade`);
-  ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.' }, ctx.db));
+  ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
 });
 
 function idOf(result: { ok: true; id: string } | { ok: false }) {

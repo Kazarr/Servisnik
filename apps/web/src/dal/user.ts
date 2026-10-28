@@ -18,6 +18,23 @@ export function assertUser(user: User | null): asserts user is User {
   if (!user) throw new UnauthenticatedError();
 }
 
+export class ForbiddenError extends Error {
+  constructor() {
+    super('Používateľ na to nemá oprávnenie.');
+  }
+}
+
+/**
+ * First line of a DAL function only the admin may use: no user and nothing happens, a mechanik and
+ * nothing happens either (GLOSSARY, Rola: a mechanik sees only the zákazky, without prices). Only the
+ * customers use it so far; the other areas stay on assertUser until #118 (Prístup) replaces it with
+ * its capability check.
+ */
+export function assertAdmin(user: User | null): asserts user is User {
+  assertUser(user);
+  if (user.role !== 'admin') throw new ForbiddenError();
+}
+
 const isRole =(value: unknown): value is Role => role.enumValues.some((known) => known === value);
 
 /**

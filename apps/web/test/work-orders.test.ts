@@ -26,7 +26,7 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 beforeEach(async () => {
   await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
-  ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.' }, ctx.db));
+  ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 });
 
