@@ -62,10 +62,15 @@ const actions = {
     call: () => workOrderActions.editWorkOrder(null, form({ id, mileageKm: '1', customerRequest: 'Brzdy', deadline: '2026-12-01', note: 'Poznámka' })),
     answer: formRefused,
   },
-  addLabourToWorkOrder: {
-    call: () => workOrderActions.addLabourToWorkOrder(null, form({ workOrderId: id, name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' })),
+  addItemToWorkOrder: {
+    call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', unitPrice: '10', vatRate: '23' })),
     answer: formRefused,
   },
+  updateItemOfWorkOrder: {
+    call: () => workOrderActions.updateItemOfWorkOrder(null, form({ itemId: id, name: 'Brzdy', quantity: '2', unit: 'h', unitPrice: '12', vatRate: '23' })),
+    answer: formRefused,
+  },
+  deleteItemOfWorkOrder: { call: () => workOrderActions.deleteItemOfWorkOrder(null, form({ itemId: id, workOrderId: id })), answer: { error: forbiddenMessage } },
   changeStatus: { call: () => workOrderActions.changeStatus(null, form({ workOrderId: id, to: 'done' })), answer: { error: forbiddenMessage } },
   saveRatesAction: {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),

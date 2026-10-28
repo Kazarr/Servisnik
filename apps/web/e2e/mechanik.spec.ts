@@ -1,9 +1,10 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { listCustomers } from '../src/dal/customers.ts';
 import { getRates } from '../src/dal/settings.ts';
 import { listUsers } from '../src/dal/users.ts';
 import { searchVehicles } from '../src/dal/vehicles.ts';
-import { getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
+import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
+import { idOf } from '../test/support/id-of.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
 import { expect, runTag, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
@@ -47,6 +48,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     `/zakazky/nova?vozidlo=${order.vehicleId}`,
     `/zakazky/${order.orderId}`,
     `/zakazky/${order.orderId}/upravit`,
+    `/zakazky/${order.orderId}/polozky/${randomUUID()}`,
     '/nastavenia',
   ];
   for (const path of elsewhere) {
@@ -81,11 +83,16 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const headerPage = await context.newPage();
   await headerPage.goto(`/zakazky/${order.orderId}/upravit`);
   await headerPage.getByLabel('Kilometre pri príjme').fill('777');
+  const itemId = idOf(await addItem(admin, order.orderId, { kind: 'part', name: 'Zostane', quantity: '1', unitPrice: '10' }, db));
   const detailPage = await context.newPage();
   await detailPage.goto(`/zakazky/${order.orderId}`);
-  await detailPage.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
-  await detailPage.getByLabel('Množstvo (h)').fill('1');
-  await detailPage.getByLabel('Cena za jednotku bez DPH (€)').fill('10');
+  const labourForm = detailPage.getByRole('form', { name: 'Pridať prácu' });
+  await labourForm.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
+  await labourForm.getByLabel('Množstvo', { exact: true }).fill('1');
+  await labourForm.getByLabel('Predajná cena za jednotku bez DPH (€)').fill('10');
+  const itemPage = await context.newPage();
+  await itemPage.goto(`/zakazky/${order.orderId}/polozky/${itemId}`);
+  await itemPage.getByLabel('Názov', { exact: true }).fill('Nemal by sa zmeniť');
   const settingsPage = await context.newPage();
   await settingsPage.goto('/nastavenia');
   await settingsPage.getByLabel('Prirážka na diely (%)').fill('77');
@@ -109,10 +116,14 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(orderPage.locator('main').getByRole('alert')).toHaveText(message);
   await headerPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(headerPage.locator('main').getByRole('alert')).toHaveText(message);
-  await detailPage.getByRole('button', { name: 'Pridať prácu' }).click();
+  await labourForm.getByRole('button', { name: 'Pridať prácu' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText(message);
-  await detailPage.getByRole('button', { name: 'Označiť ako hotovú' }).click();
+  await detailPage.getByRole('button', { name: 'Zmazať Zostane' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message]);
+  await detailPage.getByRole('button', { name: 'Označiť ako hotovú' }).click();
+  await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message, message]);
+  await itemPage.getByRole('button', { name: 'Uložiť zmeny' }).click();
+  await expect(itemPage.locator('main').getByRole('alert')).toHaveText(message);
   await settingsPage.getByRole('button', { name: 'Uložiť sadzby' }).click();
   await expect(settingsPage.locator('main').getByRole('alert')).toHaveText(message);
   await usersPage.getByRole('button', { name: 'Založiť používateľa' }).click();
@@ -126,7 +137,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   expect(vehicles.map((vehicle) => vehicle.vin)).toEqual([order.vin]);
   expect(vehicles[0]).toMatchObject({ make: 'Škoda', model: 'Octavia' });
   expect((await listWorkOrdersOfVehicle(admin, order.vehicleId, db)).map(({ number }) => number)).toEqual([order.number]);
-  expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [], mileageKm: 1000 });
+  expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [{ id: itemId, name: 'Zostane' }], mileageKm: 1000 });
   expect(await getRates(admin, db)).toMatchObject({ markupPercent: 0 });
   expect((await listUsers(admin, db)).filter(({ email }) => email.includes(tag)).map(({ email }) => email)).toEqual([user.email]);
 });

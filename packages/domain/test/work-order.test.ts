@@ -7,7 +7,6 @@ import {
   isClosed,
   localDate,
   localYear,
-  parseLabour,
   parseListFilter,
   parseVatRate,
   parseWorkOrder,
@@ -286,7 +285,7 @@ describe('a Zákazka as the admin types it', () => {
   });
 });
 
-// The one rule for a VAT rate typed anywhere: on a Práca, and in the list of rates of Nastavenia.
+// The one rule for a VAT rate typed anywhere: on a Položka zákazky, and in the list of rates of Nastavenia.
 describe('a VAT rate as it is typed', () => {
   test.each([
     ['0', 0],
@@ -303,70 +302,6 @@ describe('a VAT rate as it is typed', () => {
     expect(parseVatRate(typed)).toBeNull();
   });
 });
-
-describe('a work item (Práca) as the admin types it', () => {
-  const typed = { name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' };
-  // The default VAT rate comes from Nastavenia: the domain is handed it.
-  const refused = (overrides: Partial<typeof typed>) => parseLabour({ ...typed, ...overrides }, 23);
-
-  test('is a labour item in hours, with the quantity in hundredths and the price in cents', () => {
-    expect(parseLabour(typed, 23)).toEqual({
-      ok: true,
-      item: { kind: 'labour', name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', unitPriceCents: 4000, vatRate: 23 },
-    });
-  });
-
-  test('the VAT rate is the default rate the domain is given unless typed otherwise', () => {
-    const { vatRate: _typed, ...withoutRate } = typed;
-    expect(parseLabour(withoutRate, 19)).toMatchObject({ ok: true, item: { vatRate: 19 } });
-    expect(parseLabour(withoutRate, 5)).toMatchObject({ ok: true, item: { vatRate: 5 } });
-    expect(refused({ vatRate: '5' })).toMatchObject({ ok: true, item: { vatRate: 5 } });
-    expect(refused({ vatRate: '0' })).toMatchObject({ ok: true, item: { vatRate: 0 } });
-  });
-
-  // 1,15 * 100 is 114.99999999999999 as a float: the digits are read, never multiplied.
-  test.each([
-    ['1,15', 115],
-    ['0,29', 29],
-    ['2.3', 230],
-    ['0,05', 5],
-    [' 12 ', 1200],
-    ['99999,99', 9999999],
-  ])('quantity "%s" is %i hundredths', (quantity, hundredths) => {
-    expect(refused({ quantity })).toMatchObject({ ok: true, item: { quantityHundredths: hundredths } });
-  });
-
-  test.each([
-    ['40,5', 4050],
-    ['40.50', 4050],
-    ['33,33', 3333],
-    ['0', 0],
-    ['1 000 000', 100000000],
-  ])('unit price "%s" is %i cents', (unitPrice, cents) => {
-    expect(refused({ unitPrice })).toMatchObject({ ok: true, item: { unitPriceCents: cents } });
-  });
-
-  test.each(['', '0', '0,00', '-1', '1,505', '1,2,3', 'hodina', '100000'])('quantity "%s" is refused', (quantity) => {
-    expect(refused({ quantity })).toEqual({ ok: false, errors: { quantity: 'invalid' } });
-  });
-
-  test.each(['', '-5', '40,505', '40 €', 'drahé', '1000000,01'])('unit price "%s" is refused', (unitPrice) => {
-    expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
-  });
-
-  test.each(['', '-1', '101', '2,5', '23 %', '2 3', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
-    expect(refused({ vatRate })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
-  });
-
-  test('a name is required, and every reason comes back at once', () => {
-    expect(refused({ name: '  ' })).toEqual({ ok: false, errors: { name: 'required' } });
-    expect(refused({ name: '', quantity: '0', unitPrice: '', vatRate: 'x' })).toEqual({
-      ok: false,
-      errors: { name: 'required', quantity: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
-    });
-  });
-});
-
 // How a row of the list of Zákazky looks (GLOSSARY: Termín). Today is the date in Europe/Bratislava.
 describe('the mark of a row in the list', () => {
   const noon = new Date('2026-11-03T12:00:00Z'); // 3 November in Bratislava

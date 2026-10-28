@@ -3,14 +3,15 @@ import {
   canEdit,
   formatWorkOrderNumber,
   localYear,
-  parseLabour,
   parseListFilter,
+  marginOf,
+  parseItem,
   parseWorkOrder,
   statusesOf,
   totalsOf,
   transition,
-  type LabourErrors,
-  type LabourInput,
+  type ItemErrors,
+  type ItemInput,
   type WorkOrderErrors,
   type WorkOrderInput,
   type WorkOrderStatus,
@@ -68,6 +69,19 @@ export async function createWorkOrder(
   });
 }
 
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/**
+ * Locks the Zákazka until the transaction ends and says whether its Položky may change now. The domain's
+ * `canEdit` is that one condition for adding, changing and deleting an item; the lock keeps a change from
+ * landing after the Zákazka became Hotová or Zrušená.
+ */
+async function lockForItems(tx: Transaction, workOrderId: string): Promise<'ok' | 'unknown' | 'not-editable'> {
+  const [found] = await rowsIfUuid(workOrderId, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, workOrderId)).for('update'));
+  if (!found) return 'unknown';
+  return canEdit(found.status) ? 'ok' : 'not-editable';
+}
+
 export type UpdateHeaderResult = { ok: true } | { ok: false; errors: WorkOrderErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
 /**
@@ -90,27 +104,65 @@ export async function updateWorkOrderHeader(user: User | null, id: string, input
   });
 }
 
-export type AddLabourResult =
+export type AddItemResult =
   | { ok: true; id: string }
-  | { ok: false; errors: LabourErrors & { workOrder?: 'unknown' | 'not-editable' } };
+  | { ok: false; errors: ItemErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
 /**
- * Adds a Práca to a Zákazka that is still Rozpracovaná (`canEdit`); the row lock keeps it from landing after the Zákazka became Hotová or Zrušená.
- * The item keeps the VAT rate it has now: a VAT rate left out is the default one of Nastavenia (read with getRates, so
- * a Rola that may write work but not read Nastavenia is refused), and a later change of the rates leaves the item alone.
+ * Adds a Práca or a Diel to a Zákazka that is still Rozpracovaná. The item keeps the VAT rate it has now: one of the
+ * rates of Nastavenia, the default one when none is given (read with getRates, so a Rola that may write work but
+ * not read Nastavenia is refused), and a later change of the rates leaves the item alone.
  */
-export async function addLabour(user: User | null, workOrderId: string, input: LabourInput, db: Database = getDb()): Promise<AddLabourResult> {
+export async function addItem(user: User | null, workOrderId: string, input: ItemInput, db: Database = getDb()): Promise<AddItemResult> {
   assertCan(user, 'work-orders.write');
-  const { defaultVatRate } = await getRates(user, db);
-  const parsed = parseLabour(input, defaultVatRate);
+  const parsed = parseItem(input, await getRates(user, db));
   if (!parsed.ok) return parsed;
 
   return db.transaction(async (tx) => {
-    const [found] = await rowsIfUuid(workOrderId, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, workOrderId)).for('update'));
-    if (!found) return { ok: false, errors: { workOrder: 'unknown' } };
-    if (!canEdit(found.status)) return { ok: false, errors: { workOrder: 'not-editable' } };
+    const locked = await lockForItems(tx, workOrderId);
+    if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
     const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...parsed.item }).returning({ id: workOrderItem.id });
     return { ok: true, id: saved!.id };
+  });
+}
+
+export type UpdateItemResult =
+  | { ok: true; workOrderId: string }
+  | { ok: false; errors: ItemErrors & { item?: 'unknown'; workOrder?: 'not-editable' } };
+
+/**
+ * Replaces what the form of an item sends, on a Zákazka that is still Rozpracovaná: the kind of the item stays. What is
+ * left out is as when adding, except a VAT rate, which stays the one the item has. That rate is allowed even when
+ * Nastavenia no longer offer it, so an old item can still be edited; any other must be one they offer.
+ */
+export async function updateItem(user: User | null, itemId: string, input: Omit<ItemInput, 'kind'>, db: Database = getDb()): Promise<UpdateItemResult> {
+  assertCan(user, 'work-orders.write');
+  const { vatRates } = await getRates(user, db);
+
+  return db.transaction(async (tx) => {
+    const [item] = await rowsIfUuid(itemId, tx.select({ workOrderId: workOrderItem.workOrderId, kind: workOrderItem.kind, vatRate: workOrderItem.vatRate }).from(workOrderItem).where(eq(workOrderItem.id, itemId)));
+    if (!item) return { ok: false, errors: { item: 'unknown' } };
+    const locked = await lockForItems(tx, item.workOrderId);
+    if (locked !== 'ok') return { ok: false, errors: locked === 'unknown' ? { item: 'unknown' } : { workOrder: locked } };
+    const parsed = parseItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: [...vatRates, item.vatRate] });
+    if (!parsed.ok) return parsed;
+    const [saved] = await tx.update(workOrderItem).set(parsed.item).where(eq(workOrderItem.id, itemId)).returning({ id: workOrderItem.id });
+    return saved ? { ok: true, workOrderId: item.workOrderId } : { ok: false, errors: { item: 'unknown' } }; // none: deleted while this waited for the lock
+  });
+}
+
+export type DeleteItemResult = { ok: true; workOrderId: string } | { ok: false; error: 'unknown' | 'not-editable' };
+
+/** Deletes an item of a Zákazka that is still Rozpracovaná, under the same lock as adding one. */
+export async function deleteItem(user: User | null, itemId: string, db: Database = getDb()): Promise<DeleteItemResult> {
+  assertCan(user, 'work-orders.write');
+  return db.transaction(async (tx) => {
+    const [item] = await rowsIfUuid(itemId, tx.select({ workOrderId: workOrderItem.workOrderId }).from(workOrderItem).where(eq(workOrderItem.id, itemId)));
+    if (!item) return { ok: false, error: 'unknown' };
+    const locked = await lockForItems(tx, item.workOrderId);
+    if (locked !== 'ok') return { ok: false, error: locked };
+    const deleted = await tx.delete(workOrderItem).where(eq(workOrderItem.id, itemId)).returning({ id: workOrderItem.id });
+    return deleted.length > 0 ? { ok: true, workOrderId: item.workOrderId } : { ok: false, error: 'unknown' }; // none: deleted while this waited for the lock
   });
 }
 
@@ -207,7 +259,7 @@ export async function listWorkOrdersOfCustomer(user: User | null, customerId: st
   return selectListed(db, {}).where(eq(workOrder.customerId, customerId)).orderBy(desc(workOrder.createdAt));
 }
 
-/** One Zákazka with its items, the amounts of each and the totals, or null when there is none with this id. */
+/** One Zákazka with its items, the amounts of each, the totals and the Marža, or null when there is none with this id. */
 export async function getWorkOrder(user: User | null, id: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
   if (!isUuid(id)) return null;
@@ -219,5 +271,5 @@ export async function getWorkOrder(user: User | null, id: string, db: Database =
   }).where(eq(workOrder.id, id));
   if (!found) return null;
   const items = await db.select().from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(asc(workOrderItem.createdAt), asc(workOrderItem.id));
-  return { ...found, items: items.map((item) => ({ ...item, amounts: amountsOf(item) })), totals: totalsOf(items) };
+  return { ...found, items: items.map((item) => ({ ...item, amounts: amountsOf(item) })), totals: totalsOf(items), margin: marginOf(items) };
 }
