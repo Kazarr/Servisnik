@@ -18,7 +18,7 @@ export type WorkOrderFormState = {
  * and the action is a public endpoint. The customer is the one chosen on the form, the vehicle's
  * Majiteľ unless the admin picked another.
  */
-export async function openWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
+export async function addWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
   const user = await currentUser();
   const values = { mileageKm: field(formData, 'mileageKm'), customerRequest: field(formData, 'customerRequest') };
 
@@ -43,7 +43,7 @@ export type LabourFormState = {
 } | null;
 
 /** Server Action of the add-work form; it checks the session itself, like every action. */
-export async function addWorkToOrder(_state: LabourFormState, formData: FormData): Promise<LabourFormState> {
+export async function addLabourToWorkOrder(_state: LabourFormState, formData: FormData): Promise<LabourFormState> {
   const user = await currentUser();
   const workOrderId = field(formData, 'workOrderId');
   const values = {
