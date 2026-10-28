@@ -4,8 +4,10 @@ import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getCustomer } from '../../../../dal/customers.ts';
 import { listWorkOrdersOfCustomer } from '../../../../dal/work-orders.ts';
+import { DeleteForm } from '../../delete-form.tsx';
 import { VehicleCells } from '../../vozidla/vehicle-cells.tsx';
 import { WorkOrderList } from '../../zakazky/work-order-list.tsx';
+import { removeCustomer } from '../actions.ts';
 import { customerTypeLabels } from '../type-labels.ts';
 
 export const metadata: Metadata = { title: 'Zákazník' };
@@ -81,7 +83,11 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       )}
 
       <h2>Zákazky</h2>
-      <WorkOrderList orders={orders} role={user.role} />
+      <WorkOrderList orders={orders} role={user.role} now={new Date()} />
+
+      {customer.vehicles.length === 0 && orders.length === 0 && (
+        <DeleteForm id={customer.id} action={removeCustomer} label="Zmazať zákazníka" question={`Zmazať zákazníka ${customer.name}? Zmazanie nemožno vrátiť.`} />
+      )}
     </>
   );
 }

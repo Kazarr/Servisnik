@@ -7,9 +7,11 @@ import {
   isClosed,
   localDate,
   localYear,
-  parseLabour,
+  parseListFilter,
   parseVatRate,
   parseWorkOrder,
+  rowMark,
+  statusesOf,
   totalsOf,
   transition,
   userTransitions,
@@ -231,12 +233,37 @@ describe('a Zákazka as the admin types it', () => {
     ['123 456', 123456],
     ['00000001', 1],
     [' 9999999 ', 9999999],
-  ])('kilometres "%s" are %i, and the Zákazka is these two values and nothing else', (typed, km) => {
+  ])('kilometres "%s" are %i, and a Zákazka without a Termín or a note has none', (typed, km) => {
     expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toEqual({
       ok: true,
-      workOrder: { mileageKm: km, customerRequest: 'Servis' },
+      workOrder: { mileageKm: km, customerRequest: 'Servis', deadline: null, note: null },
     });
   });
+
+  test('the Termín is a day, kept as typed in a date field, and the note is kept trimmed', () => {
+    expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline: '2026-11-05', note: ' Zákazník čaká na diely z Nemecka ' })).toEqual({
+      ok: true,
+      workOrder: { mileageKm: 1, customerRequest: 'Servis', deadline: '2026-11-05', note: 'Zákazník čaká na diely z Nemecka' },
+    });
+  });
+
+  test.each(['', '  '])('a blank Termín "%s" and a blank note are none', (blank) => {
+    expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline: blank, note: blank })).toMatchObject({
+      ok: true,
+      workOrder: { deadline: null, note: null },
+    });
+  });
+
+  test.each(['2028-02-29', '2026-12-31', '2026-01-01'])('the day %s is a Termín', (deadline) => {
+    expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline })).toMatchObject({ ok: true, workOrder: { deadline } });
+  });
+
+  test.each(['2027-02-29', '2026-02-30', '2026-13-01', '2026-00-10', '2026-04-31', '5. 11. 2026', '2026-11-5', '0000-01-01', 'zajtra'])(
+    'the Termín "%s" is not a day',
+    (deadline) => {
+      expect(parseWorkOrder({ mileageKm: '1', customerRequest: 'Servis', deadline })).toEqual({ ok: false, errors: { deadline: 'invalid' } });
+    },
+  );
 
   test('the request is kept trimmed', () => {
     expect(parseWorkOrder({ mileageKm: '0', customerRequest: ' Výmena oleja a filtrov ' })).toMatchObject({
@@ -258,7 +285,7 @@ describe('a Zákazka as the admin types it', () => {
   });
 });
 
-// The one rule for a VAT rate typed anywhere: on a Práca, and in the list of rates of Nastavenia.
+// The one rule for a VAT rate typed anywhere: on a Položka zákazky, and in the list of rates of Nastavenia.
 describe('a VAT rate as it is typed', () => {
   test.each([
     ['0', 0],
@@ -275,66 +302,66 @@ describe('a VAT rate as it is typed', () => {
     expect(parseVatRate(typed)).toBeNull();
   });
 });
+// How a row of the list of Zákazky looks (GLOSSARY: Termín). Today is the date in Europe/Bratislava.
+describe('the mark of a row in the list', () => {
+  const noon = new Date('2026-11-03T12:00:00Z'); // 3 November in Bratislava
+  const yesterday = '2026-11-02';
+  const today = '2026-11-03';
+  const tomorrow = '2026-11-04';
 
-describe('a work item (Práca) as the admin types it', () => {
-  const typed = { name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' };
-  // The default VAT rate comes from Nastavenia: the domain is handed it.
-  const refused = (overrides: Partial<typeof typed>) => parseLabour({ ...typed, ...overrides }, 23);
-
-  test('is a labour item in hours, with the quantity in hundredths and the price in cents', () => {
-    expect(parseLabour(typed, 23)).toEqual({
-      ok: true,
-      item: { kind: 'labour', name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', unitPriceCents: 4000, vatRate: 23 },
-    });
+  test.each(['received', 'inProgress', 'waitingForParts'] as const)('a Zákazka that is %s is late only when its Termín is before today', (status) => {
+    expect(rowMark(status, yesterday, noon)).toBe('late');
+    expect(rowMark(status, today, noon)).toBeNull();
+    expect(rowMark(status, tomorrow, noon)).toBeNull();
+    expect(rowMark(status, null, noon)).toBeNull();
   });
 
-  test('the VAT rate is the default rate the domain is given unless typed otherwise', () => {
-    const { vatRate: _typed, ...withoutRate } = typed;
-    expect(parseLabour(withoutRate, 19)).toMatchObject({ ok: true, item: { vatRate: 19 } });
-    expect(parseLabour(withoutRate, 5)).toMatchObject({ ok: true, item: { vatRate: 5 } });
-    expect(refused({ vatRate: '5' })).toMatchObject({ ok: true, item: { vatRate: 5 } });
-    expect(refused({ vatRate: '0' })).toMatchObject({ ok: true, item: { vatRate: 0 } });
+  test('a Zákazka that is Hotová is to be invoiced, whatever its Termín, and is not late', () => {
+    for (const deadline of [yesterday, today, tomorrow, null]) expect(rowMark('done', deadline, noon), `Termín ${deadline}`).toBe('toInvoice');
   });
 
-  // 1,15 * 100 is 114.99999999999999 as a float: the digits are read, never multiplied.
-  test.each([
-    ['1,15', 115],
-    ['0,29', 29],
-    ['2.3', 230],
-    ['0,05', 5],
-    [' 12 ', 1200],
-    ['99999,99', 9999999],
-  ])('quantity "%s" is %i hundredths', (quantity, hundredths) => {
-    expect(refused({ quantity })).toMatchObject({ ok: true, item: { quantityHundredths: hundredths } });
+  test.each(['invoiced', 'cancelled'] as const)('a Zákazka that is %s has no mark, even with a Termín long past', (status) => {
+    for (const deadline of ['2020-01-01', yesterday, today, null]) expect(rowMark(status, deadline, noon), `Termín ${deadline}`).toBeNull();
   });
 
   test.each([
-    ['40,5', 4050],
-    ['40.50', 4050],
-    ['33,33', 3333],
-    ['0', 0],
-    ['1 000 000', 100000000],
-  ])('unit price "%s" is %i cents', (unitPrice, cents) => {
-    expect(refused({ unitPrice })).toMatchObject({ ok: true, item: { unitPriceCents: cents } });
+    ['winter, an hour before midnight, the Termín is still today', '2026-12-31', '2026-12-31T22:59:59Z', null],
+    ['winter, midnight has come, the Termín is yesterday', '2026-12-31', '2026-12-31T23:00:00Z', 'late'],
+    ['summer, two hours before midnight, the Termín is still today', '2026-06-30', '2026-06-30T21:59:59Z', null],
+    ['summer, midnight has come, the Termín is yesterday', '2026-06-30', '2026-06-30T22:00:00Z', 'late'],
+    ['half past midnight in Bratislava is still the 3rd in UTC', '2026-11-03', '2026-11-03T23:30:00Z', 'late'],
+  ] as const)('at the turn of the day: %s', (_what, deadline, instant, mark) => {
+    expect(rowMark('inProgress', deadline, new Date(instant))).toBe(mark);
+  });
+});
+
+describe('the filter of the list of Zákazky', () => {
+  test('without a filter the list shows the Zákazky that are not Uzavretá, from any day', () => {
+    expect(parseListFilter({})).toEqual({ status: 'unclosed', from: null, to: null });
   });
 
-  test.each(['', '0', '0,00', '-1', '1,505', '1,2,3', 'hodina', '100000'])('quantity "%s" is refused', (quantity) => {
-    expect(refused({ quantity })).toEqual({ ok: false, errors: { quantity: 'invalid' } });
+  test.each(['unclosed', 'all', 'received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled'])('the status "%s" is a filter', (status) => {
+    expect(parseListFilter({ status })).toMatchObject({ status });
   });
 
-  test.each(['', '-5', '40,505', '40 €', 'drahé', '1000000,01'])('unit price "%s" is refused', (unitPrice) => {
-    expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
+  test.each(['', 'open', 'Hotová', 'DONE', 'received,done'])('the status "%s" is not a filter, so the default one applies', (status) => {
+    expect(parseListFilter({ status })).toMatchObject({ status: 'unclosed' });
   });
 
-  test.each(['', '-1', '101', '2,5', '23 %', '2 3', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
-    expect(refused({ vatRate })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
+  test('the period is the days from and to, as typed in a date field', () => {
+    expect(parseListFilter({ from: '2026-10-01', to: '2026-10-31' })).toEqual({ status: 'unclosed', from: '2026-10-01', to: '2026-10-31' });
+    expect(parseListFilter({ from: '2026-10-01' })).toMatchObject({ from: '2026-10-01', to: null });
+    expect(parseListFilter({ to: '2026-10-31' })).toMatchObject({ from: null, to: '2026-10-31' });
   });
 
-  test('a name is required, and every reason comes back at once', () => {
-    expect(refused({ name: '  ' })).toEqual({ ok: false, errors: { name: 'required' } });
-    expect(refused({ name: '', quantity: '0', unitPrice: '', vatRate: 'x' })).toEqual({
-      ok: false,
-      errors: { name: 'required', quantity: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
-    });
+  test.each(['', '1. 10. 2026', '2026-02-30', 'dnes'])('the day "%s" is no bound of the period', (day) => {
+    expect(parseListFilter({ from: day, to: day })).toMatchObject({ from: null, to: null });
+  });
+
+  test('Neuzavreté are every status but Vyfakturovaná and Zrušená, Všetky are all six, anything else is itself', () => {
+    expect(statusesOf('unclosed')).toEqual(['received', 'inProgress', 'waitingForParts', 'done']);
+    expect(statusesOf('all')).toEqual(['received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled']);
+    expect(statusesOf('waitingForParts')).toEqual(['waitingForParts']);
+    expect(statusesOf('cancelled')).toEqual(['cancelled']);
   });
 });

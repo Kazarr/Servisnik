@@ -1,10 +1,11 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createAuth } from '../src/auth.ts';
-import { createUser, listUsers } from '../src/dal/users.ts';
+import { createUser, getUser, listUsers } from '../src/dal/users.ts';
 import { account, user } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { raceForUserWrites } from './support/race.ts';
 
 // Používatelia in Nastavenia: the list and the creation of one, on the real Better Auth (admin plugin) and PostgreSQL.
 // Who may do it is the table in dal-access.test.ts.
@@ -29,7 +30,7 @@ const create = (input: Partial<Parameters<typeof createUser>[1]> = {}) =>
 
 const signIn = (email: string, withPassword = password) => auth.api.signInEmail({ body: { email, password: withPassword } });
 
-/** What the table `column` of `table` is, or undefined when there is no such column. */
+/** The type, nullability and default of `column` in `table`, or undefined when the table has no such column. */
 async function columnOf(table: string, column: string) {
   const { rows } = await ctx.db.execute<{ udt_name: string; is_nullable: string; column_default: string | null }>(
     sql`select udt_name, is_nullable, column_default from information_schema.columns where table_name = ${table} and column_name = ${column}`,
@@ -82,6 +83,18 @@ test.each([
   expect(await ctx.db.$count(account)).toBe(1);
 });
 
+test('two creations with one e-mail that both checked it is free create one user and tell the other it is taken, not a server error', async () => {
+  const results = await raceForUserWrites(ctx.db, [
+    () => create({ name: 'Prvý', email: 'spolu@autoservis.test' }),
+    () => create({ name: 'Druhý', email: 'Spolu@Autoservis.test' }),
+  ]);
+
+  expect(results.filter(({ ok }) => ok)).toHaveLength(1);
+  expect(results.filter(({ ok }) => !ok)).toEqual([{ ok: false, errors: { email: 'taken' } }]);
+  expect(await ctx.db.$count(user)).toBe(1);
+  expect(await ctx.db.$count(account)).toBe(1);
+});
+
 test.each([
   ['7 characters is too short', '1234567', 'tooShort'],
   ['an empty password is too short', '', 'tooShort'],
@@ -124,4 +137,18 @@ test('the list is ordered by name, the Slovak way, and holds the name, e-mail, R
   expect(listed.map(({ name }) => name)).toEqual(['adam', 'Branislav', 'Cyril', 'Štefan', 'Zuzana']);
   expect(listed.find(({ name }) => name === 'Cyril')).toEqual({ id: expect.any(String), name: 'Cyril', email: 'cyril@autoservis.test', role: 'mechanik', banned: true });
   expect(listed.find(({ name }) => name === 'Zuzana')).toEqual({ id: expect.any(String), name: 'Zuzana', email: 'zuzana@autoservis.test', role: 'admin', banned: false });
+});
+
+test('one user is read by his id, with what the list shows of him, and an id nobody has gives none', async () => {
+  const created = await create({ name: 'Cyril', email: 'cyril@autoservis.test' });
+  await ctx.db.update(user).set({ banned: true, banReason: 'No reason' }).where(eq(user.name, 'Cyril'));
+
+  expect(await getUser(admin, created.ok ? created.id : '', ctx.db)).toEqual({
+    id: created.ok && created.id,
+    name: 'Cyril',
+    email: 'cyril@autoservis.test',
+    role: 'mechanik',
+    banned: true,
+  });
+  expect(await getUser(admin, 'nikto', ctx.db)).toBeNull();
 });

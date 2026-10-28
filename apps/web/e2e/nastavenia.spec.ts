@@ -33,13 +33,17 @@ test('the admin opens Nastavenia from the menu, sets the hourly rate, and the fo
 
   // The form for new work starts with the default VAT rate and the hourly rate, and adds work at that price.
   await page.goto(`/zakazky/${order.orderId}`);
-  await expect(page.getByLabel('Sadzba DPH (%)')).toHaveValue('23');
-  await expect(page.getByLabel('Cena za jednotku bez DPH (€)')).toHaveValue('45,50');
-  await page.getByLabel('Názov', { exact: true }).fill('Výmena oleja');
-  await page.getByLabel('Množstvo (h)').fill('1');
-  await page.getByRole('button', { name: 'Pridať prácu' }).click();
-  await expect(main.getByRole('row', { name: /Výmena oleja/ }).getByRole('cell')).toHaveText(['Výmena oleja', '1 h', '45,50 €', '23 %', '45,50 €', '10,47 €', '55,97 €']);
-  await expect(page.getByLabel('Cena za jednotku bez DPH (€)')).toHaveValue('45,50');
+  const labourForm = main.getByRole('form', { name: 'Pridať prácu' });
+  await expect(labourForm.getByLabel('Sadzba DPH (%)')).toHaveValue('23');
+  await expect(labourForm.getByLabel('Predajná cena za jednotku bez DPH (€)')).toHaveValue('45,50');
+  await labourForm.getByLabel('Názov', { exact: true }).fill('Výmena oleja');
+  await labourForm.getByLabel('Množstvo', { exact: true }).fill('1');
+  await labourForm.getByRole('button', { name: 'Pridať prácu' }).click();
+  await expect(main.getByRole('row', { name: /Výmena oleja/ }).getByRole('cell')).toHaveText(['', 'Výmena oleja', '1 h', '—', '45,50 €', '23 %', '45,50 €', '10,47 €', '55,97 €', /Upraviť/]);
+  await expect(labourForm.getByLabel('Predajná cena za jednotku bez DPH (€)')).toHaveValue('45,50');
+  // The Prirážka of Nastavenia, not the hourly rate, starts the form for a new Diel, which has no price of its own to start with.
+  await expect(main.getByRole('form', { name: 'Pridať diel' }).getByLabel('Prirážka (%)')).toHaveValue('0');
+  await expect(main.getByRole('form', { name: 'Pridať diel' }).getByLabel('Predajná cena za jednotku bez DPH (€)')).toHaveValue('');
 });
 
 test('removing the default rate or the last one, or a rate twice, is refused with the reason and the rates stay as they were', async ({ page }) => {

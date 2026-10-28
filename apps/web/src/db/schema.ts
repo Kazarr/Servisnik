@@ -20,7 +20,7 @@ const timestamps = {
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()
-    .$onUpdate(() => new Date()),
+    .$onUpdate(() => sql`now()`),
 };
 
 /** Používateľ. */
@@ -180,6 +180,10 @@ export const workOrder = pgTable(
     status: workOrderStatus('status').notNull().default('received'),
     /** The Dátum dokončenia, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
     completedOn: date('completed_on', { mode: 'string' }),
+    /** The Termín, a calendar day in Europe/Bratislava the vehicle was promised for, or null. */
+    deadline: date('deadline', { mode: 'string' }),
+    /** The internal note; it goes on no document. */
+    note: text('note'),
     ...timestamps,
   },
   (table) => [
@@ -264,7 +268,11 @@ export const workshopLogo = pgTable(
 /** Práca or Diel. */
 export const workOrderItemKind = pgEnum('work_order_item_kind', itemKinds);
 
-/** Položka zákazky. The quantity is in hundredths and the price in cents without VAT, so there are no floats. */
+/**
+ * Položka zákazky. The quantity is in hundredths and the prices in cents without VAT, so there are no
+ * floats. `unitPriceCents` is the Predajná cena. `purchasePriceCents` is the Nákupná cena of a Diel, null
+ * while it is not known and always null for a Práca. The Prirážka is not stored: the form derives it.
+ */
 export const workOrderItem = pgTable(
   'work_order_item',
   {
@@ -273,9 +281,11 @@ export const workOrderItem = pgTable(
       .notNull()
       .references(() => workOrder.id, { onDelete: 'cascade' }),
     kind: workOrderItemKind('kind').notNull(),
+    code: text('code'),
     name: text('name').notNull(),
     quantityHundredths: integer('quantity_hundredths').notNull(),
     unit: text('unit').notNull(),
+    purchasePriceCents: integer('purchase_price_cents'),
     unitPriceCents: integer('unit_price_cents').notNull(),
     vatRate: integer('vat_rate').notNull(),
     ...timestamps,
@@ -283,6 +293,8 @@ export const workOrderItem = pgTable(
   (table) => [
     index('work_order_item_work_order_id_idx').on(table.workOrderId),
     check('work_order_item_quantity_check', sql`${table.quantityHundredths} > 0`),
+    check('work_order_item_purchase_price_check', sql`${table.purchasePriceCents} >= 0`),
+    check('work_order_item_purchase_price_kind_check', sql`${table.purchasePriceCents} is null or ${table.kind} = 'part'`),
     check('work_order_item_unit_price_check', sql`${table.unitPriceCents} >= 0`),
     check('work_order_item_vat_rate_check', sql`${table.vatRate} between 0 and 100`),
   ],

@@ -21,6 +21,8 @@ const { touched, watched } = vi.hoisted(() => {
 vi.mock('../src/dal/current-user.ts', async () => ({ currentUser: async () => (await import('./support/dal-users.ts')).mechanic }));
 vi.mock('../src/db/index.ts', () => ({ getDb: () => watched('db') }));
 vi.mock('../src/auth.ts', () => ({ getAuth: () => watched('auth') }));
+// The actions of Používatelia hand the request's headers, with the admin's session, to Better Auth; outside a request there are none to read.
+vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
 
 test('orForbidden gives the result of the call', async () => {
   expect(await orForbidden(Promise.resolve({ ok: true }))).toEqual({ ok: true });
@@ -52,16 +54,27 @@ const formRefused = expect.objectContaining({ errors: { form: forbiddenMessage }
 const actions = {
   addCustomer: { call: () => customerActions.addCustomer(null, form({ type: 'person', name: 'Ján Novák' })), answer: formRefused },
   editCustomer: { call: () => customerActions.editCustomer(null, form({ id, type: 'person', name: 'Premenovaný' })), answer: formRefused },
+  removeCustomer: { call: () => customerActions.removeCustomer(null, form({ id })), answer: { error: forbiddenMessage } },
   addVehicle: { call: () => vehicleActions.addVehicle(null, form({ ownerId: id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Octavia' })), answer: formRefused },
   editVehicle: { call: () => vehicleActions.editVehicle(null, form({ id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Fabia' })), answer: formRefused },
+  removeVehicle: { call: () => vehicleActions.removeVehicle(null, form({ id })), answer: { error: forbiddenMessage } },
   addWorkOrder: {
     call: () => workOrderActions.addWorkOrder(null, form({ vehicleId: id, customerId: id, mileageKm: '1', customerRequest: 'Brzdy' })),
     answer: formRefused,
   },
-  addLabourToWorkOrder: {
-    call: () => workOrderActions.addLabourToWorkOrder(null, form({ workOrderId: id, name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' })),
+  editWorkOrder: {
+    call: () => workOrderActions.editWorkOrder(null, form({ id, mileageKm: '1', customerRequest: 'Brzdy', deadline: '2026-12-01', note: 'Poznámka' })),
     answer: formRefused,
   },
+  addItemToWorkOrder: {
+    call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', unitPrice: '10', vatRate: '23' })),
+    answer: formRefused,
+  },
+  updateItemOfWorkOrder: {
+    call: () => workOrderActions.updateItemOfWorkOrder(null, form({ itemId: id, name: 'Brzdy', quantity: '2', unit: 'h', unitPrice: '12', vatRate: '23' })),
+    answer: formRefused,
+  },
+  deleteItemOfWorkOrder: { call: () => workOrderActions.deleteItemOfWorkOrder(null, form({ itemId: id, workOrderId: id })), answer: { error: forbiddenMessage } },
   changeStatus: { call: () => workOrderActions.changeStatus(null, form({ workOrderId: id, to: 'done' })), answer: { error: forbiddenMessage } },
   saveRatesAction: {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),
@@ -76,6 +89,13 @@ const actions = {
       userActions.createUserAction(null, form({ newUserName: 'Nový Mechanik', newUserEmail: 'novy@autoservis.test', newUserRole: 'mechanik', newUserPassword: 'pociatocne-heslo-1234' })),
     answer: formRefused,
   },
+  updateUserAction: {
+    call: () => userActions.updateUserAction(null, form({ userId: id, userName: 'Premenovaný', userEmail: 'premenovany@autoservis.test', userRole: 'admin' })),
+    answer: formRefused,
+  },
+  setUserPasswordAction: { call: () => userActions.setUserPasswordAction(null, form({ userId: id, userPassword: 'nove-heslo-5678' })), answer: formRefused },
+  deactivateUserAction: { call: () => userActions.deactivateUserAction(null, form({ userId: id })), answer: { error: forbiddenMessage } },
+  activateUserAction: { call: () => userActions.activateUserAction(null, form({ userId: id })), answer: { error: forbiddenMessage } },
 };
 
 // Every file under app/(app) whose first statement is 'use server', whatever it is called: found by the file system rather than listed or named, so that a new one is not missed.
