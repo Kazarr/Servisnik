@@ -20,10 +20,14 @@ export function deployGate(checkRuns: string): string | undefined {
   }
 }
 
+/** What the CLI prints (one GitHub error annotation when the commit must not be deployed) and exits with. */
+export function run(checkRuns: string): { exitCode: number; output: string[] } {
+  const refusal = deployGate(checkRuns);
+  return refusal ? { exitCode: 1, output: [`::error title=Nasadenie odmietnuté::${refusal}`] } : { exitCode: 0, output: [] };
+}
+
 if (import.meta.main) {
-  const refusal = deployGate(readFileSync(0, 'utf8'));
-  if (refusal) {
-    console.error(`::error title=Nasadenie odmietnuté::${refusal}`);
-    process.exitCode = 1;
-  }
+  const { exitCode, output } = run(readFileSync(0, 'utf8'));
+  if (output.length > 0) console.error(output.join('\n'));
+  process.exitCode = exitCode;
 }

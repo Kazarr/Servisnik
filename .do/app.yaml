@@ -8,7 +8,7 @@ region: fra
 
 services:
   - name: web
-    image:
+    image: &image # aj obraz oboch jobov
       registry_type: DOCR # register vytvára Kazarr, názov registra pozná workflow
       repository: servisnik
       tag: ${IMAGE_TAG} # SHA commitu, ktorý workflow zostavil
@@ -21,10 +21,12 @@ services:
       timeout_seconds: 5 # /api/health čaká na databázu najviac 2 s
     envs:
       # URL ide tak, ako ju DigitalOcean viaže; appka ju overuje proti CA z DATABASE_CA_CERT (apps/web/src/db/index.ts).
-      - key: DATABASE_URL
+      - &database_url
+        key: DATABASE_URL
         scope: RUN_TIME
         value: ${db.DATABASE_URL}
-      - key: DATABASE_CA_CERT
+      - &database_ca_cert
+        key: DATABASE_CA_CERT
         scope: RUN_TIME
         value: ${db.CA_CERT}
       - key: BETTER_AUTH_SECRET
@@ -54,35 +56,21 @@ jobs:
   # Pred každým nasadením aplikuje migrácie; zlyhanie zastaví nasadenie a stará verzia beží ďalej.
   - name: migrate
     kind: PRE_DEPLOY
-    image:
-      registry_type: DOCR
-      repository: servisnik
-      tag: ${IMAGE_TAG}
+    image: *image
     run_command: node /migrate/apps/web/scripts/migrate.ts
     envs:
-      - key: DATABASE_URL
-        scope: RUN_TIME
-        value: ${db.DATABASE_URL}
-      - key: DATABASE_CA_CERT
-        scope: RUN_TIME
-        value: ${db.CA_CERT}
+      - *database_url
+      - *database_ca_cert
 
   # Po každom nasadení založí admina, alebo mu nastaví toto heslo (idempotentné). Prihlasovacie údaje
   # má len tento job: bežiaca služba ich nevidí.
   - name: seed
     kind: POST_DEPLOY
-    image:
-      registry_type: DOCR
-      repository: servisnik
-      tag: ${IMAGE_TAG}
+    image: *image
     run_command: node /migrate/apps/web/scripts/seed.ts
     envs:
-      - key: DATABASE_URL
-        scope: RUN_TIME
-        value: ${db.DATABASE_URL}
-      - key: DATABASE_CA_CERT
-        scope: RUN_TIME
-        value: ${db.CA_CERT}
+      - *database_url
+      - *database_ca_cert
       - key: ADMIN_EMAIL
         scope: RUN_TIME
         type: SECRET
