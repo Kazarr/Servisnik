@@ -1,9 +1,10 @@
-import { parseVehicle, type VehicleErrors, type VehicleInput, type VinError } from '@servisnik/domain/vehicle';
+import { parseVehicle, parseVehicleSearch, type VehicleErrors, type VehicleInput, type VinError } from '@servisnik/domain/vehicle';
 import { localYear } from '@servisnik/domain/work-order';
-import { desc, eq } from 'drizzle-orm';
+import { count, desc, eq, or } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { violates } from './constraint.ts';
+import { contains, pageWindow } from './paging.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
@@ -96,6 +97,31 @@ export async function updateVehicle(user: User | null, id: string, input: Vehicl
 export async function listVehicles(user: User | null, db: Database = getDb()) {
   assertCan(user, 'vehicles.read');
   return vehiclesWithOwner(db).orderBy(desc(vehicle.createdAt));
+}
+
+/**
+ * A page of Vozidlá with their Majiteľ that match `query`, the newest first. The query is a part of
+ * the VIN, of the ŠPZ or of the name of the Majiteľ; the domain normalizes it the way the stored
+ * values are (packages/domain/src/vehicle), the name against the search key of the Zákazník. A blank
+ * query has nothing to look for, so every Vozidlo matches. `page` counts from 1, as in `searchCustomers`.
+ * Admin only.
+ */
+// ponytail: a scan of both tables per search; a trigram index on the VIN, the ŠPZ and `search_name` if the tables outgrow ~100k rows.
+export async function searchVehicles(user: User | null, { query = '', page = 1 }: { query?: string; page?: number } = {}, db: Database = getDb()) {
+  assertCan(user, 'vehicles.read');
+  const { code, ownerName } = parseVehicleSearch(query);
+  const matching = or(
+    code ? contains(vehicle.vin, code) : undefined,
+    code ? contains(vehicle.licensePlate, code) : undefined,
+    ownerName ? contains(customer.searchName, ownerName) : undefined,
+  );
+
+  const [counted] = await db.select({ total: count() }).from(vehicle).innerJoin(customer, eq(vehicle.ownerId, customer.id)).where(matching);
+  const total = counted!.total;
+  const { page: current, pageCount, limit, offset } = pageWindow(total, page);
+  // The id settles the order of Vozidlá saved at the same moment, so no Vozidlo is on two pages or on none.
+  const vehicles = await vehiclesWithOwner(db).where(matching).orderBy(desc(vehicle.createdAt), vehicle.id).limit(limit).offset(offset);
+  return { vehicles, page: current, pageCount, total };
 }
 
 /** One Vozidlo with its Majiteľ, or null when there is none with this id. */
