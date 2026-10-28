@@ -122,13 +122,36 @@ test('a Termín of yesterday in Bratislava is late at half past midnight, when i
   expect(rowOf(render('admin', [late], new Date('2026-11-03T22:30:00Z')), 'Z2026-0001')).not.toContain('Po termíne');
 });
 
-test('the mechanik sees the label "Po termíne", and no label that speaks of the invoice', () => {
+test('the mechanik sees both labels like the admin: the spec gives the rows no exception for a Rola', () => {
   const html = render('mechanik', [order({ status: 'inProgress', deadline: '2026-11-02' }), order({ id: 'y', number: 'Z2026-0002', status: 'done' })]);
 
-  expect(rowOf(html, 'Z2026-0001')).toContain('Po termíne');
-  expect(rowOf(html, 'Z2026-0002')).toContain('<td>Hotová</td>');
-  expect(html).not.toContain('Na fakturáciu');
-  expect(html).not.toContain('row-to-invoice');
+  expect(rowOf(html, 'Z2026-0001')).toContain('class="row-late"');
+  expect(rowOf(html, 'Z2026-0001')).toContain('>Po termíne</span>');
+  expect(rowOf(html, 'Z2026-0002')).toContain('class="row-to-invoice"');
+  expect(rowOf(html, 'Z2026-0002')).toContain('>Na fakturáciu</span>');
+});
+
+const renderEmpty = (role: 'admin' | 'mechanik', filter?: Parameters<typeof WorkOrderList>[0]['filter']) =>
+  renderToStaticMarkup(createElement(WorkOrderList, { orders: [], role, now: noon, filter }));
+
+test.each([
+  ['the default filter, which leaves out the Zákazky that are Uzavretá', { status: 'unclosed', from: null, to: null }],
+  ['one status', { status: 'done', from: null, to: null }],
+  ['a period from', { status: 'all', from: '2026-10-01', to: null }],
+  ['a period to', { status: 'all', from: null, to: '2026-10-31' }],
+] as const)('an empty list under %s says that no Zákazka matches the filter, and does not tell to add one', (_what, filter) => {
+  for (const role of ['admin', 'mechanik'] as const) {
+    const html = renderEmpty(role, filter);
+
+    expect(html, role).toContain('Žiadna zákazka nezodpovedá filtru.');
+    expect(html, role).not.toContain('Zatiaľ tu nič nie je');
+    expect(html, role).not.toContain('založíte');
+  }
+});
+
+test('an empty list that nothing filters is an empty system, and the admin is told where to add a Zákazka', () => {
+  expect(renderEmpty('admin', { status: 'all', from: null, to: null })).toContain('Zatiaľ tu nič nie je. Zákazku založíte na detaile vozidla.');
+  expect(renderEmpty('mechanik', { status: 'all', from: null, to: null })).not.toContain('Žiadna zákazka nezodpovedá filtru.');
 });
 
 const defaults = { status: 'unclosed' as const, from: null, to: null };
