@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { getRates, saveRates } from '../src/dal/settings.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
-import { addLabour, createWorkOrder, getWorkOrder } from '../src/dal/work-orders.ts';
+import { addItem, createWorkOrder, getWorkOrder } from '../src/dal/work-orders.ts';
 import { workshop } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
@@ -76,12 +76,12 @@ test('the default rate is replaced in the same save that removes the old one', a
   expect(await getRates(admin, ctx.db)).toEqual({ ...startingRates, vatRates: [19, 5], defaultVatRate: 19 });
 });
 
-const labour = { name: 'Výmena oleja', quantity: '1', unitPrice: '40' };
+const labour = { kind: 'labour', name: 'Výmena oleja', quantity: '1', unitPrice: '40' } as const;
 async function workOrderWithLabour(vatRate?: string) {
   const ownerId = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   const vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: '', make: 'Volkswagen', model: 'Golf' }, ctx.db));
   const orderId = idOf(await createWorkOrder(admin, { vehicleId, mileageKm: '1', customerRequest: 'Olej' }, ctx.db));
-  idOf(await addLabour(admin, orderId, { ...labour, vatRate }, ctx.db));
+  idOf(await addItem(admin, orderId, { ...labour, vatRate }, ctx.db));
   return orderId;
 }
 

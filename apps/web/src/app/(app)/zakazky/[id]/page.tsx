@@ -5,9 +5,10 @@ import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getRates } from '../../../../dal/settings.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
-import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
+import { formatDate, formatEuro, formatPartCount, formatPercent, formatQuantity, formatWhole } from '../../../../format.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
-import { LabourForm } from './labour-form.tsx';
+import { DeleteItemForm } from './delete-item-form.tsx';
+import { ItemForm } from './item-form.tsx';
 import { StatusForm } from './status-form.tsx';
 
 export const metadata: Metadata = { title: 'Zákazka' };
@@ -17,7 +18,7 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
   const order = await getWorkOrder(user, (await params).id);
   if (!order) notFound();
   const transitions = userTransitions(order.status);
-  const rates = canEdit(order.status) ? await getRates(user) : null; // only the form for new work uses them
+  const rates = canEdit(order.status) ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
 
   return (
     <>
@@ -60,54 +61,91 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
 
       <h2>Položky</h2>
       {order.items.length === 0 ? (
-        <p>Zatiaľ žiadna práca.</p>
+        <p>Zatiaľ žiadna položka.</p>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Názov</th>
-                <th scope="col" className="amount">Množstvo</th>
-                <th scope="col" className="amount">Cena za jednotku bez DPH</th>
-                <th scope="col" className="amount">Sadzba DPH</th>
-                <th scope="col" className="amount">Bez DPH</th>
-                <th scope="col" className="amount">DPH</th>
-                <th scope="col" className="amount">S DPH</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.items.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.name}</td>
-                  <td className="amount">
-                    {formatQuantity(item.quantityHundredths)} {item.unit}
-                  </td>
-                  <td className="amount">{formatEuro(item.unitPriceCents)}</td>
-                  <td className="amount">{item.vatRate} %</td>
-                  <td className="amount">{formatEuro(item.amounts.net)}</td>
-                  <td className="amount">{formatEuro(item.amounts.vat)}</td>
-                  <td className="amount">{formatEuro(item.amounts.gross)}</td>
+        <>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Kód</th>
+                  <th scope="col">Názov</th>
+                  <th scope="col" className="amount">Množstvo</th>
+                  <th scope="col" className="amount">Nákupná cena za jednotku bez DPH</th>
+                  <th scope="col" className="amount">Predajná cena za jednotku bez DPH</th>
+                  <th scope="col" className="amount">Sadzba DPH</th>
+                  <th scope="col" className="amount">Bez DPH</th>
+                  <th scope="col" className="amount">DPH</th>
+                  <th scope="col" className="amount">S DPH</th>
+                  {rates && <th scope="col">Akcie</th>}
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row" colSpan={4}>
-                  Spolu
-                </th>
-                <td className="amount">{formatEuro(order.totals.net)}</td>
-                <td className="amount">{formatEuro(order.totals.vat)}</td>
-                <td className="amount">{formatEuro(order.totals.gross)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {order.items.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.code}</td>
+                    <td>{item.name}</td>
+                    <td className="amount">
+                      {formatQuantity(item.quantityHundredths)} {item.unit}
+                    </td>
+                    <td className="amount">{item.purchasePriceCents === null ? '—' : formatEuro(item.purchasePriceCents)}</td>
+                    <td className="amount">{formatEuro(item.unitPriceCents)}</td>
+                    <td className="amount">{item.vatRate} %</td>
+                    <td className="amount">{formatEuro(item.amounts.net)}</td>
+                    <td className="amount">{formatEuro(item.amounts.vat)}</td>
+                    <td className="amount">{formatEuro(item.amounts.gross)}</td>
+                    {rates && (
+                      <td>
+                        <div className="row-actions">
+                          <Link href={`/zakazky/${order.id}/polozky/${item.id}`} aria-label={`Upraviť ${item.name}`}>
+                            Upraviť
+                          </Link>
+                          <DeleteItemForm itemId={item.id} workOrderId={order.id} name={item.name} />
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row" colSpan={6}>
+                    Spolu
+                  </th>
+                  <td className="amount">{formatEuro(order.totals.net)}</td>
+                  <td className="amount">{formatEuro(order.totals.vat)}</td>
+                  <td className="amount">{formatEuro(order.totals.gross)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <dl className="details">
+            <div>
+              <dt>Nákup dielov bez DPH</dt>
+              <dd>{formatEuro(order.margin.purchaseNet)}</dd>
+            </div>
+            <div>
+              <dt>Marža</dt>
+              <dd>
+                {formatEuro(order.margin.cents)}
+                {order.margin.percentTenths !== null && ` (${formatPercent(order.margin.percentTenths)})`}
+              </dd>
+            </div>
+          </dl>
+          {order.margin.partsWithoutPurchasePrice > 0 && (
+            <p role="status" className="notice">
+              Marža je neúplná: {formatPartCount(order.margin.partsWithoutPurchasePrice)} bez nákupnej ceny
+            </p>
+          )}
+        </>
       )}
 
       {rates && (
         <>
           <h2>Pridať prácu</h2>
-          <LabourForm workOrderId={order.id} defaultVatRate={rates.defaultVatRate} hourlyRateCents={rates.hourlyRateCents} />
+          <ItemForm rates={rates} target={{ workOrderId: order.id, kind: 'labour' }} />
+          <h2>Pridať diel</h2>
+          <ItemForm rates={rates} target={{ workOrderId: order.id, kind: 'part' }} />
         </>
       )}
       {transitions.length > 0 && <StatusForm workOrderId={order.id} transitions={transitions} />}
