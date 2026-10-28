@@ -55,6 +55,16 @@ test('the admin uploads a PNG, and every signed-in user reads it back with its t
   }
 });
 
+// A replaced logo must show at once: the browser asks again on every use (no-cache), and no shared cache keeps the image (private).
+// The address of the preview carries the time of the change as well (e2e/logo.spec.ts).
+test('the image is revalidated on every use and kept out of shared caches', async () => {
+  await put(admin, png);
+
+  const response = await get(mechanic);
+
+  expect(response.headers.get('Cache-Control')).toBe('private, no-cache');
+});
+
 test('the type of the answer is the one read from the content, not the one the sender claimed', async () => {
   expect((await put(admin, jpeg, { 'Content-Type': 'image/png' })).status).toBe(204);
 
