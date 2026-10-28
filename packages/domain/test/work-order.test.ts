@@ -108,9 +108,9 @@ describe('what a status allows', () => {
 
 // Money is whole cents and the quantity is in hundredths (150 = 1,5 h). Every expected value below
 // is worked out by hand: the exact amount, then rounded half up to the cent.
-describe('amounts of an item', () => {
-  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
+const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
 
+describe('amounts of an item', () => {
   test('1,5 h at 40 € without VAT, VAT 23 %', () => {
     expect(amountsOf(labour(150, 4000))).toEqual({ net: 6000, vat: 1380, gross: 7380 });
   });
@@ -138,8 +138,6 @@ describe('amounts of an item', () => {
 });
 
 describe('totals of a Zákazka', () => {
-  const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
-
   test('a Zákazka with no item is worth nothing', () => {
     expect(totalsOf([])).toEqual({ net: 0, vat: 0, gross: 0 });
   });
@@ -162,19 +160,23 @@ describe('totals of a Zákazka', () => {
 });
 
 describe('a Zákazka as the admin types it', () => {
-  test('kilometres and the request are kept, trimmed', () => {
-    expect(parseWorkOrder({ mileageKm: '123456', customerRequest: ' Výmena oleja a filtrov ' })).toEqual({
+  test.each([
+    ['0', 0],
+    ['123456', 123456],
+    ['123 456', 123456],
+    [' 9999999 ', 9999999],
+  ])('kilometres "%s" are %i, and the Zákazka is these two values and nothing else', (typed, km) => {
+    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toEqual({
       ok: true,
-      workOrder: { mileageKm: 123456, customerRequest: 'Výmena oleja a filtrov' },
+      workOrder: { mileageKm: km, customerRequest: 'Servis' },
     });
   });
 
-  test.each([
-    ['0', 0],
-    ['123 456', 123456],
-    [' 9999999 ', 9999999],
-  ])('kilometres "%s" are %i', (typed, km) => {
-    expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toMatchObject({ ok: true, workOrder: { mileageKm: km } });
+  test('the request is kept trimmed', () => {
+    expect(parseWorkOrder({ mileageKm: '0', customerRequest: ' Výmena oleja a filtrov ' })).toMatchObject({
+      ok: true,
+      workOrder: { customerRequest: 'Výmena oleja a filtrov' },
+    });
   });
 
   test.each(['', '-1', '1,5', '12a', '10000000', 'veľa'])('kilometres "%s" are refused', (typed) => {
