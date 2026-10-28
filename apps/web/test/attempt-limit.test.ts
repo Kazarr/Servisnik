@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi, type MockInstance } from 'vitest';
 import { createAuth } from '../src/auth.ts';
 import { signInWithPassword } from '../src/dal/sign-in.ts';
 import { createTestDb } from './support/db.ts';
@@ -18,7 +18,7 @@ const password = 'spravne-heslo-1234';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let auth: ReturnType<typeof createAuth>;
-let verifiesPassword: ReturnType<typeof vi.spyOn>;
+let verifiesPassword: MockInstance<(typeof auth.api)['signInEmail']>;
 beforeAll(async () => {
   ctx = await createTestDb();
   // Better Auth limits only when NODE_ENV is production, unless told to: the tests tell it to.
@@ -26,7 +26,9 @@ beforeAll(async () => {
   verifiesPassword = vi.spyOn(auth.api, 'signInEmail');
 });
 afterAll(() => ctx.close());
-beforeEach(() => verifiesPassword.mockClear());
+beforeEach(() => {
+  verifiesPassword.mockClear(); // not returned: vitest runs a function a hook returns as its cleanup
+});
 afterEach(() => vi.useRealTimers());
 
 let counter = 0;
