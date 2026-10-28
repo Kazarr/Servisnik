@@ -6,13 +6,16 @@ import { readPdf } from './support/pdf.ts';
 // Printing (docs/adr/0001-stack.md, spec #95 Tlačivá): Chromium turns the HTML of a form into a PDF on A4. These
 // tests print with the real Chromium; `pnpm e2e:install` fetches it, and CI does the same before `pnpm verify`.
 
-const launch = vi.spyOn(chromium, 'launch');
-/** The Chromium the last launch gave, as the code under test uses it. */
-const lastBrowser = async (): Promise<Browser> => launch.mock.results.at(-1)!.value;
-afterAll(async () => {
-  const browser = launch.mock.results.length > 0 ? await lastBrowser() : null;
-  await browser?.close();
+// Every Chromium the code under test starts, in order. Vitest clears the calls of a spy before each test, and
+// these tests count the launches across tests, so the spy keeps its own list.
+const launched: Browser[] = [];
+const launch = chromium.launch.bind(chromium);
+vi.spyOn(chromium, 'launch').mockImplementation(async (options) => {
+  const browser = await launch(options);
+  launched.push(browser);
+  return browser;
 });
+afterAll(() => Promise.all(launched.map((browser) => browser.close())));
 
 const page = (body: string) => `<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>Skúška</title></head><body>${body}</body></html>`;
 const millimetres = (mm: number) => (mm * 72) / 25.4;
@@ -20,20 +23,20 @@ const millimetres = (mm: number) => (mm * 72) / 25.4;
 // The first two run in this order: they count the launches of the one Chromium of the process.
 
 test('Chromium starts with the first print, and every next print uses the same one', async () => {
-  expect(launch).not.toHaveBeenCalled();
+  expect(launched).toHaveLength(0);
 
   await printPdf(page('<p>Prvá</p>'));
   await printPdf(page('<p>Druhá</p>'));
 
-  expect(launch).toHaveBeenCalledTimes(1);
+  expect(launched).toHaveLength(1);
 });
 
 test('after Chromium went away the next print starts a new one, and prints that start together share it', async () => {
-  await (await lastBrowser()).close();
+  await launched[0]!.close();
 
   await Promise.all([printPdf(page('<p>A</p>')), printPdf(page('<p>B</p>')), printPdf(page('<p>C</p>'))]);
 
-  expect(launch).toHaveBeenCalledTimes(2);
+  expect(launched).toHaveLength(2);
 });
 
 test('a PDF is A4 with margins on every side and a printed background', async () => {
