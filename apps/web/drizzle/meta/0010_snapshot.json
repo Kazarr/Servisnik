@@ -1,5 +1,5 @@
 {
-  "id": "b75c28fa-48d9-4bef-8390-25dd6423ee03",
+  "id": "6e5d1cbe-b466-4b8e-86f6-568764cc420e",
   "prevId": "d28e4361-be07-4175-ac66-5d3938a1b341",
   "version": "7",
   "dialect": "postgresql",
@@ -868,12 +868,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -891,12 +885,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "purchase_price_cents": {
-          "name": "purchase_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         },
         "unit_price_cents": {
           "name": "unit_price_cents",
@@ -965,14 +953,6 @@
           "name": "work_order_item_quantity_check",
           "value": "\"work_order_item\".\"quantity_hundredths\" > 0"
         },
-        "work_order_item_purchase_price_check": {
-          "name": "work_order_item_purchase_price_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" >= 0"
-        },
-        "work_order_item_purchase_price_kind_check": {
-          "name": "work_order_item_purchase_price_kind_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" is null or \"work_order_item\".\"kind\" = 'part'"
-        },
         "work_order_item_unit_price_check": {
           "name": "work_order_item_unit_price_check",
           "value": "\"work_order_item\".\"unit_price_cents\" >= 0"
@@ -1019,6 +999,81 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "street": {
+          "name": "street",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "postal_code": {
+          "name": "postal_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ico": {
+          "name": "ico",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dic": {
+          "name": "dic",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ic_dph": {
+          "name": "ic_dph",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vat_payer_type": {
+          "name": "vat_payer_type",
+          "type": "vat_payer_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'payer'"
+        },
+        "iban": {
+          "name": "iban",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commercial_register": {
+          "name": "commercial_register",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1139,6 +1194,15 @@
       "values": [
         "admin",
         "mechanik"
+      ]
+    },
+    "public.vat_payer_type": {
+      "name": "vat_payer_type",
+      "schema": "public",
+      "values": [
+        "payer",
+        "nonPayer",
+        "section7"
       ]
     },
     "public.vehicle_fuel": {
