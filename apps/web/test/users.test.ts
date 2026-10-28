@@ -30,7 +30,7 @@ const create = (input: Partial<Parameters<typeof createUser>[1]> = {}) =>
 
 const signIn = (email: string, withPassword = password) => auth.api.signInEmail({ body: { email, password: withPassword } });
 
-/** What the table `column` of `table` is, or undefined when there is no such column. */
+/** The type, nullability and default of `column` in `table`, or undefined when the table has no such column. */
 async function columnOf(table: string, column: string) {
   const { rows } = await ctx.db.execute<{ udt_name: string; is_nullable: string; column_default: string | null }>(
     sql`select udt_name, is_nullable, column_default from information_schema.columns where table_name = ${table} and column_name = ${column}`,
