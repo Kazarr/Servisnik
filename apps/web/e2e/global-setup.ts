@@ -48,6 +48,7 @@ export default async function globalSetup(config: FullConfig) {
       DATABASE_URL: databaseUrl,
       BETTER_AUTH_SECRET: randomBytes(32).toString('base64url'),
       BETTER_AUTH_URL: baseURL.origin,
+      CLIENT_IP_HEADER: 'x-forwarded-for', // no proxy here: the specs name their client address themselves (fixtures.ts)
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

@@ -19,6 +19,21 @@ test('a wrong password keeps the user on the login page with a message', async (
   await expect(page.getByLabel('E-mail')).toHaveValue(process.env.E2E_ADMIN_EMAIL!);
 });
 
+// Better Auth's default: 3 attempts in 10 seconds from one client address (test/attempt-limit.test.ts
+// proves the rule, with the reset after 10 seconds); this proves the Server Action shows it.
+test('the fourth attempt to sign in within 10 seconds is refused with a message, even with the right password', async ({ page }) => {
+  const alert = page.locator('main').getByRole('alert');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await submitLogin(page, 'nespravne-heslo');
+    await expect(alert).toHaveText('Nesprávny e-mail alebo heslo.');
+  }
+
+  await submitLogin(page);
+
+  await expect(alert).toHaveText('Príliš veľa pokusov. Skúste to znova o chvíľu.');
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test('the admin signs in, sees the menu on the left and signs out', async ({ page, context }) => {
   await signIn(page);
 

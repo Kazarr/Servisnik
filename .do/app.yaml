@@ -36,6 +36,11 @@ services:
       - key: BETTER_AUTH_URL
         scope: RUN_TIME
         value: ${APP_URL}
+      # Hlavička s adresou klienta, podľa ktorej Better Auth obmedzuje pokusy o prihlásenie a zmenu hesla (apps/web/src/auth.ts).
+      # Ingress DigitalOcean dáva do x-forwarded-for seba, klienta do do-connecting-ip.
+      - key: CLIENT_IP_HEADER
+        scope: RUN_TIME
+        value: do-connecting-ip
       # KROS_* appka zatiaľ nečíta; workflow ich nevyžaduje, kým ich nezačne čítať #81.
       - key: KROS_API_URL
         scope: RUN_TIME
