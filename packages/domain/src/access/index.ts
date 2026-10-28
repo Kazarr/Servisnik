@@ -13,6 +13,7 @@ export const capabilities = [
   'vehicles.write',
   'work-orders.list',
   'work-orders.read',
+  'work-orders.read-unpriced',
   'work-orders.write',
   'work-orders.job-sheet',
   'work-orders.quote',
@@ -34,8 +35,10 @@ export type Capability = (typeof capabilities)[number];
  * rates and every other value of Nastavenia stay behind `settings.read`. Writing them is `settings.write`.
  * `work-orders.job-sheet` is printing the zákazkový list, the one form he prints (spec #95, Mechanik); the cenová ponuka
  * (`work-orders.quote`) and the odovzdávací protokol (`work-orders.handover`) are the admin's alone.
+ * `work-orders.read-unpriced` is the detail of a Zákazka without a price, sum, VAT or margin: a Zákazka is read with them
+ * under `work-orders.read`, which stays the admin's, and he changes nothing on it (`work-orders.write`, ledger question 11).
  */
-const mechanikCapabilities: readonly Capability[] = ['work-orders.list', 'work-orders.job-sheet', 'password.change', 'workshop.read'];
+const mechanikCapabilities: readonly Capability[] = ['work-orders.list', 'work-orders.read-unpriced', 'work-orders.job-sheet', 'password.change', 'workshop.read'];
 
 /** The admin may do everything; the mechanik only what is on his list. */
 export const can = (role: Role, capability: Capability) => role === 'admin' || mechanikCapabilities.includes(capability);
