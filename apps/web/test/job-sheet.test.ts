@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { getJobSheet } from '../src/dal/job-sheet.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
-import { addLabour, changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.ts';
+import { addItem, changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
@@ -25,14 +25,14 @@ beforeEach(async () => {
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 });
 
-const newWorkOrder = async (customerId?: string) =>
-  idOf(await createWorkOrder(admin, { vehicleId, customerId, mileageKm: '123 456', customerRequest: 'Výmena oleja\nKontrola bŕzd' }, ctx.db));
+const newWorkOrder = async (customerId?: string, deadline?: string) =>
+  idOf(await createWorkOrder(admin, { vehicleId, customerId, mileageKm: '123 456', customerRequest: 'Výmena oleja\nKontrola bŕzd', deadline }, ctx.db));
 
 test.each([
   ['the admin', admin],
   ['the mechanik', mechanic],
-])('%s reads the number, the customer, the vehicle, the kilometres and the request of a Zákazka', async (_who, user) => {
-  const id = await newWorkOrder();
+])('%s reads the number, the customer, the vehicle, the kilometres, the Termín and the request of a Zákazka', async (_who, user) => {
+  const id = await newWorkOrder(undefined, '2026-12-01');
 
   const sheet = await getJobSheet(user, id, ctx.db);
 
@@ -41,13 +41,25 @@ test.each([
     customer: { name: 'Firma s.r.o.' },
     vehicle: { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
     mileageKm: 123456,
+    deadline: '2026-12-01',
     customerRequest: 'Výmena oleja\nKontrola bŕzd',
   });
 });
 
-test('the zákazkový list has no price key anywhere, even when the Zákazka has priced work, for the mechanik and the admin', async () => {
+test('a Zákazka without a Termín has none on the sheet', async () => {
+  expect((await getJobSheet(admin, await newWorkOrder(), ctx.db))?.deadline).toBeNull();
+});
+
+test('the internal note of the Zákazka is on no sheet', async () => {
+  const id = idOf(await createWorkOrder(admin, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy', note: 'Zákazník je dlžník' }, ctx.db));
+
+  expect(JSON.stringify(await getJobSheet(admin, id, ctx.db))).not.toContain('dlžník');
+});
+
+test('the zákazkový list has no price key anywhere, even when the Zákazka has priced work and parts bought for it, for the mechanik and the admin', async () => {
   const id = await newWorkOrder();
-  idOf(await addLabour(admin, id, { name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '1', purchasePrice: '5', unitPrice: '9', vatRate: '23' }, ctx.db));
 
   expect(findPriceKeys(await getJobSheet(mechanic, id, ctx.db))).toEqual([]);
   expect(findPriceKeys(await getJobSheet(admin, id, ctx.db))).toEqual([]);

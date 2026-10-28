@@ -12,6 +12,7 @@ const sheet: JobSheet = {
   customer: { name: 'Ján Novák' },
   vehicle: { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
   mileageKm: 123456,
+  deadline: '2026-12-01',
   customerRequest: 'Výmena oleja\nKontrola bŕzd',
 };
 const workshop: WorkshopDetails = {
@@ -117,8 +118,9 @@ describe('the content', () => {
     expect(document).toContain('Výmena oleja\nKontrola bŕzd');
   });
 
-  test('leaves the Termín to be written by hand: a blank line, since the Zákazka has no date for it yet', () => {
-    expect(fact(print(), 'Termín')).toBe('<span class="write-line"></span>');
+  test('prints the Termín of the Zákazka as a day, and a blank line to write it on when it has none', () => {
+    expect(fact(print(), 'Termín')).toBe('1. 12. 2026');
+    expect(fact(print({ sheet: { ...sheet, deadline: null } }), 'Termín')).toBe('<span class="write-line"></span>');
   });
 
   test('ends with the line for the signature of the customer', () => {

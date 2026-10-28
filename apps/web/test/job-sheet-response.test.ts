@@ -112,6 +112,17 @@ test('the PDF says what is on the form: the autoservis, the number, the day of t
   expect(text).not.toContain('€');
 });
 
+test('the PDF carries the Termín of the Zákazka and not its internal note', async () => {
+  const id = idOf(
+    await createWorkOrder(admin, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy', deadline: '2026-12-01', note: 'Interná poznámka dielne' }, ctx.db),
+  );
+
+  const [page] = readPdf(await bytesOf(await get(admin, id)));
+
+  expect(page!.text).toMatch(/Termín\s*1\. 12\. 2026/);
+  expect(page!.text).not.toContain('Interná poznámka dielne');
+});
+
 test('the day of the print is the day in Europe/Bratislava, which late in the evening UTC is already the next one', async () => {
   const [page] = readPdf(await bytesOf(await get(admin, await newWorkOrder(), new Date('2026-10-27T23:30:00Z'))));
 
