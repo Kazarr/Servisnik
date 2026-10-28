@@ -72,13 +72,13 @@ test('the admin adds a vehicle from the list, picks its owner by search, and the
   await expect(main.getByRole('alert').getByRole('link', { name: 'Škoda Octavia' })).toHaveAttribute('href', `/vozidla/${taken.vehicleId}`);
   await expect(main.getByRole('alert').getByRole('link', { name: taken.customerName })).toHaveAttribute('href', `/zakaznici/${taken.customerId}`);
 
-  // The typo is corrected: the same vehicle, with the same owner, under the VIN it should have.
+  // The typo is corrected: the same vehicle, with the same owner and everything else it had (also after a refused save), under the VIN it should have.
   await vinField.fill(vin);
   await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
   await expect(page).toHaveURL(vehicleUrl);
   await expect(main.locator('h1')).toHaveText('Volkswagen Golf');
-  await expect(main).toContainText(vin);
   await expect(main).not.toContainText(typo);
+  for (const shown of [vin, 'BA123AB', '2015', 'Nafta', '123 456 km', 'Nová spojka']) await expect(main).toContainText(shown);
   await expect(main.getByRole('link', { name: owner })).toBeVisible();
 });
 
