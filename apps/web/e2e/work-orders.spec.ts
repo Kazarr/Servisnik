@@ -18,7 +18,7 @@ async function fillIntake(page: Page, mileage: string, request: string) {
 }
 
 /** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
-async function numberOfOpenOrder(page: Page) {
+async function numberOnTheDetail(page: Page) {
   const heading = page.locator('main h1');
   await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
   return (await heading.textContent())!;
@@ -37,7 +37,7 @@ async function addLabour(page: Page, fields: { name: string; quantity: string; u
   await page.getByRole('button', { name: 'Pridať prácu' }).click();
 }
 
-test('the admin opens a work order on a vehicle, adds work, sees the amounts and marks it done', async ({ page }) => {
+test('the admin adds a work order to a vehicle, then adds work, sees the amounts and marks it done', async ({ page }) => {
   test.slow(); // the longest flow; under --repeat-each the workers share one server
   // All specs share one database, and this one also runs repeated: its customer and VIN carry a tag, and the order is read by its own number.
   const tag = runTag();
@@ -56,7 +56,7 @@ test('the admin opens a work order on a vehicle, adds work, sees the amounts and
 
   await expect(page).toHaveURL(/\/zakazky\/[0-9a-f-]{36}$/);
   const orderUrl = page.url();
-  const number = await numberOfOpenOrder(page);
+  const number = await numberOnTheDetail(page);
   expect(number).toMatch(new RegExp(`^Z${year()}-`));
   await expect(detail(main, 'Stav')).toHaveText('Prijatá');
   await expect(detail(main, 'Zákazník')).toHaveText(owner);
@@ -120,7 +120,7 @@ test('a work order for another customer than the owner keeps that customer, and 
   await page.getByLabel('Zákazník', { exact: true }).selectOption({ label: other });
   await fillIntake(page, '0', 'Prvý príjem');
   await expect(detail(main, 'Zákazník')).toHaveText(other);
-  const first = sequenceOf(await numberOfOpenOrder(page));
+  const first = sequenceOf(await numberOnTheDetail(page));
 
   // The vehicle still belongs to its owner, who is the default of the next work order.
   await page.goto(vehicleUrl);
@@ -129,7 +129,7 @@ test('a work order for another customer than the owner keeps that customer, and 
   await fillIntake(page, '10', 'Druhý príjem');
   await expect(detail(main, 'Zákazník')).toHaveText(owner);
   // Workers share the year's counter, so only the order is checked; no gaps: apps/web/test/work-orders.test.ts.
-  expect(sequenceOf(await numberOfOpenOrder(page))).toBeGreaterThan(first);
+  expect(sequenceOf(await numberOnTheDetail(page))).toBeGreaterThan(first);
 });
 
 test('a work order form with a bad kilometre count stays on the form, with the reason and what was typed', async ({ page }) => {
