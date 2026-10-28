@@ -1,3 +1,5 @@
+import { searchKeys } from '@servisnik/domain/customer';
+import { readFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, searchCustomers, updateCustomer } from '../src/dal/customers.ts';
@@ -21,6 +23,9 @@ async function add(input: Input) {
   if (!result.ok) throw new Error('The customer was expected to be saved.');
   return result.id;
 }
+
+/** `names` in an order that is neither alphabetical nor its reverse, so a list that came out oldest first or newest first would not pass as alphabetical. */
+const scrambled = (names: string[]) => [...names.filter((_, i) => i % 2), ...names.filter((_, i) => !(i % 2))];
 
 const found = async (query: string, page?: number) =>
   (await searchCustomers(admin, { query, page }, ctx.db)).customers.map((customer) => customer.name);
@@ -100,13 +105,12 @@ test('a search that finds nobody gives an empty page', async () => {
   expect(await searchCustomers(admin, { query: 'nikto' }, ctx.db)).toEqual({ customers: [], page: 1, pageCount: 1, total: 0 });
 });
 
-test('a blank search lists every customer alphabetically, with neither case nor diacritics deciding the order', async () => {
-  for (const name of ['Žilina s.r.o.', 'Zoltán', 'čech', 'Janko Hruška', 'Adam', 'Ábel', 'de Luca', 'Ján Novák', 'Dvořák', 'Boris']) {
-    await add({ type: 'person', name });
-  }
+test('a blank search lists every customer alphabetically, in the Slovak alphabet, whatever the case', async () => {
+  const typed = ['Žilina s.r.o.', 'Zoltán', 'čech', 'Chovan', 'Janko Hruška', 'Adam', 'Čierny', 'Ábel', 'de Luca', 'Ján Novák', 'Hruška', 'Dvořák', 'Cyril', 'Boris'];
+  for (const name of typed) await add({ type: 'person', name });
 
-  // "Ján Novák" is before "Janko": a word ends before a longer one that starts the same, whatever the server's locale.
-  const expected = ['Ábel', 'Adam', 'Boris', 'čech', 'de Luca', 'Dvořák', 'Ján Novák', 'Janko Hruška', 'Žilina s.r.o.', 'Zoltán'];
+  // The Slovak alphabet has č after c and ch after h, and a word ends before a longer one that starts the same ("Ján Novák", "Janko").
+  const expected = ['Ábel', 'Adam', 'Boris', 'Cyril', 'čech', 'Čierny', 'de Luca', 'Dvořák', 'Hruška', 'Chovan', 'Ján Novák', 'Janko Hruška', 'Zoltán', 'Žilina s.r.o.'];
   expect(await found('')).toEqual(expected);
   expect(await found('   ')).toEqual(expected);
   expect((await searchCustomers(admin, {}, ctx.db)).customers.map((customer) => customer.name)).toEqual(expected);
@@ -124,7 +128,7 @@ test('customers with the same name keep their order from page to page', async ()
 
 test('customers come 25 to a page, and no customer is on two pages or on none', async () => {
   const names = Array.from({ length: 60 }, (_, i) => `Zákazník ${String(i + 1).padStart(2, '0')}`);
-  for (const name of [...names].reverse()) await add({ type: 'person', name });
+  for (const name of scrambled(names)) await add({ type: 'person', name });
 
   const [one, two, three] = await Promise.all([1, 2, 3].map((page) => searchCustomers(admin, { page }, ctx.db)));
 
@@ -148,7 +152,7 @@ test('exactly 25 customers fit on one page', async () => {
 
 test('the pages of a search hold only what it finds', async () => {
   const novaks = Array.from({ length: 30 }, (_, i) => `Novák ${String(i + 1).padStart(2, '0')}`);
-  for (const name of novaks) await add({ type: 'person', name });
+  for (const name of scrambled(novaks)) await add({ type: 'person', name });
   for (let i = 0; i < 40; i++) await add({ type: 'person', name: `Kováč ${i}` });
 
   const one = await searchCustomers(admin, { query: 'novak', page: 1 }, ctx.db);
@@ -184,4 +188,39 @@ test('an edit moves the customer in the search: the old name is not found, the n
 
   for (const gone of ['novak', '36396567', '0905 123 456']) expect(await found(gone), gone).toEqual([]);
   for (const kept of ['kovac', 'peter@kovac', '+421 911 222 333']) expect(await found(kept), kept).toEqual(['Peter Kováč']);
+});
+
+test('the migration gives the customers that exist before it the keys the domain gives them', async () => {
+  // Rows as the migration meets them: saved before the search keys existed, so the keys are still empty.
+  const before = [
+    { name: 'Szőke', email: null, phone: null },
+    { name: 'Novák', email: null, phone: null }, // a plain a and a combining acute, as a Mac or a copy from a PDF writes it
+    { name: ' Ján  Novák\t\n', email: null, phone: null }, // non-breaking spaces, a tab and a line break
+    { name: 'ČECH Žďár Ľalia Ôsmy Ŕuža', email: 'Jan.Novák@Firma.SK', phone: '+421 905 123 456' },
+    { name: 'Říha Ůž Ø Straße Łódź', email: 'ŠČEPÁN@žďár.cz', phone: '0905/123-456' },
+    { name: 'Peter Kováč', email: null, phone: '00421 911 222 333' },
+    { name: 'Eva', email: null, phone: '٣٤٥ 0911' }, // Arabic-Indic digits are no digits of a phone
+  ];
+  for (const { name, email, phone } of before) {
+    await ctx.db.execute(
+      sql`insert into customer (type, name, email, phone, search_name, search_email, search_phone) values ('person', ${name}, ${email}, ${phone}, '', '', '')`,
+    );
+  }
+
+  // The file's own UPDATE, as the migrator runs it.
+  const migration = readFileSync(new URL('../drizzle/0004_customer_search_keys.sql', import.meta.url), 'utf8');
+  const backfill = migration.split('--> statement-breakpoint').find((statement) => statement.includes('UPDATE "customer"'));
+  await ctx.db.execute(sql.raw(backfill!.replace(/^--.*$/gm, '')));
+
+  const keyed = await ctx.db.execute<{ name: string; search_name: string; search_email: string; search_phone: string }>(
+    sql`select name, search_name, search_email, search_phone from customer`,
+  );
+  const keysOf = (name: string) => keyed.rows.find((row) => row.name === name)!;
+  expect(keysOf('Szőke').search_name).toBe('szoke');
+  expect(keysOf('Novák').search_name).toBe('novak');
+  expect(keysOf(' Ján  Novák\t\n').search_name).toBe('jan novak');
+  for (const { name, email, phone } of before) {
+    const { searchName, searchEmail, searchPhone } = searchKeys({ name, email, phone });
+    expect(keysOf(name), name).toEqual({ name, search_name: searchName, search_email: searchEmail, search_phone: searchPhone });
+  }
 });
