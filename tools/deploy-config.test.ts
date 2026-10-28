@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { posix } from 'node:path';
 import { expect, test } from 'vitest';
 import { parse } from 'yaml';
 
@@ -56,6 +57,44 @@ test('the migration tooling is a workspace install, not `pnpm deploy`, whose cop
 
   expect(dockerfile).not.toMatch(/pnpm[^\n]*\bdeploy\b/);
   expect(dockerfile).toMatch(/pnpm install[^\n]*--prod/);
+});
+
+test('the app and the migration tooling belong to root: the user node can write to .next/cache only', () => {
+  // A runtime user that owns the code can change the code it runs.
+  const dockerfile = read('Dockerfile');
+
+  expect(dockerfile).not.toMatch(/--chown/);
+  expect([...dockerfile.matchAll(/\bchown\s+(?:-R\s+)?node(?::node)?\s+(\S+)/g)].map((match) => match[1])).toEqual(['/app/apps/web/.next/cache']);
+});
+
+// What /migrate carries is what apps/web/scripts/migrate.ts and seed.ts import, found by following their relative imports.
+const importsOf = (file: string) => [...read(file).matchAll(/(?:from|import)\s+'(\.{1,2}\/[^']+)'/g)].map((match) => posix.join(posix.dirname(file), match[1]!));
+const reached = (files: string[], seen = new Set<string>()): Set<string> => {
+  for (const file of files) if (!seen.has(file)) reached(importsOf(file), seen.add(file));
+  return seen;
+};
+const covers = (source: string, file: string) => file === source || file.startsWith(`${source}/`);
+
+test('/migrate holds the dependencies, the domain, the SQL migrations and the sources the scripts import, not the rest of apps/web', () => {
+  const dockerfile = read('Dockerfile');
+  const sources = [...dockerfile.matchAll(/^COPY --from=migrate\s+(.+)$/gm)].flatMap((match) => match[1]!.trim().split(/\s+/).slice(0, -1)).map((source) => source.replace(/^\/migrate\//, ''));
+  const files = [...reached(['apps/web/scripts/migrate.ts', 'apps/web/scripts/seed.ts'])];
+  // Not imported, but read by Node or the migrator: the links to the dependencies, the package.json that makes the scripts modules, the SQL files.
+  const data = ['apps/web/node_modules', 'apps/web/package.json', 'apps/web/drizzle'];
+
+  expect(files.filter((file) => !sources.some((source) => covers(source, file)))).toEqual([]);
+  expect(sources.filter((source) => source.startsWith('apps/web/') && !data.includes(source) && !files.some((file) => covers(source, file)))).toEqual([]);
+  expect(sources).toEqual(expect.arrayContaining(['node_modules', 'packages/domain', ...data]));
+  expect(sources.filter((source) => !/^(node_modules|packages\/domain|apps\/web\/.+)$/.test(source))).toEqual([]);
+});
+
+test('the pnpm store of the migration install is pruned by tools/prune-migrate.sh, which fails when a pattern matches nothing', () => {
+  expect(read('Dockerfile')).toMatch(/pnpm install[^\n]*--prod[^\n]*\\\n\s*&& sh tools\/prune-migrate\.sh node_modules\/\.pnpm\n/);
+  expect(read('Dockerfile')).not.toMatch(/rm -rf/);
+});
+
+test('the Dockerfile mentions public/ only while apps/web has one: nothing copies a directory that is not there', () => {
+  expect(/\bpublic\b/.test(read('Dockerfile'))).toBe(existsSync(new URL('../apps/web/public', import.meta.url)));
 });
 
 test('.dockerignore lists .env files at any depth', () => {
