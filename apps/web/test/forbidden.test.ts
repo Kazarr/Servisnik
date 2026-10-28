@@ -52,12 +52,14 @@ const formRefused = expect.objectContaining({ errors: { form: forbiddenMessage }
 const actions = {
   addCustomer: { call: () => customerActions.addCustomer(null, form({ type: 'person', name: 'Ján Novák' })), answer: formRefused },
   editCustomer: { call: () => customerActions.editCustomer(null, form({ id, type: 'person', name: 'Premenovaný' })), answer: formRefused },
+  removeCustomer: { call: () => customerActions.removeCustomer(null, form({ id })), answer: { error: forbiddenMessage } },
   addVehicle: { call: () => vehicleActions.addVehicle(null, form({ ownerId: id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Octavia' })), answer: formRefused },
   editVehicle: { call: () => vehicleActions.editVehicle(null, form({ id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Fabia' })), answer: formRefused },
   transferVehicle: {
     call: () => vehicleActions.transferVehicle(null, form({ vehicleId: id, fromOwnerId: id, toOwnerId: '8d2a6c5e-1b7f-4e0c-a3d9-5f6b7c8d9e01' })),
     answer: { error: forbiddenMessage },
   },
+  removeVehicle: { call: () => vehicleActions.removeVehicle(null, form({ id })), answer: { error: forbiddenMessage } },
   addWorkOrder: {
     call: () => workOrderActions.addWorkOrder(null, form({ vehicleId: id, customerId: id, mileageKm: '1', customerRequest: 'Brzdy' })),
     answer: formRefused,

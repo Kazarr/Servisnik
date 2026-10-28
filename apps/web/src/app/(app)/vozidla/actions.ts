@@ -4,8 +4,9 @@ import { firstVehicleYear, lastVehicleYear, maxMileageKm } from '@servisnik/doma
 import { localYear } from '@servisnik/domain/work-order';
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
-import { createVehicle, transferOwnership, updateVehicle, type VehicleSaveErrors } from '../../../dal/vehicles.ts';
+import { createVehicle, deleteVehicle, transferOwnership, updateVehicle, type VehicleSaveErrors } from '../../../dal/vehicles.ts';
 import { formatWhole } from '../../../format.ts';
+import type { DeleteState } from '../delete-form.tsx';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 const fields = ['vin', 'licensePlate', 'make', 'model', 'year', 'fuel', 'mileageKm', 'note'] as const;
@@ -103,4 +104,21 @@ export async function transferVehicle(_state: TransferFormState, formData: FormD
     return { error: transferMessages[result.errors.owner] };
   }
   redirect(`/vozidla/${id}`);
+}
+
+/**
+ * Server Action of "Potvrdiť zmazanie" on a vehicle's detail; it checks the session and the Rola itself,
+ * like every action. A vehicle that got a Zákazka after the page was opened is not deleted: the
+ * database refuses, and the page says so.
+ */
+export async function removeVehicle(_state: DeleteState, formData: FormData): Promise<DeleteState> {
+  const user = await currentUser();
+
+  const result = await orForbidden(deleteVehicle(user, String(formData.get('id') ?? '')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if (result.error === 'unknown') notFound();
+    return { error: 'Vozidlo má zákazku, preto ho nemožno zmazať' };
+  }
+  redirect('/vozidla');
 }
