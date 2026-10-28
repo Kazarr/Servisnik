@@ -5,6 +5,7 @@ import { createUser, getUser, listUsers } from '../src/dal/users.ts';
 import { account, user } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { raceForUserWrites } from './support/race.ts';
 
 // Používatelia in Nastavenia: the list and the creation of one, on the real Better Auth (admin plugin) and PostgreSQL.
 // Who may do it is the table in dal-access.test.ts.
@@ -79,6 +80,18 @@ test.each([
   expect(await create({ name: 'Druhý', email, role: 'admin' })).toEqual({ ok: false, errors: { email: 'taken' } });
 
   expect((await listUsers(admin, ctx.db)).map(({ name, role }) => ({ name, role }))).toEqual([{ name: 'Prvý', role: 'mechanik' }]);
+  expect(await ctx.db.$count(account)).toBe(1);
+});
+
+test('two creations with one e-mail that both checked it is free create one user and tell the other it is taken, not a server error', async () => {
+  const results = await raceForUserWrites(ctx.db, [
+    () => create({ name: 'Prvý', email: 'spolu@autoservis.test' }),
+    () => create({ name: 'Druhý', email: 'Spolu@Autoservis.test' }),
+  ]);
+
+  expect(results.filter(({ ok }) => ok)).toHaveLength(1);
+  expect(results.filter(({ ok }) => !ok)).toEqual([{ ok: false, errors: { email: 'taken' } }]);
+  expect(await ctx.db.$count(user)).toBe(1);
   expect(await ctx.db.$count(account)).toBe(1);
 });
 
