@@ -1,6 +1,6 @@
 // Work order area (GLOSSARY: Zákazka a faktúra). Pure rules: no framework, database or network.
 
-/** Prijatá, Hotová, Vyfakturovaná. Further statuses (V práci, Čaká na diely, Zrušená) are added here and in `transitions`. */
+/** The Stav zákazky (GLOSSARY) by its code name: `received` Prijatá, `done` Hotová, `invoiced` Vyfakturovaná. A new one is added here and in `transitions`. */
 export const workOrderStatuses = ['received', 'done', 'invoiced'] as const;
 export type WorkOrderStatus = (typeof workOrderStatuses)[number];
 
