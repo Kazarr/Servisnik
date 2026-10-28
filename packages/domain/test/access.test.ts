@@ -41,6 +41,15 @@ describe('Prístup', () => {
     expect(can('mechanik', 'work-orders.write')).toBe(false);
   });
 
+  // The Cenová ponuka has the prices and the Odovzdávací protokol the signatures of the autoservis: both are the admin's (spec #95, Mechanik).
+  test('the admin prints the cenová ponuka and the odovzdávací protokol, the mechanik prints neither', () => {
+    for (const capability of ['work-orders.quote', 'work-orders.handover'] as const) {
+      expect(capabilities, capability).toContain(capability);
+      expect(can('admin', capability), capability).toBe(true);
+      expect(can('mechanik', capability), capability).toBe(false);
+    }
+  });
+
   test('a capability that is not on the mechanik list is forbidden to him, even one nobody has listed', () => {
     expect(can('mechanik', unknown)).toBe(false);
     expect(can('mechanik', 'work-orders.read')).toBe(false);

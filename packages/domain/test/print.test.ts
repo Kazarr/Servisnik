@@ -7,3 +7,11 @@ test('the zákazkový list is downloaded as the number of its Zákazka and "zaka
   expect(printFileName('Z2026-0001', 'jobSheet')).toBe('Z2026-0001-zakazkovy-list.pdf');
   expect(printFileName('Z2027-0123', 'jobSheet')).toBe('Z2027-0123-zakazkovy-list.pdf');
 });
+
+test('the cenová ponuka is downloaded as the number of its Zákazka and "cenova-ponuka"', () => {
+  expect(printFileName('Z2026-0001', 'quote')).toBe('Z2026-0001-cenova-ponuka.pdf');
+});
+
+test('the odovzdávací protokol is downloaded as the number of its Zákazka and "odovzdavaci-protokol"', () => {
+  expect(printFileName('Z2026-0001', 'handoverProtocol')).toBe('Z2026-0001-odovzdavaci-protokol.pdf');
+});
