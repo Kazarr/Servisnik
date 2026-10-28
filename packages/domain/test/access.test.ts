@@ -26,14 +26,23 @@ describe('Prístup', () => {
     expect(can('admin', unknown)).toBe(true);
   });
 
-  test('the mechanik may do only what is on his list: the list of Zákazky, printing the zákazkový list, changing his own password and reading the details and logo of the autoservis for print', () => {
+  test('the mechanik may do only what is on his list: the list of Zákazky, reading a Zákazka without prices, printing the zákazkový list, changing his own password and reading the details and logo of the autoservis for print', () => {
     const allowed = capabilities.filter((capability) => can('mechanik', capability));
 
-    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.job-sheet', 'work-orders.list', 'workshop.read']);
+    expect([...allowed].sort()).toEqual(['password.change', 'work-orders.job-sheet', 'work-orders.list', 'work-orders.read-unpriced', 'workshop.read']);
   });
 
-  // The zákazkový list has no price (spec #95, Mechanik): he prints it for the car, but still reads and changes no Zákazka.
-  test('the mechanik prints the zákazkový list without being able to read or change a Zákazka', () => {
+  // The detail of a Zákazka has two reads: the admin's with prices and the mechanik's without them (spec #95, Mechanik; ledger question 11 keeps him from changing it).
+  test('the mechanik reads a Zákazka without its prices and still neither reads it with them nor changes it', () => {
+    expect(capabilities).toContain('work-orders.read-unpriced');
+    expect(can('admin', 'work-orders.read-unpriced')).toBe(true);
+    expect(can('mechanik', 'work-orders.read-unpriced')).toBe(true);
+    expect(can('mechanik', 'work-orders.read')).toBe(false);
+    expect(can('mechanik', 'work-orders.write')).toBe(false);
+  });
+
+  // The zákazkový list has no price (spec #95, Mechanik): he prints it for the car, but still does not read a Zákazka with its prices or change it.
+  test('the mechanik prints the zákazkový list without reading a Zákazka with its prices or changing it', () => {
     expect(capabilities).toContain('work-orders.job-sheet');
     expect(can('admin', 'work-orders.job-sheet')).toBe(true);
     expect(can('mechanik', 'work-orders.job-sheet')).toBe(true);

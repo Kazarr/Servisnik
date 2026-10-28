@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs';
 import { addItem } from '../src/dal/work-orders.ts';
-import { readPdf } from '../test/support/pdf.ts';
-import { expect, runTag, signIn, test } from './fixtures.ts';
+import { downloadPdf, expect, runTag, signIn, test } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -25,14 +23,9 @@ test('the admin downloads the cenová ponuka and the odovzdávací protokol from
     { button: 'Cenová ponuka', file: 'cenova-ponuka', shows: '49,20 €' }, // 40,00 € and 23 % VAT
     { button: 'Odovzdávací protokol', file: 'odovzdavaci-protokol', shows: 'Podpis autoservisu' },
   ]) {
-    const downloading = page.waitForEvent('download');
-    const answered = page.waitForResponse((response) => response.url().endsWith(`/zakazky/${order.orderId}/${file}`));
-    await page.locator('main').getByRole('link', { name: button }).click();
-    const download = await downloading;
+    const { filename, text } = await downloadPdf(page, button, `/zakazky/${order.orderId}/${file}`);
 
-    expect(download.suggestedFilename(), button).toBe(`${order.number}-${file}.pdf`);
-    expect((await answered).headers()['content-type'], button).toBe('application/pdf');
-    const text = readPdf(readFileSync((await download.path())!))[0]!.text;
+    expect(filename, button).toBe(`${order.number}-${file}.pdf`);
     for (const line of [order.number, order.customerName, `Výmena oleja ${tag}`, shows]) expect(text, `${button}: ${line}`).toContain(line);
   }
 });

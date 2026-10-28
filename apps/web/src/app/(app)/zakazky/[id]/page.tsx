@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getRates } from '../../../../dal/settings.ts';
+import { getUnpricedWorkOrder } from '../../../../dal/unpriced-work-order.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
 import { formatDate, formatEuro, formatPartCount, formatPercent, formatQuantity, formatWhole } from '../../../../format.ts';
 import { first, pageOf } from '../../search-params.ts';
@@ -14,6 +15,7 @@ import { ItemForm } from './item-form.tsx';
 import { PrintLinks } from './print-links.tsx';
 import { PriceListSearch } from './price-list-search.tsx';
 import { StatusForm } from './status-form.tsx';
+import { UnpricedWorkOrderView } from './unpriced-work-order-view.tsx';
 
 export const metadata: Metadata = { title: 'Zákazka' };
 
@@ -24,18 +26,28 @@ export default async function WorkOrderPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ q?: string | string[]; strana?: string | string[] }>;
 }) {
-  const user = await currentUserWith('work-orders.read');
-  const order = await getWorkOrder(user, (await params).id);
+  const user = await currentUserWith('work-orders.read-unpriced');
+  const { id } = await params;
+  if (!can(user.role, 'work-orders.read')) {
+    // A Rola that reads a Zákazka without prices (the mechanik) has a read and a view of its own, so no price is read for him to be left out.
+    const unpriced = await getUnpricedWorkOrder(user, id);
+    if (!unpriced) notFound();
+    return <UnpricedWorkOrderView order={unpriced} role={user.role} />;
+  }
+
+  const order = await getWorkOrder(user, id);
   const { q, strana } = await searchParams;
   if (!order) notFound();
-  const transitions = userTransitions(order.status);
-  const rates = canEdit(order.status) ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
+  const mayWrite = can(user.role, 'work-orders.write'); // a Rola that may not write sees no button, form or link that changes the Zákazka
+  const mayChange = mayWrite && canEdit(order.status);
+  const transitions = mayWrite ? userTransitions(order.status) : [];
+  const rates = mayChange ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
 
   return (
     <>
       <div className="page-header">
         <h1>{order.number}</h1>
-        {canEdit(order.status) && (
+        {mayChange && (
           <Link href={`/zakazky/${order.id}/upravit`} className="button">
             Upraviť zákazku
           </Link>
@@ -88,7 +100,7 @@ export default async function WorkOrderPage({
           </div>
         )}
       </dl>
-      <PrintLinks workOrderId={order.id} />
+      <PrintLinks workOrderId={order.id} role={user.role} />
 
       <h2>Položky</h2>
       {order.items.length === 0 ? (

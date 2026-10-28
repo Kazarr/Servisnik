@@ -12,7 +12,7 @@ const marks: Record<RowMark, { label: string; row: string; badge: string }> = {
 };
 
 /**
- * The Zákazky as a table. Whoever may not read a Zákazka sees its number as plain text, and whoever
+ * The Zákazky as a table. Whoever may not open a Zákazka (the mechanik may, without its prices) sees its number as plain text, and whoever
  * may not add one is not told to add it on the detail of a vehicle either. `without: 'vehicle'`
  * leaves out the Vozidlo column, for the detail of a vehicle, where it is the same in every row. A row
  * is marked by the domain's `rowMark` from its status, its Termín and today (`now`) in Europe/Bratislava,
@@ -37,7 +37,7 @@ export function WorkOrderList({
     if (filter && (filter.status !== 'all' || filter.from || filter.to)) return <p>Žiadna zákazka nezodpovedá filtru.</p>;
     return <p>{can(role, 'work-orders.write') ? 'Zatiaľ tu nič nie je. Zákazku založíte na detaile vozidla.' : 'Zatiaľ tu nič nie je.'}</p>;
   }
-  const canRead = can(role, 'work-orders.read');
+  const canOpen = can(role, 'work-orders.read-unpriced');
   const withVehicle = without !== 'vehicle';
   return (
     <div className="table-wrap">
@@ -57,7 +57,7 @@ export function WorkOrderList({
             const mark = found && marks[found];
             return (
               <tr key={order.id} className={mark?.row}>
-                <td>{canRead ? <Link href={`/zakazky/${order.id}`}>{order.number}</Link> : order.number}</td>
+                <td>{canOpen ? <Link href={`/zakazky/${order.id}`}>{order.number}</Link> : order.number}</td>
                 <td>{order.customer.name}</td>
                 {withVehicle && (
                   <td>

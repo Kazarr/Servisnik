@@ -6,9 +6,9 @@ import { isUuid } from './uuid.ts';
 
 /**
  * What the Zákazkový list prints about a Zákazka (GLOSSARY): the customer it was made for, the vehicle,
- * the kilometres at intake, the Termín (a day `YYYY-MM-DD`, or none) and the customer's request. It is the
- * one read of a Zákazka the mechanik has, so it holds no price, sum, VAT or discount, and a field added
- * here is added for him too. The internal note stays out: it goes on no document.
+ * the kilometres at intake, the Termín (a day `YYYY-MM-DD`, or none) and the customer's request. The mechanik
+ * prints it, so it holds no price, sum, VAT or discount, and a field added here is added for him too (his detail
+ * of a Zákazka is unpriced-work-order.ts). The internal note stays out: it goes on no document.
  */
 export type JobSheet = {
   number: string;
