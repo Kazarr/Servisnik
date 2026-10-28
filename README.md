@@ -69,6 +69,13 @@ docker rm -f servisnik-app
 
 `pnpm smoke <url>` je deploy tier: overí, že prihlasovacia stránka a `/api/health` odpovedajú 200 (bez presmerovania), inak vypíše, čo zlyhalo, a skončí nenulovým exitom. Image zostavený s `--build-arg GIT_SHA=<commit>` hlási commit v `/api/health` a `pnpm smoke <url> <commit>` ho overí.
 
+Tlač PDF (zákazkový list) beží v image na Chromiu z `/ms-playwright` a na písmach Liberation Sans, ktoré majú slovenskú diakritiku. Overenie v bežiacom kontajneri `servisnik-app`: prihlás sa na http://localhost:3000, otvor zákazku a tlačidlom „Zákazkový list“ stiahni PDF. Má jednu stranu A4, v päte „Strana 1/1“ a diakritika (ľščťžýáíéôäňĺŕ) je v ňom čitateľná. Písma v súbore vypíše príkaz nižšie, majú byť len `LiberationSans`.
+
+```powershell
+docker exec servisnik-app ls /ms-playwright   # chromium_headless_shell-…
+Select-String -Path .\Z2026-0001-zakazkovy-list.pdf -Pattern '/BaseFont /\S+' -AllMatches | ForEach-Object { $_.Matches.Value } | Sort-Object -Unique
+```
+
 ### Čo urobí Kazarr raz
 
 Agent nič z toho neurobí: ide o účet, platbu, token a tajomstvá.
