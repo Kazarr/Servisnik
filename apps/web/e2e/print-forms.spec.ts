@@ -1,0 +1,38 @@
+import { readFileSync } from 'node:fs';
+import { addItem } from '../src/dal/work-orders.ts';
+import { readPdf } from '../test/support/pdf.ts';
+import { expect, runTag, signIn, test } from './fixtures.ts';
+import { admin, openDatabase, seedWorkOrder } from './records.ts';
+
+let db: ReturnType<typeof openDatabase>;
+test.beforeAll(() => {
+  db = openDatabase();
+});
+test.afterAll(() => db.$client.end());
+
+// The cenová ponuka and the odovzdávací protokol (spec #95, Tlačivá): the smoke path of the two forms of the admin from the
+// button on the detail of a Zákazka to the PDF. What is on them, the pages and who may have them are checked where the PDF
+// is made cheaply (test/print-forms-response.test.ts); the zákazkový list has its own spec (job-sheet.spec.ts).
+test('the admin downloads the cenová ponuka and the odovzdávací protokol from the detail of a Zákazka', async ({ page }) => {
+  test.slow(); // the server starts its Chromium with the first print, and on a host that other runs share that takes long
+  const tag = runTag();
+  const order = await seedWorkOrder(db, tag);
+  await addItem(admin, order.orderId, { kind: 'labour', name: `Výmena oleja ${tag}`, quantity: '1', unitPrice: '40', vatRate: '23' }, db);
+
+  await signIn(page);
+  await page.goto(`/zakazky/${order.orderId}`);
+  for (const { button, file, shows } of [
+    { button: 'Cenová ponuka', file: 'cenova-ponuka', shows: '49,20 €' }, // 40,00 € and 23 % VAT
+    { button: 'Odovzdávací protokol', file: 'odovzdavaci-protokol', shows: 'Podpis autoservisu' },
+  ]) {
+    const downloading = page.waitForEvent('download');
+    const answered = page.waitForResponse((response) => response.url().endsWith(`/zakazky/${order.orderId}/${file}`));
+    await page.locator('main').getByRole('link', { name: button }).click();
+    const download = await downloading;
+
+    expect(download.suggestedFilename(), button).toBe(`${order.number}-${file}.pdf`);
+    expect((await answered).headers()['content-type'], button).toBe('application/pdf');
+    const text = readPdf(readFileSync((await download.path())!))[0]!.text;
+    for (const line of [order.number, order.customerName, `Výmena oleja ${tag}`, shows]) expect(text, `${button}: ${line}`).toContain(line);
+  }
+});
