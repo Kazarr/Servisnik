@@ -1,4 +1,4 @@
-// Vehicle area (GLOSSARY: Zákazníci a vozidlá). Pure rules: no framework, database or network.
+// Vehicle area (GLOSSARY: Vozidlá). Pure rules: no framework, database or network.
 
 export type VinError = 'length' | 'characters';
 

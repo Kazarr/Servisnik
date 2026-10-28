@@ -29,6 +29,7 @@
   --form-width: 22rem;
   --viewport-height: 100vh;
   --width-full: 100%;
+  --track-fill: minmax(0, 1fr);
 
   --opacity-disabled: 0.6;
 }
@@ -86,7 +87,7 @@ button:disabled {
 /* Layout: menu on the left, content on the right. */
 .shell {
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) var(--track-fill);
   min-height: var(--viewport-height);
 }
 
@@ -303,7 +304,7 @@ th {
 
 .details {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: max-content var(--track-fill);
   gap: var(--space-1) var(--space-4);
   margin: 0 0 var(--space-4);
 }
