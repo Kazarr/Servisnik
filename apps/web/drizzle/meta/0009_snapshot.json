@@ -1,5 +1,5 @@
 {
-  "id": "f0fc6788-f3c5-4cf6-a383-73696544d427",
+  "id": "d28e4361-be07-4175-ac66-5d3938a1b341",
   "prevId": "15eacf9e-5b6e-4517-82f0-cfe2bdeefc4d",
   "version": "7",
   "dialect": "postgresql",
@@ -868,12 +868,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -891,12 +885,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "purchase_price_cents": {
-          "name": "purchase_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         },
         "unit_price_cents": {
           "name": "unit_price_cents",
@@ -964,14 +952,6 @@
         "work_order_item_quantity_check": {
           "name": "work_order_item_quantity_check",
           "value": "\"work_order_item\".\"quantity_hundredths\" > 0"
-        },
-        "work_order_item_purchase_price_check": {
-          "name": "work_order_item_purchase_price_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" >= 0"
-        },
-        "work_order_item_purchase_price_kind_check": {
-          "name": "work_order_item_purchase_price_kind_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" is null or \"work_order_item\".\"kind\" = 'part'"
         },
         "work_order_item_unit_price_check": {
           "name": "work_order_item_unit_price_check",
@@ -1060,6 +1040,65 @@
         "workshop_markup_percent_check": {
           "name": "workshop_markup_percent_check",
           "value": "\"workshop\".\"markup_percent\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workshop_logo": {
+      "name": "workshop_logo",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workshop_logo_single_row_check": {
+          "name": "workshop_logo_single_row_check",
+          "value": "\"workshop_logo\".\"id\" = 1"
+        },
+        "workshop_logo_content_type_check": {
+          "name": "workshop_logo_content_type_check",
+          "value": "\"workshop_logo\".\"content_type\" in ('image/png', 'image/jpeg')"
+        },
+        "workshop_logo_size_check": {
+          "name": "workshop_logo_size_check",
+          "value": "octet_length(\"workshop_logo\".\"data\") between 1 and 1048576"
         }
       },
       "isRLSEnabled": false

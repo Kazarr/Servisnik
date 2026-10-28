@@ -2,21 +2,19 @@ import {
   amountsOf,
   canEdit,
   formatWorkOrderNumber,
-  isClosed,
   localYear,
   marginOf,
   parseItem,
   parseWorkOrder,
   totalsOf,
   transition,
-  workOrderStatuses,
   type ItemErrors,
   type ItemInput,
   type WorkOrderErrors,
   type WorkOrderInput,
   type WorkOrderStatus,
 } from '@servisnik/domain/work-order';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
@@ -193,6 +191,15 @@ export async function listWorkOrders(user: User | null, db: Database = getDb()) 
 }
 
 /**
+ * Every Zákazka of a Vozidlo in any Stav, newest first, each with its own Zákazník, who is not
+ * always the Majiteľ the Vozidlo has now. Nothing is found for an id that is no Vozidlo.
+ */
+export async function listWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
+  assertCan(user, 'work-orders.read');
+  return rowsIfUuid(vehicleId, selectListed(db, {}).where(eq(workOrder.vehicleId, vehicleId)).orderBy(desc(workOrder.createdAt)));
+}
+
+/**
  * The Zákazky made for a Zákazník, in any Stav, newest first, each with its customer and vehicle. A Zákazka
  * belongs to the customer it was made for, so the Zákazky of other customers on his vehicles are not here,
  * and after a Prepis the Zákazky stay with the customer they were made for.
@@ -201,17 +208,6 @@ export async function listWorkOrdersOfCustomer(user: User | null, customerId: st
   assertCan(user, 'work-orders.read');
   if (!isUuid(customerId)) return [];
   return selectListed(db, {}).where(eq(workOrder.customerId, customerId)).orderBy(desc(workOrder.createdAt));
-}
-
-/** The Zákazky of a Vozidlo that are not Uzavretá, newest first. */
-export async function listUnclosedWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
-  assertCan(user, 'work-orders.read');
-  if (!isUuid(vehicleId)) return [];
-  return db
-    .select({ id: workOrder.id, number: workOrder.number, status: workOrder.status })
-    .from(workOrder)
-    .where(and(eq(workOrder.vehicleId, vehicleId), inArray(workOrder.status, workOrderStatuses.filter((status) => !isClosed(status)))))
-    .orderBy(desc(workOrder.createdAt));
 }
 
 /** One Zákazka with its items, the amounts of each, the totals and the Marža, or null when there is none with this id. */

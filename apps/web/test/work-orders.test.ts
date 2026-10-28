@@ -11,14 +11,15 @@ import {
   createWorkOrder,
   deleteItem,
   getWorkOrder,
-  listUnclosedWorkOrdersOfVehicle,
   listWorkOrders,
   updateItem,
   listWorkOrdersOfCustomer,
+  listWorkOrdersOfVehicle,
 } from '../src/dal/work-orders.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { findPriceKeys } from './support/price-keys.ts';
 
 const summer = new Date('2026-07-15T10:00:00Z');
 
@@ -73,7 +74,7 @@ test('without a user every function rejects, and nothing is written', async () =
     changeWorkOrderStatus(null, id, { to: 'done' }, ctx.db, summer),
     getWorkOrder(null, id, ctx.db),
     listWorkOrders(null, ctx.db),
-    listUnclosedWorkOrdersOfVehicle(null, vehicleId, ctx.db),
+    listWorkOrdersOfVehicle(null, vehicleId, ctx.db),
     listWorkOrdersOfCustomer(null, ownerId, ctx.db),
   ];
   for (const call of rejected) await expect(call).rejects.toBeInstanceOf(UnauthenticatedError);
@@ -372,22 +373,28 @@ test('Zákazky are listed from the newest with number, customer, vehicle and sta
   ]);
 });
 
-test('a vehicle lists every Zákazka that is not Uzavretá, so not a Vyfakturovaná or a Zrušená one, and not another vehicle’s', async () => {
+test('a vehicle lists all its Zákazky from the newest with their customer, in every status and whoever the owner is, and not another vehicle’s', async () => {
+  const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
-  // One Zákazka per status, oldest first; Z2026-0001 is Prijatá, and so on in the order of the statuses.
-  const ids: Record<string, string> = {};
-  for (const status of workOrderStatuses) ids[status] = await workOrderIn(status);
+  // One Zákazka per status, oldest first, then one whose customer is not the owner of the vehicle.
+  const oldestFirst: { id: string; status: WorkOrderStatus; customer: string }[] = [];
+  for (const status of workOrderStatuses) oldestFirst.push({ id: await workOrderIn(status), status, customer: 'Firma s.r.o.' });
+  oldestFirst.push({ id: await newWorkOrderId({ customerId: other }), status: 'received', customer: 'Ján Novák' });
   await newWorkOrderId({ vehicleId: otherVehicle });
 
-  const unclosed = await listUnclosedWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
+  const history = await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
 
-  expect(unclosed).toEqual([
-    { id: ids.done, number: 'Z2026-0004', status: 'done' },
-    { id: ids.waitingForParts, number: 'Z2026-0003', status: 'waitingForParts' },
-    { id: ids.inProgress, number: 'Z2026-0002', status: 'inProgress' },
-    { id: ids.received, number: 'Z2026-0001', status: 'received' },
-  ]);
-  expect(await listUnclosedWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
+  expect(history.map(({ id, status, customer }) => ({ id, status, customer: customer.name }))).toEqual(oldestFirst.reverse());
+  expect(findPriceKeys(history)).toEqual([]);
+});
+
+test('a vehicle with no Zákazky, one that does not exist and an id that is not one list nothing', async () => {
+  const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
+  await newWorkOrderId({ vehicleId: otherVehicle });
+
+  expect(await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db)).toEqual([]);
+  expect(await listWorkOrdersOfVehicle(admin, randomUUID(), ctx.db)).toEqual([]);
+  expect(await listWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
 });
 
 test('a customer lists every Zákazka they are the customer of, from the newest, and none of other customers on their vehicles', async () => {

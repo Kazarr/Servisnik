@@ -27,6 +27,7 @@
   --border-width-strong: 2px;
   --sidebar-width: 14rem;
   --form-width: 22rem;
+  --logo-preview-height: 8rem;
   --viewport-height: 100vh;
   --width-full: 100%;
   --track-fill: minmax(0, 1fr);
@@ -386,6 +387,28 @@ tfoot td {
 
 .settings-section h2 {
   margin-bottom: var(--space-3);
+}
+
+/* The logo as the admin sees it: whole, at most as tall as the token, on the surface colour so that a white logo shows. */
+.logo-preview {
+  display: inline-block;
+  max-width: var(--width-full);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.logo-preview img {
+  display: block;
+  max-width: var(--width-full);
+  max-height: var(--logo-preview-height);
+}
+
+.logo-preview figcaption {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
 }
 
 .multiline {
