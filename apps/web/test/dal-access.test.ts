@@ -4,6 +4,7 @@ import { createAuth } from '../src/auth.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as jobSheet from '../src/dal/job-sheet.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
@@ -61,6 +62,7 @@ const calls: Record<string, Call> = {
   // Whether a mechanik may change states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
+  getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, db),
   listWorkOrdersOfVehicle: (user, db) => workOrders.listWorkOrdersOfVehicle(user, vehicleId, db),
   listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
@@ -87,11 +89,12 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
+const mechanikMay = ['listWorkOrders', 'getJobSheet', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = {
   'customers.ts': customers,
+  'job-sheet.ts': jobSheet,
   'logo.ts': logo,
   'password.ts': password,
   'settings.ts': settings,
