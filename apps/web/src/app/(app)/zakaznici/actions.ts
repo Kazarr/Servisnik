@@ -5,12 +5,11 @@ import { currentUser } from '../../../dal/current-user.ts';
 import { createCustomer, updateCustomer, type CustomerSaveErrors } from '../../../dal/customers.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
-const fields = ['name', 'ico', 'dic', 'icDph', 'street', 'city', 'postalCode', 'phone', 'email', 'note'] as const;
-type Field = (typeof fields)[number];
+export type CustomerFormValues = Record<'name' | 'ico' | 'dic' | 'icDph' | 'street' | 'city' | 'postalCode' | 'phone' | 'email' | 'note', string>;
 
 export type CustomerFormState = {
-  values: Record<Field, string>;
-  errors: Partial<Record<Field | 'form', string>>;
+  values: CustomerFormValues;
+  errors: Partial<Record<keyof CustomerFormValues | 'form', string>>;
   /** The Firma that already has the IČO the form was sent with; the form links to it. */
   existing?: { id: string; name: string };
 } | null;
@@ -30,11 +29,23 @@ const messages = {
 
 function read(formData: FormData) {
   const type = formData.get('type') === 'company' ? 'company' : 'person';
-  const values = Object.fromEntries(fields.map((name) => [name, String(formData.get(name) ?? '')])) as Record<Field, string>;
+  const text = (name: string) => String(formData.get(name) ?? '');
+  const values: CustomerFormValues = {
+    name: text('name'),
+    ico: text('ico'),
+    dic: text('dic'),
+    icDph: text('icDph'),
+    street: text('street'),
+    city: text('city'),
+    postalCode: text('postalCode'),
+    phone: text('phone'),
+    email: text('email'),
+    note: text('note'),
+  };
   return { type, values } as const;
 }
 
-function refused(values: Record<Field, string>, result: { errors: CustomerSaveErrors; existing?: { id: string; name: string } }): CustomerFormState {
+function refused(values: CustomerFormValues, result: { errors: CustomerSaveErrors; existing?: { id: string; name: string } }): CustomerFormState {
   const { name, ico, dic, icDph, postalCode, email } = result.errors;
   return {
     values,

@@ -6,7 +6,7 @@ import { createVehicle } from '../../../dal/vehicles.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 export type VehicleFormState = {
-  values: Record<string, string>;
+  values: Record<'vin' | 'licensePlate' | 'make' | 'model', string>;
   errors: { vin?: string; make?: string; model?: string; form?: string };
 } | null;
 

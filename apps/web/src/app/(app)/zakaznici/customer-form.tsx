@@ -4,10 +4,11 @@ import { customerTypes, type CustomerType } from '@servisnik/domain/customer';
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { Field, FormError, TextAreaField } from '../field.tsx';
-import type { CustomerFormState } from './actions.ts';
+import { valueIn } from '../form-value.ts';
+import type { CustomerFormState, CustomerFormValues } from './actions.ts';
 import { customerTypeLabels } from './type-labels.ts';
 
-type Fields = Record<'name' | 'ico' | 'dic' | 'icDph' | 'street' | 'city' | 'postalCode' | 'phone' | 'email' | 'note', string | null>;
+type Fields = Record<keyof CustomerFormValues, string | null>;
 
 /** The form of a new customer, or with `customer` the form that edits it. `action` is addCustomer or editCustomer. */
 export function CustomerForm({
@@ -22,7 +23,7 @@ export function CustomerForm({
   // the state: React resets the form when the action ends and a reset returns to the default, so a
   // failed save keeps the choice.
   const [type, setType] = useState<CustomerType>(customer?.type ?? 'person');
-  const value = (name: keyof Fields) => (state ? state.values[name] : (customer?.[name] ?? ''));
+  const value = valueIn(state, customer);
   const errors = state?.errors ?? {};
   const taken = state?.existing && (
     <>
