@@ -5,9 +5,9 @@ import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
 import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
-import { markDone } from '../actions.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { LabourForm } from './labour-form.tsx';
+import { MarkDoneForm } from './mark-done-form.tsx';
 
 export const metadata: Metadata = { title: 'Zákazka' };
 
@@ -104,10 +104,7 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
         <>
           <h2>Pridať prácu</h2>
           <LabourForm workOrderId={order.id} />
-          <form action={markDone} className="actions">
-            <input type="hidden" name="workOrderId" value={order.id} />
-            <button type="submit">Označiť ako hotovú</button>
-          </form>
+          <MarkDoneForm workOrderId={order.id} />
         </>
       )}
     </>

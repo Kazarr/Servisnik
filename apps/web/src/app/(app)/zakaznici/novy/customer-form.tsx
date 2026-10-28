@@ -2,7 +2,7 @@
 
 import { customerTypes, type CustomerType } from '@servisnik/domain/customer';
 import { useActionState, useState } from 'react';
-import { Field } from '../../field.tsx';
+import { Field, FormError } from '../../field.tsx';
 import { addCustomer } from '../actions.ts';
 import { customerTypeLabels } from '../type-labels.ts';
 
@@ -14,6 +14,7 @@ export function CustomerForm() {
 
   return (
     <form action={formAction} className="form">
+      <FormError message={state?.errors.form} />
       <fieldset>
         <legend>Typ zákazníka</legend>
         {customerTypes.map((option) => (

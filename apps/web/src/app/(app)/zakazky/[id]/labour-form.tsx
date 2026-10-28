@@ -2,7 +2,7 @@
 
 import { defaultVatRate } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
-import { Field } from '../../field.tsx';
+import { Field, FormError } from '../../field.tsx';
 import { addWorkToOrder } from '../actions.ts';
 
 /** Adds a Práca: hours, a unit price without VAT, and a VAT rate that starts at 23 %. */
@@ -13,11 +13,7 @@ export function LabourForm({ workOrderId }: { workOrderId: string }) {
   return (
     <form action={formAction} className="form">
       <input type="hidden" name="workOrderId" value={workOrderId} />
-      {state?.errors.form && (
-        <p role="alert" className="error">
-          {state.errors.form}
-        </p>
-      )}
+      <FormError message={state?.errors.form} />
       <Field label="Názov" name="name" defaultValue={value('name')} error={state?.errors.name} autoComplete="off" required />
       <Field label="Množstvo (h)" name="quantity" inputMode="decimal" defaultValue={value('quantity')} error={state?.errors.quantity} autoComplete="off" required />
       <Field

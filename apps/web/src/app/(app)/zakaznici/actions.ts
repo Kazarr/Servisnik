@@ -3,8 +3,9 @@
 import { redirect } from 'next/navigation';
 import { createCustomer } from '../../../dal/customers.ts';
 import { currentUser } from '../../../dal/current-user.ts';
+import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
-export type CustomerFormState = { values: Record<string, string>; errors: { name?: string } } | null;
+export type CustomerFormState = { values: Record<string, string>; errors: { name?: string; form?: string } } | null;
 
 const fields = ['name', 'ico', 'dic', 'icDph', 'street', 'city', 'postalCode', 'email'] as const;
 
@@ -20,7 +21,8 @@ export async function addCustomer(_state: CustomerFormState, formData: FormData)
     string
   >;
 
-  const result = await createCustomer(user, { type, ...values });
+  const result = await orForbidden(createCustomer(user, { type, ...values }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) return { values, errors: { name: 'Vyplňte názov, pri osobe meno a priezvisko' } };
   redirect(`/zakaznici/${result.id}`);
 }
