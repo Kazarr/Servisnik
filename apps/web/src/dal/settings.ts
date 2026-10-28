@@ -15,8 +15,7 @@ const ratesColumns = {
 
 /**
  * The VAT rates, the default one, the hourly rate and the markup, in one read. Only the admin may read
- * them: they are VAT and prices, which a mechanik never gets (a part of Nastavenia that he needs, such
- * as the details of the autoservis on a printout, is read through a function of its own).
+ * them: they are VAT and prices, which a mechanik never gets.
  */
 export async function getRates(user: User | null, db: Database = getDb()): Promise<Rates> {
   assertCan(user, 'settings.read');
