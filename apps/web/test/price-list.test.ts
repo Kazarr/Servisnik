@@ -174,12 +174,12 @@ test('an item changed loses the code and the Nákupná cena that are left out, a
   expect(await getPriceListItem(admin, id, ctx.db)).toMatchObject({ code: null, purchasePriceCents: null, unit: 'ks' });
 });
 
-test('a Práca changed never gets a Nákupná cena', async () => {
+test('a Práca changed never gets a Nákupná cena, and a form that sends another kind does not change the kind', async () => {
   const id = await add(oilChange);
 
-  await updatePriceListItem(admin, id, { name: 'Výmena oleja', unitPrice: '40', purchasePrice: '10' }, ctx.db);
+  await updatePriceListItem(admin, id, { ...brake, name: 'Výmena oleja', unitPrice: '40', purchasePrice: '10', vatRate: '23' }, ctx.db);
 
-  expect(await getPriceListItem(admin, id, ctx.db)).toMatchObject({ kind: 'labour', purchasePriceCents: null });
+  expect(await getPriceListItem(admin, id, ctx.db)).toMatchObject({ kind: 'labour', purchasePriceCents: null, unitPriceCents: 4000 });
 });
 
 test('an item keeps its own code when it is changed, whatever the case, and takes no code another item has', async () => {
