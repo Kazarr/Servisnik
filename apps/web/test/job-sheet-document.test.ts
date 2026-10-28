@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import type { JobSheet } from '../src/dal/job-sheet.ts';
 import { jobSheetDocument } from '../src/print/job-sheet.ts';
 import { jpeg, png } from './support/logo-files.ts';
+import { fact, onlyName, workshop } from './support/print-fixtures.ts';
 
 // The HTML of the Zákazkový list (GLOSSARY) over made-up data: what it says, what it leaves out and that the text
 // of a customer can only be text. How it looks on paper is the PDF test of the Route Handler.
@@ -15,44 +16,9 @@ const sheet: JobSheet = {
   deadline: '2026-12-01',
   customerRequest: 'Výmena oleja\nKontrola bŕzd',
 };
-const workshop: WorkshopDetails = {
-  name: 'Autoservis Novák',
-  street: 'Hlavná 1',
-  city: 'Bratislava',
-  postalCode: '811 01',
-  ico: '12345678',
-  dic: '2012345678',
-  icDph: 'SK2012345678',
-  vatPayerType: 'payer',
-  iban: 'SK3112000000198742637541',
-  phone: '+421 900 123 456',
-  email: 'servis@novak.sk',
-  commercialRegister: 'OR Okresného súdu Bratislava I, oddiel Sa, vložka 1234/B',
-};
-const onlyName: WorkshopDetails = {
-  name: 'Autoservis Novák',
-  street: null,
-  city: null,
-  postalCode: null,
-  ico: null,
-  dic: null,
-  icDph: null,
-  vatPayerType: 'nonPayer',
-  iban: null,
-  phone: null,
-  email: null,
-  commercialRegister: null,
-};
 
 const print = (overrides: { sheet?: JobSheet; workshop?: WorkshopDetails; logo?: Parameters<typeof jobSheetDocument>[0]['logo'] } = {}) =>
   jobSheetDocument({ sheet, workshop, logo: null, printedOn: '2026-10-28', ...overrides });
-
-/**
- * The text after the term `label` in a list of facts, as markup, or null when the document has no such term.
- * A grouped number keeps its digits together with a no-break space (as the app shows it), read here as a space.
- */
-const fact = (document: string, label: string) =>
-  new RegExp(`<dt>${label}</dt>\\s*<dd[^>]*>([\\s\\S]*?)</dd>`).exec(document)?.[1]?.replace(/\p{Zs}/gu, ' ') ?? null;
 
 describe('the header', () => {
   test('carries the name, address, identifiers and contacts of the autoservis, the number of the Zákazka and the day of the print', () => {

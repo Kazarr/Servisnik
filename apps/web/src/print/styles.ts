@@ -187,6 +187,81 @@ main section {
   border-top: var(--border-width) solid var(--color-text);
   color: var(--color-text-muted);
 }
+
+/* Two signatures side by side: the customer's and the autoservis's. */
+.signatures {
+  display: flex;
+  justify-content: space-between;
+  padding-top: var(--signature-space);
+}
+
+/*
+ * The list of items of a form. It is the one part that may break across pages, and it does so between rows: the
+ * head of the table (a thead) is printed again on each page, a row stays whole, and a name longer than its column wraps.
+ */
+main h2 {
+  break-after: avoid;
+}
+
+main section.items {
+  break-inside: auto;
+}
+
+.lines {
+  width: var(--width-full);
+  margin-top: var(--space-2);
+  border-collapse: collapse;
+}
+
+.lines th,
+.lines td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.lines th {
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+.lines tr {
+  break-inside: avoid;
+}
+
+.lines td:not(.amount) {
+  overflow-wrap: anywhere;
+}
+
+.lines .amount {
+  text-align: right;
+}
+
+.lines td.amount {
+  white-space: nowrap;
+}
+
+.code {
+  color: var(--color-text-muted);
+}
+
+/* The sums under the list of items, to the right, with the total with VAT in bold. */
+.totals .facts {
+  grid-template-columns: max-content max-content;
+  justify-content: end;
+}
+
+.totals dd {
+  text-align: right;
+}
+
+.totals .grand dt,
+.totals .grand dd {
+  color: var(--color-text);
+  font-weight: var(--font-weight-bold);
+}
 `;
 
 /**
