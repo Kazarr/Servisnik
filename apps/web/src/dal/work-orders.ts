@@ -1,3 +1,5 @@
+import { parseCustomer, type CustomerInput } from '@servisnik/domain/customer';
+import { parseVehicle, type VehicleInput } from '@servisnik/domain/vehicle';
 import {
   amountsOf,
   canEdit,
@@ -18,9 +20,11 @@ import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
+import { createCustomer, type CustomerSaveErrors, type ExistingCustomer } from './customers.ts';
 import { getRates } from './settings.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
+import { createVehicle, type ExistingVehicle, type VehicleSaveErrors } from './vehicles.ts';
 
 /** The rows of `query`, or none when `id` is not a UUID: PostgreSQL would answer that with an error, not with no row. */
 const rowsIfUuid = async <Row>(id: string, query: PromiseLike<Row[]>): Promise<Row[]> => (isUuid(id) ? await query : []);
@@ -79,6 +83,81 @@ export async function createWorkOrder(
     const lowerMileage = atIntake.lowerThanVehicle ? { lowerMileage: { vehicleMileageKm: atIntake.vehicleMileageKm } } : {};
     return { ok: true, id: saved!.id, number, ...lowerMileage };
   });
+}
+
+/** What the form of a Príjem vozidla with a new Vozidlo sends: its Majiteľ, who is an existing Zákazník or a new one, the Vozidlo, and the Zákazka. The Stav km of a new Vozidlo is the kilometres at intake. */
+export type IntakeInput = WorkOrderInput & {
+  owner: { id: string } | { customer: CustomerInput };
+  vehicle: Omit<VehicleInput, 'mileageKm'>;
+};
+
+export type CreateIntakeResult =
+  | { ok: true; id: string; number: string }
+  | {
+      ok: false;
+      errors: { owner?: 'unknown'; customer?: CustomerSaveErrors; vehicle?: VehicleSaveErrors; workOrder?: WorkOrderErrors };
+      /** The Firma that has the IČO, and the Vozidlo that has the VIN: the forms link to them. */
+      existingCustomer?: ExistingCustomer;
+      existingVehicle?: ExistingVehicle;
+    };
+
+/** Ends the transaction of an intake that was refused, with the refusal to hand back. */
+class IntakeRefused extends Error {
+  readonly refusal: Extract<CreateIntakeResult, { ok: false }>;
+
+  constructor(refusal: Extract<CreateIntakeResult, { ok: false }>) {
+    super('The intake was refused.');
+    this.refusal = refusal;
+  }
+}
+
+/**
+ * Príjem vozidla with a new Vozidlo (GLOSSARY): saves the new Zákazník when there is one, the Vozidlo with
+ * him or the existing Zákazník as its Majiteľ, and the Zákazka for it, whose Zákazník is the Majiteľ, all
+ * in one transaction. A part that cannot be saved takes the others with it, whether the rules refuse it, a
+ * VIN or an IČO is taken, or PostgreSQL fails. Every part is checked before any is written, so every
+ * reason comes back at once. Each part is saved by its own function (createCustomer, createVehicle,
+ * createWorkOrder), so the rules of each stay where they are.
+ */
+export async function createIntake(user: User | null, input: IntakeInput, db: Database = getDb(), now: Date = new Date()): Promise<CreateIntakeResult> {
+  assertCan(user, 'work-orders.write');
+  const { owner, vehicle: vehicleFields, ...orderFields } = input;
+  const newCustomer = 'customer' in owner ? parseCustomer(owner.customer) : undefined;
+  const parsedVehicle = parseVehicle(vehicleFields, localYear(now));
+  const parsedOrder = parseWorkOrder(orderFields);
+  const errors = {
+    ...(newCustomer && !newCustomer.ok && { customer: newCustomer.errors }),
+    ...(!parsedVehicle.ok && { vehicle: parsedVehicle.errors }),
+    ...(!parsedOrder.ok && { workOrder: parsedOrder.errors }),
+  };
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+  try {
+    return await db.transaction(async (tx) => {
+      let ownerId: string;
+      if ('customer' in owner) {
+        const saved = await createCustomer(user, owner.customer, tx);
+        if (!saved.ok) throw new IntakeRefused({ ok: false, errors: { customer: saved.errors }, existingCustomer: saved.existing });
+        ownerId = saved.id;
+      } else {
+        ownerId = owner.id;
+      }
+
+      const savedVehicle = await createVehicle(user, { ...vehicleFields, ownerId }, tx);
+      if (!savedVehicle.ok) {
+        const { owner: unknownOwner, ...vehicleErrors } = savedVehicle.errors;
+        throw new IntakeRefused(unknownOwner ? { ok: false, errors: { owner: unknownOwner } } : { ok: false, errors: { vehicle: vehicleErrors }, existingVehicle: savedVehicle.existing });
+      }
+
+      const savedOrder = await createWorkOrder(user, { ...orderFields, vehicleId: savedVehicle.id }, tx, now);
+      // The parts were checked, and the Vozidlo and its Majiteľ were just saved: nothing is left to refuse the Zákazka.
+      if (!savedOrder.ok) throw new Error(`The Zákazka of an intake was refused: ${JSON.stringify(savedOrder.errors)}`);
+      return { ok: true, id: savedOrder.id, number: savedOrder.number };
+    });
+  } catch (error) {
+    if (error instanceof IntakeRefused) return error.refusal;
+    throw error;
+  }
 }
 
 export type AddLabourResult =

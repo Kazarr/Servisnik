@@ -10,12 +10,12 @@ import { isUuid } from './uuid.ts';
 /** What the domain finds wrong, or an IČO that another Firma already has. */
 export type CustomerSaveErrors = Omit<CustomerErrors, 'ico'> & { ico?: NonNullable<CustomerErrors['ico']> | 'taken' };
 /** The Firma that has the IČO, so the form can link to it. */
-type Existing = { id: string; name: string };
+export type ExistingCustomer = { id: string; name: string };
 
-export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: CustomerSaveErrors; existing?: Existing };
+export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: CustomerSaveErrors; existing?: ExistingCustomer };
 export type UpdateCustomerResult =
   | { ok: true }
-  | { ok: false; errors: CustomerSaveErrors & { customer?: 'unknown' }; existing?: Existing };
+  | { ok: false; errors: CustomerSaveErrors & { customer?: 'unknown' }; existing?: ExistingCustomer };
 
 /** The failure for an IČO that is taken, with the Firma that has it. */
 async function takenIco(ico: string, db: Executor) {

@@ -11,12 +11,12 @@ import { isUuid } from './uuid.ts';
 /** What the domain finds wrong, or a VIN that another Vozidlo already has. */
 export type VehicleSaveErrors = Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken' };
 /** The Vozidlo that has the VIN, with its Majiteľ, so the form can show whose it is and link to it. */
-type Existing = { id: string; make: string; model: string; owner: { id: string; name: string } };
+export type ExistingVehicle = { id: string; make: string; model: string; owner: { id: string; name: string } };
 
 export type CreateVehicleResult =
   | { ok: true; id: string }
-  | { ok: false; errors: VehicleSaveErrors & { owner?: 'unknown' }; existing?: Existing };
-export type UpdateVehicleResult = { ok: true } | { ok: false; errors: VehicleSaveErrors & { vehicle?: 'unknown' }; existing?: Existing };
+  | { ok: false; errors: VehicleSaveErrors & { owner?: 'unknown' }; existing?: ExistingVehicle };
+export type UpdateVehicleResult = { ok: true } | { ok: false; errors: VehicleSaveErrors & { vehicle?: 'unknown' }; existing?: ExistingVehicle };
 
 /** The Vozidlá with their Majiteľ; the caller adds the filter and the order. */
 const vehiclesWithOwner = (db: Executor) =>
