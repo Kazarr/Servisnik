@@ -34,7 +34,7 @@ pnpm db:seed       # založí admina z ADMIN_EMAIL a ADMIN_PASSWORD, alebo mu na
 pnpm dev           # http://localhost:3000 presmeruje na prihlásenie
 ```
 
-Registrácia v appke nie je, prihlásiť sa dá len admin zo seedu. Zmenu schémy (`apps/web/src/db/schema.ts`) premietne `pnpm --filter @servisnik/web db:generate` do novej migrácie, ktorú commitni.
+Registrácia v appke nie je: prvého admina založí seed a ďalších používateľov admin v Nastaveniach. Zmenu schémy (`apps/web/src/db/schema.ts`) premietne `pnpm --filter @servisnik/web db:generate` do novej migrácie, ktorú commitni.
 
 ## Testy
 

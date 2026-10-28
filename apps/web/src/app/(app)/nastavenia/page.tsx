@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { currentUserWith } from '../../../dal/current-user.ts';
 import { LogoSection } from './logo-section.tsx';
 import { RatesSection } from './rates-section.tsx';
+import { UsersSection } from './users-section.tsx';
 
 export const metadata: Metadata = { title: 'Nastavenia' };
 
@@ -17,6 +18,7 @@ export default async function SettingsPage() {
       <h1>Nastavenia</h1>
       <LogoSection user={user} />
       <RatesSection user={user} />
+      <UsersSection user={user} />
     </>
   );
 }

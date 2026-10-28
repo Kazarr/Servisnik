@@ -61,8 +61,15 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1793201096564,
-      "tag": "0008_workshop_logo",
+      "when": 1793200437355,
+      "tag": "0008_users_admin_plugin",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793204943858,
+      "tag": "0009_workshop_logo",
       "breakpoints": true
     }
   ]

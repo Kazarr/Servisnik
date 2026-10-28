@@ -9,11 +9,12 @@ import * as password from '../src/dal/password.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
+import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
-import { customer, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
+import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
@@ -60,12 +61,16 @@ const calls: Record<string, Call> = {
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, db),
   listUnclosedWorkOrdersOfVehicle: (user, db) => workOrders.listUnclosedWorkOrdersOfVehicle(user, vehicleId, db),
+  listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
   getRates: (user, db) => settings.getRates(user, db),
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
   getLogo: (user, db) => logo.getLogo(user, db),
   getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
   saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
   removeLogo: (user, db) => logo.removeLogo(user, db),
+  // The list reads the database it is given; the creation goes through Better Auth, which has the real database of the test, so only what it wrote shows (`everything`).
+  listUsers: (user, db) => users.listUsers(user, db),
+  createUser: (user) => users.createUser(user, { name: 'Nový Mechanik', email: 'novy@autoservis.test', role: 'mechanik', password: 'pociatocne-heslo-1234' }, auth),
   // Takes no user: it is the one the session in the headers names, so the row has none (the headers carry no session, as for a missing user).
   changeOwnPassword: () =>
     password.changeOwnPassword(new Headers(), { currentPassword: 'povodne-heslo-1234', newPassword: 'nove-heslo-5678', confirmation: 'nove-heslo-5678' }, auth),
@@ -80,6 +85,7 @@ const dataAccess = {
   'logo.ts': logo,
   'password.ts': password,
   'settings.ts': settings,
+  'users.ts': users,
   'vehicles.ts': vehicles,
   'work-orders.ts': workOrders,
 };
@@ -124,6 +130,8 @@ const everything = async () => ({
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
   workshopLogo: await ctx.db.select().from(workshopLogo),
+  users: await ctx.db.select().from(userTable),
+  accounts: await ctx.db.select().from(account),
 });
 
 test.each(Object.entries(calls).filter(([name]) => !mechanikMay.includes(name)))(
