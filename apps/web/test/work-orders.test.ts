@@ -601,22 +601,31 @@ test('an item of another Zákazka is not touched by changing or deleting this on
   expect((await getWorkOrder(admin, second, ctx.db))?.items).toHaveLength(1);
 });
 
-test('an item is changed and deleted only while the Zákazka is still Prijatá, the same as adding one', async () => {
-  const done = await newWorkOrderId();
-  const doneItem = idOf(await addItem(admin, done, oilChange, ctx.db));
-  await markWorkOrderDone(admin, done, ctx.db, summer);
-  const invoiced = await newWorkOrderId();
-  const invoicedItem = idOf(await addItem(admin, invoiced, oilChange, ctx.db));
-  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
-  const before = [await getWorkOrder(admin, done, ctx.db), await getWorkOrder(admin, invoiced, ctx.db)];
-  const change = { name: 'Zmenená', quantity: '2', unitPrice: '1' };
+test.each([
+  ['received', true],
+  ['inProgress', true],
+  ['waitingForParts', true],
+  ['done', false],
+  ['invoiced', false],
+  ['cancelled', false],
+] as const)('an item of a Zákazka that is %s is changed and deleted only if it is Rozpracovaná, as adding one is: %s', async (status, allowed) => {
+  const id = await newWorkOrderId();
+  const itemId = idOf(await addItem(admin, id, oilChange, ctx.db));
+  await ctx.db.execute(sql`update work_order set status = ${status}::work_order_status where id = ${id}`);
+  const before = await getWorkOrder(admin, id, ctx.db);
 
-  for (const itemId of [doneItem, invoicedItem]) {
-    expect(await updateItem(admin, itemId, change, ctx.db)).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
-    expect(await deleteItem(admin, itemId, ctx.db)).toEqual({ ok: false, error: 'not-editable' });
+  const changed = await updateItem(admin, itemId, { name: 'Zmenená', quantity: '2', unitPrice: '1' }, ctx.db);
+  const deleted = await deleteItem(admin, itemId, ctx.db);
+
+  if (allowed) {
+    expect(changed).toEqual({ ok: true, workOrderId: id });
+    expect(deleted).toEqual({ ok: true, workOrderId: id });
+    expect((await getWorkOrder(admin, id, ctx.db))?.items).toEqual([]);
+  } else {
+    expect(changed).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
+    expect(deleted).toEqual({ ok: false, error: 'not-editable' });
+    expect(await getWorkOrder(admin, id, ctx.db)).toEqual(before);
   }
-
-  expect([await getWorkOrder(admin, done, ctx.db), await getWorkOrder(admin, invoiced, ctx.db)]).toEqual(before);
 });
 
 test('an item that does not exist, or an id that is not one, is unknown', async () => {

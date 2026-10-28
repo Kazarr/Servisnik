@@ -85,9 +85,9 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await labourForm.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
   await labourForm.getByLabel('Množstvo', { exact: true }).fill('1');
   await labourForm.getByLabel('Predajná cena za jednotku bez DPH (€)').fill('10');
-  const editPage = await context.newPage();
-  await editPage.goto(`/zakazky/${order.orderId}/polozky/${itemId}`);
-  await editPage.getByLabel('Názov', { exact: true }).fill('Nemal by sa zmeniť');
+  const itemPage = await context.newPage();
+  await itemPage.goto(`/zakazky/${order.orderId}/polozky/${itemId}`);
+  await itemPage.getByLabel('Názov', { exact: true }).fill('Nemal by sa zmeniť');
   const settingsPage = await context.newPage();
   await settingsPage.goto('/nastavenia');
   await settingsPage.getByLabel('Prirážka na diely (%)').fill('77');
@@ -110,8 +110,8 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message]);
   await detailPage.getByRole('button', { name: 'Označiť ako hotovú' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message, message]);
-  await editPage.getByRole('button', { name: 'Uložiť zmeny' }).click();
-  await expect(editPage.locator('main').getByRole('alert')).toHaveText(message);
+  await itemPage.getByRole('button', { name: 'Uložiť zmeny' }).click();
+  await expect(itemPage.locator('main').getByRole('alert')).toHaveText(message);
   await settingsPage.getByRole('button', { name: 'Uložiť sadzby' }).click();
   await expect(settingsPage.locator('main').getByRole('alert')).toHaveText(message);
 
