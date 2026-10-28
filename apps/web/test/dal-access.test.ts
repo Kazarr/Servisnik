@@ -38,6 +38,7 @@ const calls: Record<string, Call> = {
   createCustomer: (user, db) => customers.createCustomer(user, { type: 'person', name: 'Ján Novák' }, db),
   updateCustomer: (user, db) => customers.updateCustomer(user, ownerId, { type: 'person', name: 'Premenovaný' }, db),
   listCustomers: (user, db) => customers.listCustomers(user, db),
+  searchCustomers: (user, db) => customers.searchCustomers(user, { query: 'Firma' }, db),
   getCustomer: (user, db) => customers.getCustomer(user, ownerId, db),
   createVehicle: (user, db) => vehicles.createVehicle(user, { ownerId, vin: 'TMBZZZ5JZ3W000101', licensePlate: '', make: 'Škoda', model: 'Octavia' }, db),
   listVehicles: (user, db) => vehicles.listVehicles(user, db),
