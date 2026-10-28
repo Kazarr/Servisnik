@@ -62,7 +62,7 @@ describe('status transitions', () => {
   const every = workOrderStatuses.flatMap((from) => workOrderStatuses.flatMap((to) => triggers.map((by) => [from, to, by] as const)));
   const forbidden = every.filter(([from, to, by]) => !allowed.some(([f, t, b]) => f === from && t === to && b === by));
 
-  test('Prijatá becomes Hotová by the user, and the delivery date is the day in Europe/Bratislava', () => {
+  test('Prijatá becomes Hotová by the user, and the Dátum dokončenia is the day in Europe/Bratislava', () => {
     // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
     expect(transition('received', 'done', 'user', new Date('2026-12-31T23:30:00Z'))).toEqual({
       ok: true,
@@ -71,7 +71,7 @@ describe('status transitions', () => {
     });
   });
 
-  test('Hotová becomes Vyfakturovaná by the invoice, and the delivery date stays as it was', () => {
+  test('Hotová becomes Vyfakturovaná by the invoice, and the Dátum dokončenia stays as it was', () => {
     expect(transition('done', 'invoiced', 'invoice', new Date('2026-12-31T23:30:00Z'))).toEqual({ ok: true, status: 'invoiced' });
   });
 
@@ -83,7 +83,7 @@ describe('status transitions', () => {
     }
   });
 
-  test('Hotová cannot be reached again, so the delivery date is never overwritten', () => {
+  test('Hotová cannot be reached again, so the Dátum dokončenia is never overwritten', () => {
     expect(transition('done', 'done', 'user', new Date())).toEqual({ ok: false, error: 'not-allowed' });
   });
 });

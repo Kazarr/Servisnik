@@ -194,7 +194,7 @@ test('work is added to a Zákazka that exists and is still Prijatá, and to no o
   expect((await getWorkOrder(admin, invoiced, ctx.db))?.items).toEqual([]);
 });
 
-test('marking a Zákazka as done makes it Hotová and records the delivery date in Europe/Bratislava', async () => {
+test('marking a Zákazka as done makes it Hotová and records the Dátum dokončenia in Europe/Bratislava', async () => {
   const id = await openWorkOrder();
 
   // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
@@ -204,7 +204,7 @@ test('marking a Zákazka as done makes it Hotová and records the delivery date 
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ status: 'done', completedOn: '2027-01-01' });
 });
 
-test('a Zákazka that is already Hotová is not marked again, and its delivery date stays', async () => {
+test('a Zákazka that is already Hotová is not marked again, and its Dátum dokončenia stays', async () => {
   const id = await openWorkOrder();
   await markWorkOrderDone(admin, id, ctx.db, new Date('2026-07-15T10:00:00Z'));
 

@@ -13,7 +13,7 @@ const transitions: readonly { from: WorkOrderStatus; to: WorkOrderStatus; by: Tr
   { from: 'done', to: 'invoiced', by: 'invoice' },
 ];
 
-/** The new status, with the delivery date (a day in Europe/Bratislava) when the Zákazka becomes Hotová; or why not. */
+/** The new status, with the Dátum dokončenia (a day in Europe/Bratislava) when the Zákazka becomes Hotová; or why not. */
 export function transition(
   from: WorkOrderStatus,
   to: WorkOrderStatus,

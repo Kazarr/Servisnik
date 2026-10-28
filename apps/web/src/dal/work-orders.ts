@@ -84,7 +84,7 @@ export async function addLabour(user: User | null, workOrderId: string, input: L
 
 export type MarkDoneResult = { ok: true } | { ok: false; error: 'unknown' | 'not-allowed' };
 
-/** Prijatá becomes Hotová and the delivery date is stored; the domain's transition table decides, under a row lock. */
+/** Prijatá becomes Hotová and the Dátum dokončenia is stored; the domain's transition table decides, under a row lock. */
 export async function markWorkOrderDone(user: User | null, id: string, db: Database = getDb(), now: Date = new Date()): Promise<MarkDoneResult> {
   assertCan(user, 'work-orders.write');
   return db.transaction(async (tx) => {
