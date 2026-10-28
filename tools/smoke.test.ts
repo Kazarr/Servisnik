@@ -63,7 +63,50 @@ test('run exits 1 and lists the failures when the smoke fails', async () => {
 });
 
 test('run exits 2 with the usage when no URL is given', async () => {
-  expect(await run([])).toEqual({ exitCode: 2, output: ['Použitie: pnpm smoke <url>'] });
+  expect(await run([])).toEqual({ exitCode: 2, output: ['Použitie: pnpm smoke <url> [sha]'] });
+});
+
+// With a sha, smoke also asks the deployed app which commit it runs (/api/health names it, see apps/web/src/health.ts).
+const appRunning = (healthBody: string) =>
+  serve((request, response) => response.writeHead(request.url === '/login' || request.url === '/api/health' ? 200 : 404).end(request.url === '/api/health' ? healthBody : ''));
+const health = (sha?: string) => JSON.stringify({ status: 'ok', sha });
+
+test('smoke passes when /api/health names the expected commit', async () => {
+  const url = await appRunning(health('abc123'));
+
+  expect(await smoke(url, { sha: 'abc123' })).toEqual([]);
+});
+
+test('smoke fails when /api/health names another commit, and says which', async () => {
+  const url = await appRunning(health('def456'));
+
+  expect(await smoke(url, { sha: 'abc123' })).toEqual(['/api/health: commit def456, čakalo sa abc123']);
+});
+
+test('smoke fails when /api/health names no commit, whether the body is JSON or not', async () => {
+  const refusal = ['/api/health: commit nie je uvedený, čakalo sa abc123'];
+
+  expect(await smoke(await appRunning(health()), { sha: 'abc123' })).toEqual(refusal);
+  expect(await smoke(await appRunning('<html>an error page</html>'), { sha: 'abc123' })).toEqual(refusal);
+});
+
+test('smoke reports a failing /api/health once: the status, not also the commit', async () => {
+  const url = await app({ '/login': 200, '/api/health': 503 });
+
+  expect(await smoke(url, { sha: 'abc123' })).toEqual(['/api/health: HTTP 503, čakalo sa 200']);
+});
+
+test('smoke without a sha does not look at the commit', async () => {
+  const url = await appRunning(health('def456'));
+
+  expect(await smoke(url)).toEqual([]);
+});
+
+test('run takes the expected commit as its second argument and says it checked it', async () => {
+  const url = await appRunning(health('abc123'));
+
+  expect(await run([url, 'abc123'])).toEqual({ exitCode: 0, output: [`Smoke prešiel: ${url}/login 200, ${url}/api/health 200 (commit abc123)`] });
+  expect(await run([url, 'def456'])).toEqual({ exitCode: 1, output: ['Smoke zlyhal:', '/api/health: commit abc123, čakalo sa def456'] });
 });
 
 test('run prints the URLs it called: a path in the base URL does not move them', async () => {
