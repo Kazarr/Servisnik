@@ -61,7 +61,7 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
           Nová zákazka
         </Link>
       </div>
-      {orders.length === 0 ? <p>Zatiaľ žiadna zákazka.</p> : <WorkOrderList orders={orders} role={user.role} without="vehicle" />}
+      {orders.length === 0 ? <p>Zatiaľ žiadna zákazka.</p> : <WorkOrderList orders={orders} role={user.role} now={new Date()} without="vehicle" />}
 
       {orders.length === 0 && (
         <DeleteForm id={vehicle.id} action={removeVehicle} label="Zmazať vozidlo" question={`Zmazať vozidlo ${vehicle.make} ${vehicle.model} (${vehicle.vin})? Zmazanie nemožno vrátiť.`} />

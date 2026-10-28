@@ -20,7 +20,7 @@ const timestamps = {
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()
-    .$onUpdate(() => new Date()),
+    .$onUpdate(() => sql`now()`),
 };
 
 /** Používateľ. */
@@ -180,6 +180,10 @@ export const workOrder = pgTable(
     status: workOrderStatus('status').notNull().default('received'),
     /** The Dátum dokončenia, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
     completedOn: date('completed_on', { mode: 'string' }),
+    /** The Termín, a calendar day in Europe/Bratislava the vehicle was promised for, or null. */
+    deadline: date('deadline', { mode: 'string' }),
+    /** The internal note; it goes on no document. */
+    note: text('note'),
     ...timestamps,
   },
   (table) => [

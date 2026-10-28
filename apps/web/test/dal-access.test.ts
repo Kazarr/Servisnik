@@ -67,13 +67,15 @@ const calls: Record<string, Call> = {
   searchVehicles: (user, db) => vehicles.searchVehicles(user, { query: 'WVW' }, db),
   getVehicle: (user, db) => vehicles.getVehicle(user, vehicleId, db),
   createWorkOrder: (user, db) => workOrders.createWorkOrder(user, { vehicleId, mileageKm: '1', customerRequest: 'Brzdy' }, db),
+  // Whether a mechanik may change the header or the states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
+  updateWorkOrderHeader: (user, db) =>
+    workOrders.updateWorkOrderHeader(user, orderId, { mileageKm: '2', customerRequest: 'Nová požiadavka', deadline: '2026-12-01', note: 'Poznámka' }, db),
   addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
   updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', unitPrice: '12' }, db),
   deleteItem: (user, db) => workOrders.deleteItem(user, itemId, db),
-  // Whether a mechanik may change states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
-  listWorkOrders: (user, db) => workOrders.listWorkOrders(user, db),
+  listWorkOrders: (user, db) => workOrders.listWorkOrders(user, { status: 'all', from: '2026-01-01', page: 1 }, db),
   listWorkOrdersOfVehicle: (user, db) => workOrders.listWorkOrdersOfVehicle(user, vehicleId, db),
   listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
   getRates: (user, db) => settings.getRates(user, db),
@@ -179,18 +181,25 @@ test.each(Object.entries(calls))('%s rejects a missing user as not signed in, no
   expect(spy.touched).toEqual([]);
 });
 
-test('the mechanik reads the list of Zákazky with its number, customer, vehicle and status, and no price key anywhere in it', async () => {
-  const list = await workOrders.listWorkOrders(mechanic, ctx.db);
+test('the mechanik reads the list of Zákazky with its number, customer, vehicle, status and Termín, and no price key anywhere in it', async () => {
+  const list = await workOrders.listWorkOrders(mechanic, {}, ctx.db);
 
-  expect(list).toEqual([
-    {
-      id: orderId,
-      number: expect.stringMatching(/^Z\d{4}-0001$/),
-      status: 'received',
-      customer: { id: ownerId, name: 'Firma s.r.o.' },
-      vehicle: { id: vehicleId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
-    },
-  ]);
+  expect(list).toEqual({
+    orders: [
+      {
+        id: orderId,
+        number: expect.stringMatching(/^Z\d{4}-0001$/),
+        status: 'received',
+        deadline: null,
+        customer: { id: ownerId, name: 'Firma s.r.o.' },
+        vehicle: { id: vehicleId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
+      },
+    ],
+    page: 1,
+    pageCount: 1,
+    orderCount: 1,
+    filter: { status: 'unclosed', from: null, to: null },
+  });
   expect(findPriceKeys(list)).toEqual([]);
 });
 

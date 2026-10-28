@@ -3,9 +3,11 @@ import {
   canEdit,
   formatWorkOrderNumber,
   localYear,
+  parseListFilter,
   marginOf,
   parseItem,
   parseWorkOrder,
+  statusesOf,
   totalsOf,
   transition,
   type ItemErrors,
@@ -14,10 +16,11 @@ import {
   type WorkOrderInput,
   type WorkOrderStatus,
 } from '@servisnik/domain/work-order';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
+import { pageWindow } from './paging.ts';
 import { getRates } from './settings.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
@@ -69,14 +72,35 @@ export async function createWorkOrder(
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /**
- * Locks the Zákazka until the transaction ends and says whether its Položky may change now. The domain's
- * `canEdit` is that one condition for adding, changing and deleting an item; the lock keeps a change from
- * landing after the Zákazka became Hotová or Zrušená.
+ * Locks the Zákazka until the transaction ends and says whether it may change now: its Položky and its
+ * header. The domain's `canEdit` is that one condition for adding, changing and deleting an item and for
+ * saving the header; the lock keeps a change from landing after the Zákazka became Hotová or Zrušená.
  */
 async function lockForItems(tx: Transaction, workOrderId: string): Promise<'ok' | 'unknown' | 'not-editable'> {
   const [found] = await rowsIfUuid(workOrderId, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, workOrderId)).for('update'));
   if (!found) return 'unknown';
   return canEdit(found.status) ? 'ok' : 'not-editable';
+}
+
+export type UpdateHeaderResult = { ok: true } | { ok: false; errors: WorkOrderErrors & { workOrder?: 'unknown' | 'not-editable' } };
+
+/**
+ * Saves the header of a Zákazka that is still Rozpracovaná (`canEdit`): the kilometres at intake, the
+ * customer's request, the Termín and the note. The status is read under a row lock in the same transaction
+ * as the write, so a header cannot land after the Zákazka became Hotová or Zrušená. The customer and the
+ * vehicle are not part of it. The admin's alone: whether a mechanik may edit is ledger question 11 (#43).
+ */
+export async function updateWorkOrderHeader(user: User | null, id: string, input: WorkOrderInput, db: Database = getDb()): Promise<UpdateHeaderResult> {
+  assertCan(user, 'work-orders.write');
+  const parsed = parseWorkOrder(input);
+  if (!parsed.ok) return parsed;
+
+  return db.transaction(async (tx) => {
+    const locked = await lockForItems(tx, id);
+    if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
+    await tx.update(workOrder).set(parsed.workOrder).where(eq(workOrder.id, id));
+    return { ok: true };
+  });
 }
 
 export type AddItemResult =
@@ -172,6 +196,7 @@ const listedFields = {
   id: workOrder.id,
   number: workOrder.number,
   status: workOrder.status,
+  deadline: workOrder.deadline,
   customer: { id: customer.id, name: customer.name },
   vehicle: { id: vehicle.id, vin: vehicle.vin, licensePlate: vehicle.licensePlate, make: vehicle.make, model: vehicle.model },
 };
@@ -184,10 +209,33 @@ const selectListed = <More extends SelectedFields>(db: Database, more: More) =>
     .innerJoin(customer, eq(workOrder.customerId, customer.id))
     .innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id));
 
-/** Every Zákazka with its customer and vehicle, newest first. */
-export async function listWorkOrders(user: User | null, db: Database = getDb()) {
+/**
+ * A page of the list of Zákazky with their customer, vehicle and Termín, newest first. `status`, `from`
+ * and `to` are the filter as the address carries it (the domain's parseListFilter reads them, and the
+ * result says which filter it applied): a status, Neuzavreté by default, and the days of intake from
+ * and to, both included, by the calendar of Europe/Bratislava. `page` counts from 1 and is read by
+ * pageWindow: any page past the last is the last, and anything that is not a page number is the first.
+ * The mechanik may read it.
+ */
+export async function listWorkOrders(
+  user: User | null,
+  { status, from, to, page = 1 }: { status?: string; from?: string; to?: string; page?: number } = {},
+  db: Database = getDb(),
+) {
   assertCan(user, 'work-orders.list');
-  return selectListed(db, {}).orderBy(desc(workOrder.createdAt));
+  const filter = parseListFilter({ status, from, to });
+  const dayOfIntake = sql`(${workOrder.createdAt} at time zone 'Europe/Bratislava')::date`;
+  const matching = and(
+    inArray(workOrder.status, [...statusesOf(filter.status)]),
+    filter.from ? sql`${dayOfIntake} >= ${filter.from}::date` : undefined,
+    filter.to ? sql`${dayOfIntake} <= ${filter.to}::date` : undefined,
+  );
+
+  const [counted] = await db.select({ total: count() }).from(workOrder).where(matching);
+  const orderCount = counted!.total;
+  const { page: current, pageCount, limit, offset } = pageWindow(orderCount, page);
+  const orders = await selectListed(db, {}).where(matching).orderBy(desc(workOrder.createdAt), desc(workOrder.number)).limit(limit).offset(offset);
+  return { orders, page: current, pageCount, orderCount, filter };
 }
 
 /**
@@ -218,6 +266,7 @@ export async function getWorkOrder(user: User | null, id: string, db: Database =
     completedOn: workOrder.completedOn,
     mileageKm: workOrder.mileageKm,
     customerRequest: workOrder.customerRequest,
+    note: workOrder.note,
   }).where(eq(workOrder.id, id));
   if (!found) return null;
   const items = await db.select().from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(asc(workOrderItem.createdAt), asc(workOrderItem.id));

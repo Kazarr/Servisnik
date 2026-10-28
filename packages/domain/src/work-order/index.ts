@@ -159,6 +159,15 @@ export function parseVatRate(typed: string): number | null {
   return rate === null || rate > maxVatRate ? null : rate;
 }
 
+/** A day as a date field sends it, `YYYY-MM-DD`, when it is a real day of the calendar; else null. */
+function parseDay(typed: string): string | null {
+  const day = typed.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!match) return null;
+  // A day that does not exist (30 February) or a year from 0000 to 0099 (which Date.UTC reads as 19xx) does not read back as itself.
+  const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return parsed.toISOString().slice(0, 10) === day ? day : null;
+}
 /** What `marginOf` needs of an item: what it sells for, and what a Diel was bought for. */
 export type Costed = Priced & { kind: ItemKind; purchasePriceCents: number | null };
 
@@ -206,20 +215,62 @@ export function markupFromSalePrice(purchasePriceCents: number, salePriceCents: 
   return percentTenths(salePriceCents - purchasePriceCents, purchasePriceCents);
 }
 
-export type WorkOrderInput = { mileageKm: string; customerRequest: string };
-export type WorkOrderErrors = { mileageKm?: 'invalid'; customerRequest?: 'required' };
 
-/** A Zákazka ready to store: the kilometres at intake (a whole number, 0 is fine) and the customer's request. */
+/** What the form of a Zákazka sends; the Termín and the note may be left out or blank, which is none. */
+export type WorkOrderInput = { mileageKm: string; customerRequest: string; deadline?: string; note?: string };
+export type WorkOrderErrors = { mileageKm?: 'invalid'; customerRequest?: 'required'; deadline?: 'invalid' };
+
+/**
+ * A Zákazka ready to store: the kilometres at intake (a whole number, 0 is fine), the customer's request,
+ * the Termín (a day, or none) and the internal note (or none).
+ */
 export function parseWorkOrder(
   input: WorkOrderInput,
-): { ok: true; workOrder: { mileageKm: number; customerRequest: string } } | { ok: false; errors: WorkOrderErrors } {
+): { ok: true; workOrder: { mileageKm: number; customerRequest: string; deadline: string | null; note: string | null } } | { ok: false; errors: WorkOrderErrors } {
   const mileageKm = parseMileageKm(input.mileageKm);
   const customerRequest = input.customerRequest.trim();
+  const typedDeadline = (input.deadline ?? '').trim();
+  const deadline = typedDeadline ? parseDay(typedDeadline) : null;
   const errors: WorkOrderErrors = {};
   if (mileageKm === null) errors.mileageKm = 'invalid';
   if (!customerRequest) errors.customerRequest = 'required';
+  if (typedDeadline && deadline === null) errors.deadline = 'invalid';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, workOrder: { mileageKm: mileageKm!, customerRequest } };
+  return { ok: true, workOrder: { mileageKm: mileageKm!, customerRequest, deadline, note: (input.note ?? '').trim() || null } };
+}
+
+/** How a row of the list of Zákazky is marked: `late` (after its Termín, "Po termíne") or `toInvoice` ("Na fakturáciu"). */
+export type RowMark = 'late' | 'toInvoice';
+
+/**
+ * The mark of a Zákazka in the list, by its status, its Termín and today's date in Europe/Bratislava: a
+ * Rozpracovaná one whose Termín is before today is `late`, a Hotová one is `toInvoice` (also while its
+ * invoice is being made), any other has none. A Termín of today is not late yet.
+ */
+export function rowMark(status: WorkOrderStatus, deadline: string | null, now: Date): RowMark | null {
+  if (status === 'done') return 'toInvoice';
+  return isActive(status) && deadline !== null && deadline < localDate(now) ? 'late' : null;
+}
+
+/** What the list of Zákazky can be filtered by status: Neuzavreté (not Uzavretá, the default), Všetky, or one status. */
+export const statusFilters = ['unclosed', 'all', ...workOrderStatuses] as const;
+export type StatusFilter = (typeof statusFilters)[number];
+
+/** The statuses a Zákazka may have to pass the filter. */
+export const statusesOf = (filter: StatusFilter): readonly WorkOrderStatus[] =>
+  filter === 'all' ? workOrderStatuses : filter === 'unclosed' ? workOrderStatuses.filter((status) => !isClosed(status)) : [filter];
+
+/**
+ * The filter of the list as the address carries it: the status, and the days of intake the Zákazky are
+ * from and to (both included). Whatever is not a status or a day is left out, so a mangled address
+ * shows the default list, not an error.
+ */
+export function parseListFilter(typed: { status?: string; from?: string; to?: string }): { status: StatusFilter; from: string | null; to: string | null } {
+  return {
+    status: statusFilters.find((filter) => filter === typed.status) ?? 'unclosed',
+    from: parseDay(typed.from ?? ''),
+    to: parseDay(typed.to ?? ''),
+  };
 }
 
 /**
