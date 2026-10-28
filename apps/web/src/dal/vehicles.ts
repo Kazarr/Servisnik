@@ -6,13 +6,33 @@ import { customer, vehicle } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
-export type CreateVehicleResult =
-  | { ok: true; id: string }
-  | { ok: false; errors: Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken' } };
+/** What the domain finds wrong, or a VIN that another Vozidlo already has. */
+export type VehicleSaveErrors = Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken' };
+/** The Vozidlo that has the VIN, with its Majiteľ, so the form can show whose it is and link to it. */
+type Existing = { id: string; make: string; model: string; owner: { id: string; name: string } };
+
+export type CreateVehicleResult = { ok: true; id: string } | { ok: false; errors: VehicleSaveErrors; existing?: Existing };
+export type UpdateVehicleResult = { ok: true } | { ok: false; errors: VehicleSaveErrors & { vehicle?: 'unknown' }; existing?: Existing };
+
+/** PostgreSQL refused a second Vozidlo with a VIN (the unique index decides, so two saves at once cannot both get through). */
+function isVinTaken(error: unknown) {
+  // Drizzle wraps the driver's error as `cause`.
+  return error instanceof Error && (error.cause as { constraint?: string } | undefined)?.constraint === 'vehicle_vin_idx';
+}
+
+/** The failure for a VIN that is taken, with the Vozidlo that has it. */
+async function vinTaken(vin: string, db: Database) {
+  const [existing] = await db
+    .select({ id: vehicle.id, make: vehicle.make, model: vehicle.model, owner: { id: customer.id, name: customer.name } })
+    .from(vehicle)
+    .innerJoin(customer, eq(vehicle.ownerId, customer.id))
+    .where(eq(vehicle.vin, vin));
+  return { ok: false, errors: { vin: 'taken' }, existing } as const;
+}
 
 /**
- * Saves a Vozidlo for `ownerId`, the Zákazník it is added from. The domain normalises the VIN, and the
- * unique index on it decides a duplicate: two attempts at once cannot both get through.
+ * Saves a Vozidlo for `ownerId`, the Zákazník it is added from. The domain normalises the VIN and ŠPZ,
+ * and the unique index on the VIN decides a duplicate: two attempts at once cannot both get through.
  */
 export async function createVehicle(
   user: User | null,
@@ -28,7 +48,26 @@ export async function createVehicle(
     .values({ ...parsed.vehicle, ownerId })
     .onConflictDoNothing({ target: vehicle.vin })
     .returning({ id: vehicle.id });
-  return saved ? { ok: true, id: saved.id } : { ok: false, errors: { vin: 'taken' } };
+  return saved ? { ok: true, id: saved.id } : vinTaken(parsed.vehicle.vin, db);
+}
+
+/**
+ * Replaces every field of a Vozidlo with `input`: a blank one clears what was there. The VIN may be
+ * corrected, and the rules for it stay. The Majiteľ is not here, only a Prepis changes it, and the
+ * Zákazky stay with the Vozidlo because they hold its id, not its VIN.
+ */
+export async function updateVehicle(user: User | null, id: string, input: VehicleInput, db: Database = getDb()): Promise<UpdateVehicleResult> {
+  assertCan(user, 'vehicles.write');
+  const parsed = parseVehicle(input, localYear(new Date()));
+  if (!parsed.ok) return parsed;
+  if (!isUuid(id)) return { ok: false, errors: { vehicle: 'unknown' } };
+  try {
+    const [saved] = await db.update(vehicle).set(parsed.vehicle).where(eq(vehicle.id, id)).returning({ id: vehicle.id });
+    return saved ? { ok: true } : { ok: false, errors: { vehicle: 'unknown' } };
+  } catch (error) {
+    if (!isVinTaken(error)) throw error;
+    return vinTaken(parsed.vehicle.vin, db);
+  }
 }
 
 const withOwner = {
@@ -37,6 +76,10 @@ const withOwner = {
   licensePlate: vehicle.licensePlate,
   make: vehicle.make,
   model: vehicle.model,
+  year: vehicle.year,
+  fuel: vehicle.fuel,
+  mileageKm: vehicle.mileageKm,
+  note: vehicle.note,
   owner: { id: customer.id, name: customer.name },
 };
 
