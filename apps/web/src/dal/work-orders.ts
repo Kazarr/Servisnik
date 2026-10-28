@@ -72,9 +72,9 @@ export async function createWorkOrder(
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /**
- * Locks the Zákazka until the transaction ends and says whether its Položky may change now. The domain's
- * `canEdit` is that one condition for adding, changing and deleting an item; the lock keeps a change from
- * landing after the Zákazka became Hotová or Zrušená.
+ * Locks the Zákazka until the transaction ends and says whether it may change now: its Položky and its
+ * header. The domain's `canEdit` is that one condition for adding, changing and deleting an item and for
+ * saving the header; the lock keeps a change from landing after the Zákazka became Hotová or Zrušená.
  */
 async function lockForItems(tx: Transaction, workOrderId: string): Promise<'ok' | 'unknown' | 'not-editable'> {
   const [found] = await rowsIfUuid(workOrderId, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, workOrderId)).for('update'));
@@ -96,9 +96,8 @@ export async function updateWorkOrderHeader(user: User | null, id: string, input
   if (!parsed.ok) return parsed;
 
   return db.transaction(async (tx) => {
-    const [found] = await rowsIfUuid(id, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, id)).for('update'));
-    if (!found) return { ok: false, errors: { workOrder: 'unknown' } };
-    if (!canEdit(found.status)) return { ok: false, errors: { workOrder: 'not-editable' } };
+    const locked = await lockForItems(tx, id);
+    if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
     await tx.update(workOrder).set(parsed.workOrder).where(eq(workOrder.id, id));
     return { ok: true };
   });
