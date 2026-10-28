@@ -12,6 +12,7 @@ import * as password from '../src/dal/password.ts';
 import * as priceList from '../src/dal/price-list.ts';
 import * as printForms from '../src/dal/print-forms.ts';
 import * as settings from '../src/dal/settings.ts';
+import * as unpricedWorkOrder from '../src/dal/unpriced-work-order.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
 import * as users from '../src/dal/users.ts';
@@ -110,6 +111,7 @@ const calls: Record<string, Call> = {
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
+  getUnpricedWorkOrder: (user, db) => unpricedWorkOrder.getUnpricedWorkOrder(user, orderId, db),
   getQuote: (user, db) => printForms.getQuote(user, orderId, db),
   getHandoverProtocol: (user, db) => printForms.getHandoverProtocol(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, { status: 'all', from: '2026-01-01', page: 1 }, db),
@@ -144,7 +146,7 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'getJobSheet', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
+const mechanikMay = ['listWorkOrders', 'getUnpricedWorkOrder', 'getJobSheet', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = {
@@ -155,6 +157,7 @@ const dataAccess = {
   'price-list.ts': priceList,
   'print-forms.ts': printForms,
   'settings.ts': settings,
+  'unpriced-work-order.ts': unpricedWorkOrder,
   'users.ts': users,
   'vehicles.ts': vehicles,
   'work-orders.ts': workOrders,
