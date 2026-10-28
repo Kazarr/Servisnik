@@ -47,7 +47,7 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await addVehicleAndOpen(page, vin);
   const main = page.locator('main');
   const vehicleUrl = page.url();
-  await expect(main).not.toContainText('Otvorené zákazky');
+  await expect(main).toContainText('Zatiaľ žiadna zákazka.');
 
   // The customer is the owner of the vehicle unless another is chosen.
   await startWorkOrder(page);
@@ -94,8 +94,11 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(main.getByRole('button', { name: 'Pridať prácu' })).toHaveCount(0);
   await expect(main.getByRole('row', { name: /Spolu/ }).getByRole('cell')).toHaveText(['68,33 €', '15,72 €', '84,05 €']);
 
-  // The vehicle links to its work order that is not closed, and the list of work orders shows it.
+  // The vehicle lists its work order, in any state, with the customer it was made for, and the list of work orders shows it too.
   await page.goto(vehicleUrl);
+  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, owner, 'Hotová']);
+  await expect(main).not.toContainText('Zatiaľ žiadna zákazka.');
+  await expect(main).not.toContainText(/otvoren/i); // GLOSSARY lists "otvorená" under Avoid
   await main.getByRole('link', { name: number }).click();
   await expect(page).toHaveURL(orderUrl);
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazky' }).click();
@@ -120,7 +123,8 @@ test('a work order for another customer than the owner keeps that customer, and 
   await page.getByLabel('Zákazník', { exact: true }).selectOption({ label: other });
   await fillIntake(page, '0', 'Prvý príjem');
   await expect(detail(main, 'Zákazník')).toHaveText(other);
-  const first = sequenceOf(await numberOnTheDetail(page));
+  const firstNumber = await numberOnTheDetail(page);
+  const first = sequenceOf(firstNumber);
 
   // The vehicle still belongs to its owner, who is the default of the next work order.
   await page.goto(vehicleUrl);
@@ -129,7 +133,15 @@ test('a work order for another customer than the owner keeps that customer, and 
   await fillIntake(page, '10', 'Druhý príjem');
   await expect(detail(main, 'Zákazník')).toHaveText(owner);
   // Workers share the year's counter, so only the order is checked; no gaps: apps/web/test/work-orders.test.ts.
-  expect(sequenceOf(await numberOnTheDetail(page))).toBeGreaterThan(first);
+  const secondNumber = await numberOnTheDetail(page);
+  expect(sequenceOf(secondNumber)).toBeGreaterThan(first);
+
+  // The vehicle lists both, the newest first, each with its own customer: the first one's is not the owner.
+  await page.goto(vehicleUrl);
+  const rows = main.locator('tbody tr');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).getByRole('cell')).toHaveText([secondNumber, owner, 'Prijatá']);
+  await expect(rows.nth(1).getByRole('cell')).toHaveText([firstNumber, other, 'Prijatá']);
 });
 
 test('a work order form with a bad kilometre count stays on the form, with the reason and what was typed', async ({ page }) => {

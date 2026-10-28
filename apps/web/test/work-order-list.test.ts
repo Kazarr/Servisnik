@@ -16,7 +16,8 @@ const orders = [
   },
 ];
 
-const render = (role: 'admin' | 'mechanik', list = orders) => renderToStaticMarkup(createElement(WorkOrderList, { orders: list, role }));
+const render = (role: 'admin' | 'mechanik', list = orders, without?: 'vehicle') =>
+  renderToStaticMarkup(createElement(WorkOrderList, { orders: list, role, without }));
 
 test('the admin opens a Zákazka from its number', () => {
   const html = render('admin');
@@ -33,6 +34,19 @@ test('the mechanik sees the number, customer, vehicle and status, and the number
   expect(html).toContain('<td>Prijatá</td>');
   expect(html).not.toContain('<a');
   expect(html).not.toContain('href');
+});
+
+test('the list on the detail of a vehicle leaves out the Vozidlo column and keeps the number, customer and status', () => {
+  expect(render('admin')).toContain('<th scope="col">Vozidlo</th>');
+
+  const html = render('admin', orders, 'vehicle');
+
+  expect(html).not.toContain('Vozidlo');
+  expect(html).not.toContain('Volkswagen');
+  expect(html).not.toContain('WVWZZZ1JZ3W386752');
+  expect(html).toContain('<a href="/zakazky/7d1c0a3e-0000-4000-8000-000000000001">Z2026-0001</a>');
+  expect(html).toContain('<td>Firma s.r.o.</td>');
+  expect(html).toContain('<td>Prijatá</td>');
 });
 
 test('an empty list tells the admin to add a Zákazka on the detail of a vehicle', () => {

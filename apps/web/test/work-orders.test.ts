@@ -8,7 +8,6 @@ import {
   addLabour,
   createWorkOrder,
   getWorkOrder,
-  listUnclosedWorkOrdersOfVehicle,
   listWorkOrders,
   listWorkOrdersOfVehicle,
   markWorkOrderDone,
@@ -57,7 +56,6 @@ test('without a user every function rejects, and nothing is written', async () =
     markWorkOrderDone(null, id, ctx.db, summer),
     getWorkOrder(null, id, ctx.db),
     listWorkOrders(null, ctx.db),
-    listUnclosedWorkOrdersOfVehicle(null, vehicleId, ctx.db),
     listWorkOrdersOfVehicle(null, vehicleId, ctx.db),
   ];
   for (const call of rejected) await expect(call).rejects.toBeInstanceOf(UnauthenticatedError);
@@ -276,24 +274,6 @@ test('Zákazky are listed from the newest with number, customer, vehicle and sta
     { number: 'Z2026-0002', customer: 'Ján Novák', vehicle: 'Volkswagen Golf', status: 'done' },
     { number: 'Z2026-0001', customer: 'Firma s.r.o.', vehicle: 'Volkswagen Golf', status: 'received' },
   ]);
-});
-
-test('a vehicle lists its Zákazky that are not Uzavretá, Prijatá and Hotová, and not an invoiced one or another vehicle’s', async () => {
-  const otherVehicle = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
-  const received = await newWorkOrderId();
-  const done = await newWorkOrderId();
-  await markWorkOrderDone(admin, done, ctx.db, summer);
-  const invoiced = await newWorkOrderId();
-  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
-  await newWorkOrderId({ vehicleId: otherVehicle });
-
-  const unclosed = await listUnclosedWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
-
-  expect(unclosed).toEqual([
-    { id: done, number: 'Z2026-0002', status: 'done' },
-    { id: received, number: 'Z2026-0001', status: 'received' },
-  ]);
-  expect(await listUnclosedWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
 });
 
 test('a vehicle lists all its Zákazky from the newest with their customer, whatever the status and whoever the owner is, and not another vehicle’s', async () => {
