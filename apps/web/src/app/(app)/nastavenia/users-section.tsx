@@ -1,9 +1,13 @@
+import Link from 'next/link';
 import { listUsers } from '../../../dal/users.ts';
 import type { User } from '../../../dal/user.ts';
 import { roleLabels } from './role-labels.ts';
 import { UserForm } from './user-form.tsx';
 
-/** Používatelia: who may sign in, with their Rola and state, ordered by name, and the form for a new one. */
+/**
+ * Používatelia: every user, the Deaktivovaní too, with their Rola and state, ordered by name, each
+ * name linking to the page where the admin changes him, and the form for a new one.
+ */
 export async function UsersSection({ user }: { user: User }) {
   const users = await listUsers(user);
   return (
@@ -22,7 +26,9 @@ export async function UsersSection({ user }: { user: User }) {
           <tbody>
             {users.map(({ id, name, email, role, banned }) => (
               <tr key={id}>
-                <td>{name}</td>
+                <td>
+                  <Link href={`/nastavenia/pouzivatelia/${id}`}>{name}</Link>
+                </td>
                 <td>{email}</td>
                 <td>{roleLabels[role]}</td>
                 <td>{banned ? 'Deaktivovaný' : 'Aktívny'}</td>
