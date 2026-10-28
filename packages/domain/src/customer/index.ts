@@ -14,7 +14,9 @@ export type CustomerInput = {
   street?: string;
   city?: string;
   postalCode?: string;
+  phone?: string;
   email?: string;
+  note?: string;
 };
 export type Customer = {
   type: CustomerType;
@@ -25,28 +27,57 @@ export type Customer = {
   street: string | null;
   city: string | null;
   postalCode: string | null;
+  phone: string | null;
   email: string | null;
+  note: string | null;
+};
+export type CustomerErrors = {
+  name?: 'required';
+  ico?: 'required' | 'format';
+  dic?: 'format';
+  icDph?: 'format';
+  postalCode?: 'format';
+  email?: 'format';
 };
 
-const text = (value: string | undefined) => value?.trim() || null;
+const blankToNull = (value: string | undefined) => value?.trim() || null;
 
-/** A Zákazník ready to store, or why it is not one. Only a company has an IČO, DIČ and IČ DPH. */
-export function parseCustomer(input: CustomerInput): { ok: true; customer: Customer } | { ok: false; errors: { name: 'required' } } {
-  const name = input.name.trim();
-  if (!name) return { ok: false, errors: { name: 'required' } };
+// The formats are only shapes: nothing is looked up in a register, and the IČO check digit is not checked.
+const formats = {
+  ico: /^\d{8}$/,
+  dic: /^\d{10}$/,
+  icDph: /^[A-Z]{2}[A-Za-z0-9]{2,12}$/, // a country code, then 2 to 12 letters or digits
+  postalCode: /^\d{5}$/,
+  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+};
+
+/**
+ * A Zákazník ready to store, or every reason it is not one. A company has an IČO (required), DIČ and
+ * IČ DPH; a person has none of them, so they are dropped before they are checked. A PSČ is stored
+ * without a space.
+ */
+export function parseCustomer(input: CustomerInput): { ok: true; customer: Customer } | { ok: false; errors: CustomerErrors } {
   const isCompany = input.type === 'company';
-  return {
-    ok: true,
-    customer: {
-      type: input.type,
-      name,
-      ico: isCompany ? text(input.ico) : null,
-      dic: isCompany ? text(input.dic) : null,
-      icDph: isCompany ? text(input.icDph) : null,
-      street: text(input.street),
-      city: text(input.city),
-      postalCode: text(input.postalCode),
-      email: text(input.email),
-    },
+  const customer: Customer = {
+    type: input.type,
+    name: input.name.trim(),
+    ico: isCompany ? blankToNull(input.ico) : null,
+    dic: isCompany ? blankToNull(input.dic) : null,
+    icDph: isCompany ? blankToNull(input.icDph) : null,
+    street: blankToNull(input.street),
+    city: blankToNull(input.city),
+    postalCode: blankToNull(input.postalCode)?.replace(/\s/g, '') ?? null,
+    phone: blankToNull(input.phone),
+    email: blankToNull(input.email),
+    note: blankToNull(input.note),
   };
+
+  const errors: CustomerErrors = {};
+  if (!customer.name) errors.name = 'required';
+  if (isCompany && !customer.ico) errors.ico = 'required';
+  for (const field of ['ico', 'dic', 'icDph', 'postalCode', 'email'] as const) {
+    const value = customer[field];
+    if (value && !formats[field].test(value)) errors[field] = 'format';
+  }
+  return Object.keys(errors).length ? { ok: false, errors } : { ok: true, customer };
 }
