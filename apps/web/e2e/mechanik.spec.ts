@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { seedUser } from '../test/support/users.ts';
+import { listCustomers } from '../src/dal/customers.ts';
+import { listVehicles } from '../src/dal/vehicles.ts';
+import { getWorkOrder, listWorkOrders } from '../src/dal/work-orders.ts';
+import { seedUser, setRole } from '../test/support/users.ts';
 import { expect, signInAs, test } from './fixtures.ts';
-import { openDatabase, seedWorkOrder } from './records.ts';
+import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
 test.beforeAll(() => {
@@ -44,4 +47,54 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     await expect(page, path).toHaveURL(/\/zakazky$/);
     await expect(main.locator('h1'), path).toHaveText('Zákazky');
   }
+});
+
+test('forms and buttons used after the admin became a mechanik answer with a message and change nothing', async ({ page, context }) => {
+  const tag = randomBytes(3).toString('hex');
+  const order = await seedWorkOrder(db, tag);
+  const user = { email: `admin-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
+  await seedUser(db, { ...user, role: 'admin' });
+  await signInAs(page, user);
+
+  // The Rola counts from the next request: the forms are opened while the user is still an admin.
+  await page.goto('/zakaznici/novy');
+  await page.getByLabel('Názov').fill(`Nemal by sa uložiť ${tag}`);
+  const vehiclePage = await context.newPage();
+  await vehiclePage.goto(`/vozidla/novy?zakaznik=${order.customerId}`);
+  await vehiclePage.getByLabel('VIN').fill(`ZZZ${tag.toUpperCase()}00000000`);
+  await vehiclePage.getByLabel('Značka').fill('Škoda');
+  await vehiclePage.getByLabel('Model').fill('Fabia');
+  const orderPage = await context.newPage();
+  await orderPage.goto(`/zakazky/nova?vozidlo=${order.vehicleId}`);
+  await orderPage.getByLabel('Kilometre pri príjme').fill('500');
+  await orderPage.getByLabel('Požiadavka zákazníka').fill('Nemala by sa uložiť');
+  const detailPage = await context.newPage();
+  await detailPage.goto(`/zakazky/${order.orderId}`);
+  await detailPage.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
+  await detailPage.getByLabel('Množstvo (h)').fill('1');
+  await detailPage.getByLabel('Cena za jednotku bez DPH (€)').fill('10');
+
+  await setRole(db, user.email, 'mechanik');
+
+  const message = 'Na túto akciu nemáte oprávnenie';
+  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
+  await expect(page.locator('main').getByRole('alert')).toHaveText(message);
+  await expect(page.getByLabel('Názov')).toHaveValue(`Nemal by sa uložiť ${tag}`);
+  await vehiclePage.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await expect(vehiclePage.locator('main').getByRole('alert')).toHaveText(message);
+  await orderPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
+  await expect(orderPage.locator('main').getByRole('alert')).toHaveText(message);
+  await detailPage.getByRole('button', { name: 'Pridať prácu' }).click();
+  await expect(detailPage.locator('main').getByRole('alert')).toHaveText(message);
+  await detailPage.getByRole('button', { name: 'Označiť ako hotovú' }).click();
+  await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message]);
+
+  // Nothing was saved: only the records the spec made through the DAL exist.
+  const names = (await listCustomers(admin, db)).map((customer) => customer.name).filter((name) => name.includes(tag));
+  expect(names).toEqual([order.customerName]);
+  const vins = (await listVehicles(admin, db)).map((vehicle) => vehicle.vin).filter((vin) => vin.includes(tag.toUpperCase()));
+  expect(vins).toEqual([order.vin]);
+  const orders = (await listWorkOrders(admin, db)).filter((found) => found.customer.name === order.customerName);
+  expect(orders.map(({ number }) => number)).toEqual([order.number]);
+  expect(await getWorkOrder(admin, order.orderId, db)).toMatchObject({ status: 'received', completedOn: null, items: [] });
 });

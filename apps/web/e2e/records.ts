@@ -4,7 +4,8 @@ import { createVehicle } from '../src/dal/vehicles.ts';
 import { createWorkOrder } from '../src/dal/work-orders.ts';
 import { createDb, type Database } from '../src/db/index.ts';
 
-const admin: User = { id: 'e2e-records', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
+/** The user the specs call the DAL as; the Rola is what the DAL looks at. */
+export const admin: User = { id: 'e2e-records', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
 
 /** A connection to the database of the run (see global-setup.ts); the spec closes it with `db.$client.end()`. */
 export const openDatabase = () => createDb(process.env.E2E_DATABASE_URL!);
