@@ -1,6 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { createAuth } from '../src/auth.ts';
+import * as attemptLimit from '../src/dal/attempt-limit.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
@@ -121,12 +122,14 @@ const dataAccess = {
   'workshop.ts': workshopDetails,
 };
 /**
- * The files of src/dal that hold no data access, with their exports pinned by name: the refused
- * constraint, the paging of the lists, the user, the id check and the page-side wrapper. An export added to one of them fails
+ * The files of src/dal that hold no data access, with their exports pinned by name: the limit of
+ * the attempts to check a password, the refused constraint, the user of the pages (current-user),
+ * the paging of the lists, the user and the id check. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  */
 const helpers = {
+  'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
