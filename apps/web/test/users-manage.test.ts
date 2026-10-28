@@ -68,7 +68,11 @@ test('the admin changes the name, e-mail and Rola of another user, and the e-mai
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
 
-  expect(await edit(boss, worker.id, { name: ' Ján Nový ', email: ' Jan.Novy@AutoServis.TEST ', role: 'admin' })).toEqual({ ok: true });
+  // The result says what was saved, so the form can show it as it is stored.
+  expect(await edit(boss, worker.id, { name: ' Ján Nový ', email: ' Jan.Novy@AutoServis.TEST ', role: 'admin' })).toEqual({
+    ok: true,
+    edit: { name: 'Ján Nový', email: 'jan.novy@autoservis.test', role: 'admin' },
+  });
 
   expect(await rowOf(worker.id)).toEqual({ name: 'Ján Nový', email: 'jan.novy@autoservis.test', role: 'admin' });
   // His password is the same, his e-mail the new one.
@@ -79,7 +83,7 @@ test('the admin takes the Rola admin from another admin', async () => {
   const boss = await newUser('admin');
   const other = await newUser('admin');
 
-  expect(await edit(boss, other.id, { role: 'mechanik' })).toEqual({ ok: true });
+  expect(await edit(boss, other.id, { role: 'mechanik' })).toMatchObject({ ok: true });
 
   expect((await rowOf(other.id))!.role).toBe('mechanik');
 });
@@ -88,7 +92,7 @@ test('an edit without a role changes the name and e-mail and leaves the Rola', a
   const boss = await newUser('admin');
   const other = await newUser('admin');
 
-  expect(await edit(boss, other.id, {})).toEqual({ ok: true });
+  expect(await edit(boss, other.id, {})).toEqual({ ok: true, edit: { name: 'Ján Nový', email: 'jan.novy@autoservis.test' } }); // no role in it: none was changed
 
   expect(await rowOf(other.id)).toEqual({ name: 'Ján Nový', email: 'jan.novy@autoservis.test', role: 'admin' });
 });
@@ -110,7 +114,7 @@ test('a user keeps his e-mail when only his name changes, and that is not "taken
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
 
-  expect(await edit(boss, worker.id, { name: 'Prepísané meno', email: worker.email.toUpperCase() })).toEqual({ ok: true });
+  expect(await edit(boss, worker.id, { name: 'Prepísané meno', email: worker.email.toUpperCase() })).toMatchObject({ ok: true });
 
   expect(await rowOf(worker.id)).toEqual({ name: 'Prepísané meno', email: worker.email, role: 'mechanik' });
 });
@@ -169,7 +173,7 @@ test('the Rola counts from the next request of the user whose Rola changed, with
 test('the admin changes his own name and e-mail, and may send his own Rola as it is', async () => {
   const boss = await newUser('admin');
 
-  expect(await edit(boss, boss.id, { role: 'admin' })).toEqual({ ok: true });
+  expect(await edit(boss, boss.id, { role: 'admin' })).toMatchObject({ ok: true });
 
   expect(await rowOf(boss.id)).toEqual({ name: 'Ján Nový', email: 'jan.novy@autoservis.test', role: 'admin' });
 });
