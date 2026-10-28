@@ -128,6 +128,15 @@ export async function listWorkOrders(user: User | null, db: Database = getDb()) 
   return selectListed(db, {}).orderBy(desc(workOrder.createdAt));
 }
 
+/**
+ * Every Zákazka of a Vozidlo in any Stav, newest first, each with its own Zákazník, who is not
+ * always the Majiteľ the Vozidlo has now. Nothing is found for an id that is no Vozidlo.
+ */
+export async function listWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
+  assertCan(user, 'work-orders.read');
+  return rowsIfUuid(vehicleId, selectListed(db, {}).where(eq(workOrder.vehicleId, vehicleId)).orderBy(desc(workOrder.createdAt)));
+}
+
 /** The Zákazky of a Vozidlo that are not Uzavretá, newest first. */
 export async function listUnclosedWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
