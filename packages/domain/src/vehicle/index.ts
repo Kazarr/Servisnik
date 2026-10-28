@@ -26,8 +26,17 @@ export type Fuel = (typeof fuels)[number];
 export const firstVehicleYear = 1950;
 export const lastVehicleYear = (currentYear: number) => currentYear + 1;
 
-// The most kilometres a vehicle may show; keeps them inside a PostgreSQL integer.
+/** The most kilometres a Stav km may be: seven digits at most, as on a Zákazka. */
 export const maxMileageKm = 9_999_999;
+
+/**
+ * Stav km as typed, for a vehicle and for a Zákazka alike: a whole number from 0 to `maxMileageKm`,
+ * in digits that spaces may group and leading zeros do not change. Anything else is null, a blank too.
+ */
+export function parseMileageKm(typed: string): number | null {
+  const digits = typed.replace(/\s/g, '');
+  return /^\d+$/.test(digits) && Number(digits) <= maxMileageKm ? Number(digits) : null;
+}
 
 export type VehicleInput = {
   vin: string;
@@ -70,7 +79,8 @@ export function parseVehicle(input: VehicleInput, currentYear: number): { ok: tr
   const model = input.model.trim();
   const year = input.year?.trim() ?? '';
   const fuel = input.fuel ?? '';
-  const mileageKm = (input.mileageKm ?? '').replace(/\s/g, '');
+  const typedKm = input.mileageKm?.trim() ?? '';
+  const mileageKm = typedKm ? parseMileageKm(typedKm) : null;
 
   const errors: VehicleErrors = {};
   if (!vin.ok) errors.vin = vin.error;
@@ -78,7 +88,7 @@ export function parseVehicle(input: VehicleInput, currentYear: number): { ok: tr
   if (!model) errors.model = 'required';
   if (year && !(/^\d{4}$/.test(year) && Number(year) >= firstVehicleYear && Number(year) <= lastVehicleYear(currentYear))) errors.year = 'invalid';
   if (fuel && !(fuels as readonly string[]).includes(fuel)) errors.fuel = 'invalid';
-  if (mileageKm && !(/^\d{1,7}$/.test(mileageKm) && Number(mileageKm) <= maxMileageKm)) errors.mileageKm = 'invalid';
+  if (typedKm && mileageKm === null) errors.mileageKm = 'invalid';
   if (!vin.ok || Object.keys(errors).length) return { ok: false, errors };
 
   return {
@@ -90,7 +100,7 @@ export function parseVehicle(input: VehicleInput, currentYear: number): { ok: tr
       model,
       year: year ? Number(year) : null,
       fuel: (fuel as Fuel) || null,
-      mileageKm: mileageKm ? Number(mileageKm) : null,
+      mileageKm,
       note: input.note?.trim() || null,
     },
   };
