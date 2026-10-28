@@ -35,7 +35,7 @@ test('the admin downloads the zákazkový list from the detail of a Zákazka, an
   expect((await answered).headers()['content-type']).toBe('application/pdf');
   expect(readPdf(readFileSync((await download.path())!))[0]!.text).toContain(order.customerName);
 
-  // The mechanik has no page of a Zákazka yet, but the form he prints for the car is his, with its address.
+  // The mechanik prints it too, from the detail of a Zákazka he has (e2e/mechanik.spec.ts): here the address answers him directly.
   const elsewhere = await browser.newContext({ baseURL });
   const mechanikPage = await elsewhere.newPage();
   await signInAs(mechanikPage, await seedMechanik(db, tag));

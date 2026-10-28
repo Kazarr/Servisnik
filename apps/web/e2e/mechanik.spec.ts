@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { listCustomers } from '../src/dal/customers.ts';
 import { searchPriceList } from '../src/dal/price-list.ts';
 import { getRates } from '../src/dal/settings.ts';
@@ -6,6 +7,7 @@ import { listUsers } from '../src/dal/users.ts';
 import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
+import { readPdf } from '../test/support/pdf.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
 import { dayFromToday, expect, fillVehicle, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
@@ -16,7 +18,7 @@ test.beforeAll(() => {
 });
 test.afterAll(() => db.$client.end());
 
-test('the mechanik signs in to Zákazky only, sees the number as text and no amount, and every other page leads him back', async ({ page }) => {
+test('the mechanik signs in to Zákazky only, sees no amount in the list, and every other page leads him back', async ({ page }) => {
   const tag = runTag();
   const order = await seedWorkOrder(db, tag);
   await signInAs(page, await seedMechanik(db, tag));
@@ -27,7 +29,7 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
   await expect(main.locator('h1')).toHaveText('Zákazky');
   const row = main.getByRole('row', { name: new RegExp(order.number) });
   await expect(row.getByRole('cell')).toHaveText([order.number, order.customerName, new RegExp(order.vin), 'Prijatá', '']);
-  await expect(row.getByRole('link')).toHaveCount(0);
+  await expect(row.getByRole('link')).toHaveText(order.number); // the number opens the detail he has, without prices
   await expect(main).not.toContainText('€');
   await expect(main.getByRole('link', { name: 'Nová zákazka' })).toHaveCount(0);
 
@@ -47,7 +49,6 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     '/zakazky/nova/nove-vozidlo',
     `/zakazky/nova/nove-vozidlo?zakaznik=${order.customerId}`,
     '/zakazky/nova/nove-vozidlo?novy=zakaznik',
-    `/zakazky/${order.orderId}`,
     `/zakazky/${order.orderId}/upravit`,
     `/zakazky/${order.orderId}/polozky/${randomUUID()}`,
     '/cennik',
@@ -60,6 +61,32 @@ test('the mechanik signs in to Zákazky only, sees the number as text and no amo
     await expect(page, path).toHaveURL(/\/zakazky$/);
     await expect(main.locator('h1'), path).toHaveText('Zákazky');
   }
+});
+
+// The smoke path of the detail he has (spec #95, Mechanik). That the shape has no price key is checked at the Data Access Layer
+// (test/unpriced-work-order.test.ts), what the page draws and links in test/unpriced-work-order-view.test.ts; here the built page is
+// searched for the prices, in the HTML and in the data that Next sends with it.
+test('the mechanik opens a Zákazka from the list, sees its items and no price anywhere on the page, and downloads the zákazkový list', async ({ page }) => {
+  test.slow(); // the server starts its Chromium with the first print, and on a host that other runs share that takes long
+  const tag = runTag();
+  const order = await seedWorkOrder(db, tag);
+  await addItem(admin, order.orderId, { kind: 'part', code: `OF-${tag}`, name: `Olejový filter ${tag}`, quantity: '2', unit: 'ks', purchasePrice: '4321,09', unitPrice: '8765,43', vatRate: '23' }, db);
+  await signInAs(page, await seedMechanik(db, tag));
+  await page.goto(`/zakazky?od=${dayFromToday(0)}`);
+
+  const main = page.locator('main');
+  await main.getByRole('link', { name: order.number }).click();
+  await expect(main.locator('h1')).toHaveText(order.number);
+  await expect(main.getByRole('row', { name: new RegExp(tag) }).getByRole('cell')).toHaveText(['Diel', `OF-${tag}`, `Olejový filter ${tag}`, '2 ks']);
+  await expect(main).toContainText(order.customerName);
+  await expect(main).not.toContainText('€');
+  expect(await page.content(), 'the page, with the data that Next sends with it').not.toMatch(/8765[,.]43|876543|4321[,.]09|432109/);
+
+  const downloading = page.waitForEvent('download');
+  await main.getByRole('link', { name: 'Zákazkový list' }).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toBe(`${order.number}-zakazkovy-list.pdf`);
+  expect(readPdf(readFileSync((await download.path())!))[0]!.text).toContain(order.customerName);
 });
 
 test('forms and buttons used after the admin became a mechanik answer with a message and change nothing', async ({ page, context }) => {
