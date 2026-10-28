@@ -14,6 +14,11 @@ test.each([
   expect(formatEuroInput(cents)).toBe(typed);
 });
 
+test('no price is an empty field', () => {
+  expect(formatEuroInput(null)).toBe('');
+  expect(formatEuroInput(0)).toBe('0,00');
+});
+
 test.each([0, 1, 99, 100, 4550, 3333, 100_000_000])('%i cents typed in a field are read as %i cents again', (cents) => {
   expect(parseUnitPrice(formatEuroInput(cents))).toBe(cents);
 });

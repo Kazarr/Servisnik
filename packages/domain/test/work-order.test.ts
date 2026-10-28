@@ -7,6 +7,7 @@ import {
   localDate,
   localYear,
   parseLabour,
+  parseVatRate,
   parseWorkOrder,
   totalsOf,
   transition,
@@ -189,6 +190,24 @@ describe('a Zákazka as the admin types it', () => {
   });
 });
 
+// The one rule for a VAT rate typed anywhere: on a Práca, and in the list of rates of Nastavenia.
+describe('a VAT rate as it is typed', () => {
+  test.each([
+    ['0', 0],
+    ['5', 5],
+    ['23', 23],
+    ['100', 100],
+    ['007', 7],
+    [' 23 ', 23],
+  ])('"%s" is %i', (typed, rate) => {
+    expect(parseVatRate(typed)).toBe(rate);
+  });
+
+  test.each(['', ' ', '101', '1000', '-1', '2,5', '2.5', '23 %', '2 3', 'plná', '99999999999999999999999'])('"%s" is not a whole percentage from 0 to 100', (typed) => {
+    expect(parseVatRate(typed)).toBeNull();
+  });
+});
+
 describe('a work item (Práca) as the admin types it', () => {
   const typed = { name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' };
   // The default VAT rate comes from Nastavenia: the domain is handed it.
@@ -239,7 +258,7 @@ describe('a work item (Práca) as the admin types it', () => {
     expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
   });
 
-  test.each(['', '-1', '101', '2,5', '23 %', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
+  test.each(['', '-1', '101', '2,5', '23 %', '2 3', 'plná'])('VAT rate "%s" is refused', (vatRate) => {
     expect(refused({ vatRate })).toEqual({ ok: false, errors: { vatRate: 'invalid' } });
   });
 

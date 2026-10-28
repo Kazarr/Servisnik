@@ -59,7 +59,7 @@ describe('the default VAT rate', () => {
     expect(parse({ vatRates: '19\n5', defaultVatRate: '19' })).toMatchObject({ ok: true, rates: { vatRates: [19, 5], defaultVatRate: 19 } });
   });
 
-  test.each(['', '-1', '101', '2,5', 'x'])('"%s" is refused as not a whole percentage', (defaultVatRate) => {
+  test.each(['', '-1', '101', '2,5', '2 3', 'x'])('"%s" is refused as not a whole percentage', (defaultVatRate) => {
     expect(parse({ defaultVatRate })).toEqual({ ok: false, errors: { defaultVatRate: 'invalid' } });
   });
 
