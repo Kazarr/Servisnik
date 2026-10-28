@@ -5,6 +5,7 @@
   "exports": {
     "./access": "./src/access/index.ts",
     "./customer": "./src/customer/index.ts",
+    "./settings": "./src/settings/index.ts",
     "./vehicle": "./src/vehicle/index.ts",
     "./work-order": "./src/work-order/index.ts"
   }

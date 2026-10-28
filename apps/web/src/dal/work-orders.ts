@@ -19,6 +19,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
+import { getRates } from './settings.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
@@ -70,10 +71,15 @@ export type AddLabourResult =
   | { ok: true; id: string }
   | { ok: false; errors: LabourErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
-/** Adds a Práca to a Zákazka that is still Rozpracovaná (`canEdit`); the row lock keeps it from landing after the Zákazka became Hotová or Zrušená. */
+/**
+ * Adds a Práca to a Zákazka that is still Rozpracovaná (`canEdit`); the row lock keeps it from landing after the Zákazka became Hotová or Zrušená.
+ * The item keeps the VAT rate it has now: a VAT rate left out is the default one of Nastavenia (read with getRates, so
+ * a Rola that may write work but not read Nastavenia is refused), and a later change of the rates leaves the item alone.
+ */
 export async function addLabour(user: User | null, workOrderId: string, input: LabourInput, db: Database = getDb()): Promise<AddLabourResult> {
   assertCan(user, 'work-orders.write');
-  const parsed = parseLabour(input);
+  const { defaultVatRate } = await getRates(user, db);
+  const parsed = parseLabour(input, defaultVatRate);
   if (!parsed.ok) return parsed;
 
   return db.transaction(async (tx) => {

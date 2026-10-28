@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../dal/current-user.ts';
+import { getRates } from '../../../../dal/settings.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
 import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
@@ -12,9 +13,11 @@ import { StatusForm } from './status-form.tsx';
 export const metadata: Metadata = { title: 'Zákazka' };
 
 export default async function WorkOrderPage({ params }: { params: Promise<{ id: string }> }) {
-  const order = await getWorkOrder(await currentUserWith('work-orders.read'), (await params).id);
+  const user = await currentUserWith('work-orders.read');
+  const order = await getWorkOrder(user, (await params).id);
   if (!order) notFound();
   const transitions = userTransitions(order.status);
+  const rates = canEdit(order.status) ? await getRates(user) : null; // only the form for new work uses them
 
   return (
     <>
@@ -101,10 +104,10 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      {canEdit(order.status) && (
+      {rates && (
         <>
           <h2>Pridať prácu</h2>
-          <LabourForm workOrderId={order.id} />
+          <LabourForm workOrderId={order.id} defaultVatRate={rates.defaultVatRate} hourlyRateCents={rates.hourlyRateCents} />
         </>
       )}
       {transitions.length > 0 && <StatusForm workOrderId={order.id} transitions={transitions} />}

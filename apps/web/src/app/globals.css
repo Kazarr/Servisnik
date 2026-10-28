@@ -154,6 +154,10 @@ button:disabled {
   margin: 0;
 }
 
+.user a {
+  color: inherit;
+}
+
 .content {
   padding: var(--space-4);
 }
@@ -357,6 +361,15 @@ tfoot td {
 .actions summary {
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
+}
+
+/* Nastavenia: one section per part, each under its own heading. */
+.settings-section {
+  margin-top: var(--space-4);
+}
+
+.settings-section h2 {
+  margin-bottom: var(--space-3);
 }
 
 .multiline {

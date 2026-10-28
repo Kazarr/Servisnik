@@ -14,6 +14,8 @@ export const capabilities = [
   'work-orders.read',
   'work-orders.write',
   'password.change',
+  'settings.read',
+  'settings.write',
 ] as const;
 export type Capability = (typeof capabilities)[number];
 
@@ -25,3 +27,14 @@ export const can = (role: Role, capability: Capability) => role === 'admin' || m
 
 /** Only the admin sees prices, sums, VAT and margins. */
 export const canSeePrices = (role: Role) => role === 'admin';
+
+/**
+ * A password is 8 to 128 characters, with no rule on which. These are the numbers apps/web/src/auth.ts
+ * hands Better Auth, so there is one rule; both count in UTF-16 units, like `length`.
+ */
+export const passwordLength = { min: 8, max: 128 } as const;
+export type PasswordError = 'tooShort' | 'tooLong';
+
+/** Why a password may not be set, or null when its length is fine. */
+export const passwordError = (password: string): PasswordError | null =>
+  password.length < passwordLength.min ? 'tooShort' : password.length > passwordLength.max ? 'tooLong' : null;
