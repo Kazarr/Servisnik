@@ -6,21 +6,12 @@ import { getCustomer, searchCustomers } from '../../../../dal/customers.ts';
 import type { User } from '../../../../dal/user.ts';
 import { Field } from '../../field.tsx';
 import { Pager } from '../../pager.tsx';
+import { first, pageOf, searchHref } from '../../search-params.ts';
 import { customerTypeLabels } from '../../zakaznici/type-labels.ts';
 import { addVehicle } from '../actions.ts';
 import { VehicleForm } from '../vehicle-form.tsx';
 
 export const metadata: Metadata = { title: 'Nové vozidlo' };
-
-const first = (value: string | string[] | undefined) => (typeof value === 'string' ? value : '');
-
-/** The address of page `n` of a search for an owner. */
-function pageHref(query: string, n: number) {
-  const params = new URLSearchParams();
-  if (query) params.set('q', query);
-  if (n > 1) params.set('strana', String(n));
-  return params.size ? `/vozidla/novy?${params}` : '/vozidla/novy';
-}
 
 /** Before the form: the Majiteľ is found by the same search as on the list of Zákazníci, and picking one opens the form for him. */
 async function PickOwner({ user, query, page }: { user: User; query: string; page: number }) {
@@ -58,7 +49,7 @@ async function PickOwner({ user, query, page }: { user: User; query: string; pag
           </table>
         </div>
       )}
-      <Pager page={current} pageCount={pageCount} href={(n) => pageHref(query, n)} />
+      <Pager page={current} pageCount={pageCount} href={(n) => searchHref('/vozidla/novy', query, n)} />
     </>
   );
 }
@@ -71,7 +62,7 @@ export default async function NewVehiclePage({
 }) {
   const user = await currentUserWith('vehicles.write');
   const { zakaznik, q, strana } = await searchParams;
-  if (zakaznik === undefined) return <PickOwner user={user} query={first(q)} page={Number(first(strana) || 1)} />;
+  if (zakaznik === undefined) return <PickOwner user={user} query={first(q)} page={pageOf(strana)} />;
 
   const owner = typeof zakaznik === 'string' ? await getCustomer(user, zakaznik) : null;
   if (!owner) notFound();
