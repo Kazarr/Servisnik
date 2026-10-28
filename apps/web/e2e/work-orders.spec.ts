@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { addCustomer, endSessionBehindThePage, expect, signIn, test } from './fixtures.ts';
+import { addCustomer, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
 
 /** Today in Europe/Bratislava as the app writes it, e.g. "26. 10. 2026". */
 const today = () => new Date().toLocaleDateString('sk-SK', { timeZone: 'Europe/Bratislava' });
@@ -28,6 +28,16 @@ async function fillIntake(page: Page, mileage: string, request: string) {
   await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
 }
 
+/** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
+async function numberOfOpenOrder(page: Page) {
+  const heading = page.locator('main h1');
+  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
+  return (await heading.textContent())!;
+}
+
+/** The running number of a work order number, e.g. 12 for "Z2026-0012". */
+const sequenceOf = (number: string) => Number(number.split('-')[1]);
+
 /** The value next to a label in the detail list of a page. */
 const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
@@ -39,26 +49,30 @@ async function addLabour(page: Page, fields: { name: string; quantity: string; u
 }
 
 test('the admin opens a work order on a vehicle, adds work, sees the amounts and marks it done', async ({ page }) => {
+  test.slow(); // the longest flow; under --repeat-each the workers share one server
+  // All specs share one database, and this one also runs repeated: its customer and VIN carry a tag, and the order is read by its own number.
+  const tag = runTag();
+  const [owner, vin] = [`Majiteľ Prvej Zákazky ${tag}`, vinOf(tag)];
   await signIn(page);
-  await addCustomer(page, 'Majiteľ Prvej Zákazky');
-  await addVehicleAndOpen(page, 'TMBZZZ5JZ3W000101');
+  await addCustomer(page, owner);
+  await addVehicleAndOpen(page, vin);
   const main = page.locator('main');
   const vehicleUrl = page.url();
   await expect(main).not.toContainText('Otvorené zákazky');
 
   // The customer is the owner of the vehicle unless another is chosen.
   await startWorkOrder(page);
-  await expect(page.getByLabel('Zákazník', { exact: true }).locator('option:checked')).toHaveText('Majiteľ Prvej Zákazky');
+  await expect(page.getByLabel('Zákazník', { exact: true }).locator('option:checked')).toHaveText(owner);
   await fillIntake(page, '123 456', 'Výmena oleja a kontrola bŕzd');
 
   await expect(page).toHaveURL(/\/zakazky\/[0-9a-f-]{36}$/);
-  await expect(main.locator('h1')).toHaveText(new RegExp(`^Z${year()}-\\d{4}$`));
   const orderUrl = page.url();
-  const number = (await main.locator('h1').textContent())!;
+  const number = await numberOfOpenOrder(page);
+  expect(number).toMatch(new RegExp(`^Z${year()}-`));
   await expect(detail(main, 'Stav')).toHaveText('Prijatá');
-  await expect(detail(main, 'Zákazník')).toHaveText('Majiteľ Prvej Zákazky');
+  await expect(detail(main, 'Zákazník')).toHaveText(owner);
   await expect(detail(main, 'Vozidlo')).toContainText('Škoda Octavia');
-  await expect(detail(main, 'Vozidlo')).toContainText('TMBZZZ5JZ3W000101');
+  await expect(detail(main, 'Vozidlo')).toContainText(vin);
   await expect(detail(main, 'Kilometre pri príjme')).toHaveText('123 456 km');
   await expect(detail(main, 'Požiadavka zákazníka')).toHaveText('Výmena oleja a kontrola bŕzd');
   await expect(main).not.toContainText('Dátum dokončenia');
@@ -97,38 +111,43 @@ test('the admin opens a work order on a vehicle, adds work, sees the amounts and
   await expect(page).toHaveURL(orderUrl);
   await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazky' }).click();
   const row = main.getByRole('row', { name: new RegExp(number) });
-  await expect(row.getByRole('cell')).toHaveText([number, 'Majiteľ Prvej Zákazky', /Škoda Octavia/, 'Hotová']);
+  await expect(row.getByRole('cell')).toHaveText([number, owner, /Škoda Octavia/, 'Hotová']);
   await row.getByRole('link', { name: number }).click();
   await expect(page).toHaveURL(orderUrl);
 });
 
-test('a work order for another customer than the owner keeps that customer, and the next number follows', async ({ page }) => {
+test('a work order for another customer than the owner keeps that customer, and a later one gets a higher number', async ({ page }) => {
+  test.slow(); // two customers, a vehicle and two work orders; under --repeat-each the workers share one server
+  const tag = runTag();
+  const [other, owner] = [`Iný Zákazník Zákazky ${tag}`, `Majiteľ Druhej Zákazky ${tag}`];
   await signIn(page);
-  await addCustomer(page, 'Iný Zákazník Zákazky');
-  await addCustomer(page, 'Majiteľ Druhej Zákazky');
-  await addVehicleAndOpen(page, 'TMBZZZ5JZ3W000102');
+  await addCustomer(page, other);
+  await addCustomer(page, owner);
+  await addVehicleAndOpen(page, vinOf(tag));
   const main = page.locator('main');
   const vehicleUrl = page.url();
 
   await startWorkOrder(page);
-  await page.getByLabel('Zákazník', { exact: true }).selectOption({ label: 'Iný Zákazník Zákazky' });
+  await page.getByLabel('Zákazník', { exact: true }).selectOption({ label: other });
   await fillIntake(page, '0', 'Prvý príjem');
-  await expect(detail(main, 'Zákazník')).toHaveText('Iný Zákazník Zákazky');
-  const first = Number((await main.locator('h1').textContent())!.split('-')[1]);
+  await expect(detail(main, 'Zákazník')).toHaveText(other);
+  const first = sequenceOf(await numberOfOpenOrder(page));
 
   // The vehicle still belongs to its owner, who is the default of the next work order.
   await page.goto(vehicleUrl);
   await startWorkOrder(page);
-  await expect(page.getByLabel('Zákazník', { exact: true }).locator('option:checked')).toHaveText('Majiteľ Druhej Zákazky');
+  await expect(page.getByLabel('Zákazník', { exact: true }).locator('option:checked')).toHaveText(owner);
   await fillIntake(page, '10', 'Druhý príjem');
-  await expect(detail(main, 'Zákazník')).toHaveText('Majiteľ Druhej Zákazky');
-  expect(Number((await main.locator('h1').textContent())!.split('-')[1])).toBe(first + 1);
+  await expect(detail(main, 'Zákazník')).toHaveText(owner);
+  // Workers share the year's counter, so only the order is checked; no gaps: apps/web/test/work-orders.test.ts.
+  expect(sequenceOf(await numberOfOpenOrder(page))).toBeGreaterThan(first);
 });
 
 test('a work order form with a bad kilometre count stays on the form, with the reason and what was typed', async ({ page }) => {
+  const tag = runTag();
   await signIn(page);
-  await addCustomer(page, 'Majiteľ Zlých Kilometrov');
-  await addVehicleAndOpen(page, 'TMBZZZ5JZ3W000103');
+  await addCustomer(page, `Majiteľ Zlých Kilometrov ${tag}`);
+  await addVehicleAndOpen(page, vinOf(tag));
 
   await startWorkOrder(page);
   await fillIntake(page, '-5', '  ');
@@ -140,9 +159,12 @@ test('a work order form with a bad kilometre count stays on the form, with the r
 });
 
 test('the work order forms and the done button, used after the session ended, are refused and change nothing', async ({ page, browser, baseURL }) => {
+  test.slow(); // four sign-ins and three ended sessions; under --repeat-each the workers share one server
+  const tag = runTag();
+  const owner = `Majiteľ Bez Relácie ${tag}`;
   await signIn(page);
-  await addCustomer(page, 'Majiteľ Bez Relácie');
-  await addVehicleAndOpen(page, 'TMBZZZ5JZ3W000104');
+  await addCustomer(page, owner);
+  await addVehicleAndOpen(page, vinOf(tag));
   const main = page.locator('main');
   const vehicleUrl = page.url();
 
@@ -155,7 +177,7 @@ test('the work order forms and the done button, used after the session ended, ar
   await expect(page).toHaveURL(/\/login$/);
   await signIn(page);
   await page.goto('/zakazky');
-  await expect(main).not.toContainText('Majiteľ Bez Relácie');
+  await expect(main).not.toContainText(owner);
 
   // New work on an existing one, and marking it done.
   await page.goto(vehicleUrl);
