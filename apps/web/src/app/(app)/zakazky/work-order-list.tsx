@@ -15,25 +15,29 @@ const marks: Record<RowMark, { label: string; row: string; badge: string }> = {
  * The Zákazky as a table. Whoever may not read a Zákazka sees its number as plain text, and whoever
  * may not add one is not told to add it on the detail of a vehicle either. `without: 'vehicle'`
  * leaves out the Vozidlo column, for the detail of a vehicle, where it is the same in every row. A row
- * is marked by the domain's `rowMark` from its status, its Termín and today (`now`) in Europe/Bratislava;
- * whoever may not write is not shown "Na fakturáciu", which speaks of the invoice.
+ * is marked by the domain's `rowMark` from its status, its Termín and today (`now`) in Europe/Bratislava,
+ * the same for every Rola. `filter` is the filter of the list in Zákazky: an empty list that a filter
+ * produced, the default one too, says that no Zákazka matches it, since Zákazky may exist that it hides;
+ * only a list that nothing filters is an empty system.
  */
 export function WorkOrderList({
   orders,
   role,
   now,
   without,
+  filter,
 }: {
   orders: Awaited<ReturnType<typeof listWorkOrders>>['orders'];
   role: Role;
   now: Date;
   without?: 'vehicle';
+  filter?: Awaited<ReturnType<typeof listWorkOrders>>['filter'];
 }) {
   if (orders.length === 0) {
+    if (filter && (filter.status !== 'all' || filter.from || filter.to)) return <p>Žiadna zákazka nezodpovedá filtru.</p>;
     return <p>{can(role, 'work-orders.write') ? 'Zatiaľ tu nič nie je. Zákazku založíte na detaile vozidla.' : 'Zatiaľ tu nič nie je.'}</p>;
   }
   const canRead = can(role, 'work-orders.read');
-  const canWrite = can(role, 'work-orders.write');
   const withVehicle = without !== 'vehicle';
   return (
     <div className="table-wrap">
@@ -50,7 +54,7 @@ export function WorkOrderList({
         <tbody>
           {orders.map((order) => {
             const found = rowMark(order.status, order.deadline, now);
-            const mark = found === 'toInvoice' && !canWrite ? null : found && marks[found];
+            const mark = found && marks[found];
             return (
               <tr key={order.id} className={mark?.row}>
                 <td>{canRead ? <Link href={`/zakazky/${order.id}`}>{order.number}</Link> : order.number}</td>
