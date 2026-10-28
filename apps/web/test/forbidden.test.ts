@@ -47,6 +47,7 @@ const actions = {
   addCustomer: { call: () => customerActions.addCustomer(null, form({ type: 'person', name: 'Ján Novák' })), answer: formRefused },
   editCustomer: { call: () => customerActions.editCustomer(null, form({ id, type: 'person', name: 'Premenovaný' })), answer: formRefused },
   addVehicle: { call: () => vehicleActions.addVehicle(null, form({ ownerId: id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Octavia' })), answer: formRefused },
+  editVehicle: { call: () => vehicleActions.editVehicle(null, form({ id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Fabia' })), answer: formRefused },
   addWorkOrder: {
     call: () => workOrderActions.addWorkOrder(null, form({ vehicleId: id, customerId: id, mileageKm: '1', customerRequest: 'Brzdy' })),
     answer: formRefused,
@@ -55,7 +56,7 @@ const actions = {
     call: () => workOrderActions.addLabourToWorkOrder(null, form({ workOrderId: id, name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' })),
     answer: formRefused,
   },
-  markDone: { call: () => workOrderActions.markDone(null, form({ workOrderId: id })), answer: { error: forbiddenMessage } },
+  changeStatus: { call: () => workOrderActions.changeStatus(null, form({ workOrderId: id, to: 'done' })), answer: { error: forbiddenMessage } },
   saveRatesAction: {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),
     answer: formRefused,
