@@ -7,6 +7,7 @@ import {
   isClosed,
   localDate,
   localYear,
+  mileageAtIntake,
   parseLabour,
   parseVatRate,
   parseWorkOrder,
@@ -336,5 +337,21 @@ describe('a work item (Práca) as the admin types it', () => {
       ok: false,
       errors: { name: 'required', quantity: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
     });
+  });
+});
+
+describe('kilometres at intake', () => {
+  // Stav km of the vehicle before, kilometres on the Zákazka, Stav km of the vehicle after, whether to warn.
+  test.each([
+    ['higher than the vehicle has', 100_000, 100_001, 100_001, false],
+    ['far higher than the vehicle has', 100_000, 250_000, 250_000, false],
+    ['the same as the vehicle has', 100_000, 100_000, 100_000, false],
+    ['lower than the vehicle has, by one', 100_000, 99_999, 100_000, true],
+    ['lower than the vehicle has, far', 250_000, 10_000, 250_000, true],
+    ['0, with the vehicle at 5 km', 5, 0, 5, true],
+    ['given to a vehicle that has no Stav km yet', null, 120_000, 120_000, false],
+    ['0, given to a vehicle that has no Stav km yet', null, 0, 0, false],
+  ])('%s: the vehicle had %s, the Zákazka has %s, the vehicle then has %s, warning: %s', (_what, before, atIntake, after, warning) => {
+    expect(mileageAtIntake(before, atIntake)).toEqual({ vehicleMileageKm: after, lowerThanVehicle: warning });
   });
 });
