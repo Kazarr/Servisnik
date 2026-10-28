@@ -85,6 +85,13 @@
       "when": 1793208148141,
       "tag": "0011_work_order_item_part",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793211165049,
+      "tag": "0012_work_order_deadline_note",
+      "breakpoints": true
     }
   ]
 }

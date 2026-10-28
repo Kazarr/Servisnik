@@ -22,7 +22,14 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <h1>{order.number}</h1>
+      <div className="page-header">
+        <h1>{order.number}</h1>
+        {canEdit(order.status) && (
+          <Link href={`/zakazky/${order.id}/upravit`} className="button">
+            Upraviť zákazku
+          </Link>
+        )}
+      </div>
       <dl className="details">
         <div>
           <dt>Stav</dt>
@@ -32,6 +39,12 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
           <div>
             <dt>Dátum dokončenia</dt>
             <dd>{formatDate(order.completedOn)}</dd>
+          </div>
+        )}
+        {order.deadline && (
+          <div>
+            <dt>Termín</dt>
+            <dd>{formatDate(order.deadline)}</dd>
           </div>
         )}
         <div>
@@ -57,6 +70,12 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
           <dt>Požiadavka zákazníka</dt>
           <dd className="multiline">{order.customerRequest}</dd>
         </div>
+        {order.note && (
+          <div>
+            <dt>Poznámka</dt>
+            <dd className="multiline">{order.note}</dd>
+          </div>
+        )}
       </dl>
 
       <h2>Položky</h2>

@@ -1,18 +1,43 @@
 'use server';
 
-import { itemKinds, workOrderStatuses, type ItemErrors } from '@servisnik/domain/work-order';
+import { itemKinds, workOrderStatuses, type ItemErrors, type WorkOrderErrors } from '@servisnik/domain/work-order';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
-import { addItem, changeWorkOrderStatus, createWorkOrder, deleteItem, updateItem } from '../../../dal/work-orders.ts';
+import { addItem, changeWorkOrderStatus, createWorkOrder, deleteItem, updateItem, updateWorkOrderHeader } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 export type WorkOrderFormState = {
-  values: Record<'mileageKm' | 'customerRequest', string>;
-  errors: { mileageKm?: string; customerRequest?: string; form?: string };
+  values: Record<'mileageKm' | 'customerRequest' | 'deadline' | 'note', string>;
+  errors: { mileageKm?: string; customerRequest?: string; deadline?: string; form?: string };
 } | null;
+
+/** What the form of a Zákazka sent: the header, the same fields whether the Zákazka is new or edited. */
+const readHeader = (formData: FormData) => ({
+  mileageKm: field(formData, 'mileageKm'),
+  customerRequest: field(formData, 'customerRequest'),
+  deadline: field(formData, 'deadline'),
+  note: field(formData, 'note'),
+});
+
+/** The form again, with what was typed and the reason at each field the domain refused (and `form` for a reason that is not a field's). */
+function refused(
+  values: NonNullable<WorkOrderFormState>['values'],
+  errors: WorkOrderErrors,
+  form?: string,
+): WorkOrderFormState {
+  return {
+    values,
+    errors: {
+      mileageKm: errors.mileageKm && 'Zadajte kilometre ako celé číslo, 0 alebo viac',
+      customerRequest: errors.customerRequest && 'Vyplňte požiadavku zákazníka',
+      deadline: errors.deadline && 'Zadajte termín ako platný dátum',
+      form,
+    },
+  };
+}
 
 /**
  * Server Action of the new-work-order form. It checks the session itself: the proxy only sees a cookie,
@@ -21,21 +46,34 @@ export type WorkOrderFormState = {
  */
 export async function addWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
   const user = await currentUser();
-  const values = { mileageKm: field(formData, 'mileageKm'), customerRequest: field(formData, 'customerRequest') };
+  const values = readHeader(formData);
 
   const result = await orForbidden(createWorkOrder(user, { vehicleId: field(formData, 'vehicleId'), customerId: field(formData, 'customerId'), ...values }));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.vehicle || result.errors.customer) notFound();
-    return {
-      values,
-      errors: {
-        mileageKm: result.errors.mileageKm && 'Zadajte kilometre ako celé číslo, 0 alebo viac',
-        customerRequest: result.errors.customerRequest && 'Vyplňte požiadavku zákazníka',
-      },
-    };
+    return refused(values, result.errors);
   }
   redirect(`/zakazky/${result.id}`);
+}
+
+/**
+ * Server Action of the form that edits the header of the Zákazka whose id the form carries; it checks
+ * the session itself, like every action. A Zákazka that is no longer Rozpracovaná (a click that came
+ * late, or a status changed in another tab) is refused with a message on the form and changes nothing.
+ */
+export async function editWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
+  const user = await currentUser();
+  const id = field(formData, 'id');
+  const values = readHeader(formData);
+
+  const result = await orForbidden(updateWorkOrderHeader(user, id, values));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
+  if (!result.ok) {
+    if (result.errors.workOrder === 'unknown') notFound();
+    return refused(values, result.errors, result.errors.workOrder && 'Zákazka už nie je rozpracovaná, jej hlavičku nemožno upraviť');
+  }
+  redirect(`/zakazky/${id}`);
 }
 
 const itemFields = ['code', 'name', 'quantity', 'unit', 'purchasePrice', 'markup', 'unitPrice', 'vatRate'] as const;
