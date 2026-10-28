@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { posix } from 'node:path';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join, posix } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { parse } from 'yaml';
 
@@ -34,6 +36,9 @@ const isGate = (step: Step) => (step.run ?? '').includes('tools/deploy-gate.ts')
 const isBuild = (step: Step) => /docker build/.test(step.run ?? '');
 const isDeploy = (step: Step) => step.uses?.startsWith('digitalocean/app_action/deploy@') ?? false;
 const isSmoke = (step: Step) => /pnpm smoke/.test(step.run ?? '');
+const isLogBefore = (step: Step) => /doctl apps logs/.test(step.run ?? '') && !isLogDiff(step);
+const isLogDiff = (step: Step) => (step.run ?? '').includes('tools/log-diff.ts');
+const isRetention = (step: Step) => (step.run ?? '').includes('tools/registry-retention.ts');
 const step = (match: (step: Step) => boolean) => steps()[stepIndex(match)]!;
 
 // What DigitalOcean fills in itself: bindable variables of a component (`${db.DATABASE_URL}`) and the app URL.
@@ -214,8 +219,8 @@ test('the deploy does not print the deployment logs of a public repository', () 
   expect(step(isDeploy).with?.print_deploy_logs).toBe(false);
 });
 
-test('the deploy workflow checks secrets, then the ticket check, then builds, deploys and runs the smoke, in that order', () => {
-  const order = [isSecretCheck, isGate, isBuild, isDeploy, isSmoke].map(stepIndex);
+test('the deploy workflow checks secrets, then the ticket check, then builds, records the log, deploys, smokes, compares the log and cleans the registry, in that order', () => {
+  const order = [isSecretCheck, isGate, isBuild, isLogBefore, isDeploy, isSmoke, isLogDiff, isRetention].map(stepIndex);
 
   expect(order).toEqual([...order].sort((a, b) => a - b));
   expect(new Set(order).size).toBe(order.length);
@@ -224,6 +229,80 @@ test('the deploy workflow checks secrets, then the ticket check, then builds, de
 test('the deploy workflow tags the image with the commit SHA and smokes the URL of the deployed app', () => {
   expect(step(isBuild).run).toContain(':$GITHUB_SHA');
   expect(Object.values(step(isSmoke).env ?? {}).join()).toContain('live_url');
+});
+
+test('the commit travels from the workflow into the image and back into the smoke: the app is asked which commit it runs', () => {
+  const dockerfile = read('Dockerfile');
+
+  expect(step(isBuild).run).toMatch(/--build-arg GIT_SHA="\$GITHUB_SHA"/);
+  expect(dockerfile).toMatch(/^ARG GIT_SHA=$/m);
+  expect(dockerfile.indexOf('ENV GIT_SHA=$GIT_SHA')).toBeGreaterThan(dockerfile.indexOf('ARG GIT_SHA'));
+  expect(step(isSmoke).run).toMatch(/pnpm smoke "\$LIVE_URL" "\$GITHUB_SHA"/);
+});
+
+// The log and registry steps run as they are, in a temporary directory, against a `doctl` that records its calls and
+// answers from the files `logs` and `tags` there (no `logs` file: it fails, as it does for an app that does not exist).
+const repoRoot = fileURLToPath(new URL('..', import.meta.url)).replaceAll('\\', '/');
+type Given = { logs?: string; tags?: string; files?: Record<string, string>; env?: Record<string, string> };
+function execute({ run }: Step, { logs, tags, files = {}, env = {} }: Given) {
+  const dir = mkdtempSync(join(tmpdir(), 'deploy-step-')).replaceAll('\\', '/');
+  mkdirSync(`${dir}/bin`);
+  writeFileSync(`${dir}/bin/doctl`, '#!/bin/sh\necho "$*" >> "$DIR/calls"\ncase "$1 $2 $3" in\n  "apps logs"*) cat "$DIR/logs" || exit 1 ;;\n  "registry repository list-tags") cat "$DIR/tags" ;;\nesac\n', { mode: 0o755 });
+  for (const [file, content] of Object.entries({ ...files, ...(logs === undefined ? {} : { logs }), ...(tags === undefined ? {} : { tags }) })) writeFileSync(`${dir}/${file}`, content);
+  const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+  const environment = { ...process.env, ...env, DIR: dir, RUNNER_TEMP: dir, [pathKey]: `${dir}/bin${delimiter}${process.env[pathKey]}` };
+  const { status, stdout, stderr } = spawnSync('bash', ['-c', run!], { cwd: repoRoot, env: environment, encoding: 'utf8' });
+  const saved = (file: string) => (existsSync(`${dir}/${file}`) ? readFileSync(`${dir}/${file}`, 'utf8') : undefined);
+  const result = { status, output: stdout + stderr, calls: saved('calls')?.split('\n').filter(Boolean) ?? [], saved: saved('run-before.log') };
+  rmSync(dir, { recursive: true, force: true });
+  return result;
+}
+
+test('before the deploy the workflow saves the run log of the service the spec names, and an empty one while the app does not exist', () => {
+  const { name, services } = spec();
+  const logs = 'Error: connect ECONNREFUSED\n';
+
+  const running = execute(step(isLogBefore), { logs });
+  expect(running).toMatchObject({ status: 0, saved: logs, calls: [`apps logs ${name} ${services[0]!.name} --type run --tail 2000`] });
+
+  const first = execute(step(isLogBefore), {}); // doctl fails: there is no app yet
+  expect(first).toMatchObject({ status: 0, saved: '' });
+  expect(first.output).toContain('::notice');
+});
+
+test('after the smoke the workflow fails on an error the run log gained, and passes when it gained none', () => {
+  const known = '2026-10-28T10:00:00Z Error: connect ECONNREFUSED\n';
+  const compare = (after: string) => execute(step(isLogDiff), { files: { 'run-before.log': known }, logs: after, env: { APP_ID: 'app-id-1' } });
+
+  const same = compare('2026-10-28T11:00:00Z Error: connect ECONNREFUSED\n');
+  expect(same).toMatchObject({ status: 0, calls: [`apps logs app-id-1 ${spec().services[0]!.name} --type run --tail 2000`] });
+
+  const gained = compare(`${known}2026-10-28T11:00:01Z TypeError: x is not a function\n`);
+  expect(gained.status).toBe(1);
+  expect(gained.output).toContain('::error title=Nové chyby v logu služby');
+});
+
+test('after the deploy the registry keeps the newest tags and the one just deployed, deletes the rest and collects the garbage', () => {
+  const tag = (name: string, day: number) => ({ tag: name, updated_at: `2026-10-0${day}T10:00:00Z` });
+  const tags = JSON.stringify([tag('a', 1), tag('b', 2), tag('c', 3), tag('d', 4), tag('e', 5)]);
+
+  const { status, calls } = execute(step(isRetention), { tags, env: { GITHUB_SHA: 'e' } });
+
+  expect(status).toBe(0);
+  expect(calls).toEqual([
+    'registry repository list-tags servisnik --output json',
+    'registry repository delete-tag servisnik --force b a',
+    'registry garbage-collection start --include-untagged-manifests --force',
+  ]);
+});
+
+test('after the deploy the registry deletes no tag while it holds few, and still collects the garbage', () => {
+  const tags = JSON.stringify([{ tag: 'a', updated_at: '2026-10-01T10:00:00Z' }]);
+
+  const { status, calls } = execute(step(isRetention), { tags, env: { GITHUB_SHA: 'a' } });
+
+  expect(status).toBe(0);
+  expect(calls).toEqual(['registry repository list-tags servisnik --output json', 'registry garbage-collection start --include-untagged-manifests --force']);
 });
 
 test('the deploy workflow stops with a clear error naming each secret that is missing, before it builds', () => {
