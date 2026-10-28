@@ -6,6 +6,7 @@ import {
   type NewUserInput,
   type PasswordError,
   type Role,
+  type UserEdit,
   type UserEditErrors,
   type UserEditInput,
 } from '@servisnik/domain/access';
@@ -111,15 +112,16 @@ export async function setUserPassword(user: User | null, requestHeaders: Headers
 }
 
 export type UpdateUserErrors = Omit<UserEditErrors, 'email' | 'role'> & { email?: 'format' | 'taken'; role?: 'invalid' | 'own' };
-export type UpdateUserResult = { ok: true } | { ok: false; errors: UpdateUserErrors };
+export type UpdateUserResult = { ok: true; edit: UserEdit } | { ok: false; errors: UpdateUserErrors };
 
 /**
- * Changes the name, e-mail and, when the input has one, the Rola of the Používateľ `userId`: one
- * call of the admin plugin's `adminUpdateUser`, so either all is saved or nothing. The plugin reads
- * the admin's session from `requestHeaders` and checks its own permission. The admin may change his own
- * name and e-mail but not his own Rola, so that an active admin is always left. The Rola counts from
- * the user's next request, because the session reads it from the database each time (Better Auth's
- * cookie cache is off). An id nobody has makes the plugin throw, as a Server Action only gets one by a forged form.
+ * Changes the name, e-mail and, when the input has one, the Rola of the Používateľ `userId`. It is one
+ * call of the admin plugin's `adminUpdateUser`, so all is saved or nothing, and the answer holds what
+ * was saved as it is stored (name trimmed, e-mail in lower case). The plugin reads the admin's session
+ * from `requestHeaders` and checks its own permission. The admin may change his own name and e-mail
+ * but not his own Rola, so that an active admin is always left. The Rola counts from the user's next
+ * request, because the session reads it from the database each time (Better Auth's cookie cache is
+ * off). An id nobody has makes the plugin throw; a Server Action only gets one from a forged form.
  */
 export async function updateUser(user: User | null, requestHeaders: Headers, userId: string, input: UserEditInput, auth?: Auth): Promise<UpdateUserResult> {
   assertCan(user, 'users.write');
@@ -134,5 +136,5 @@ export async function updateUser(user: User | null, requestHeaders: Headers, use
     if (error instanceof APIError && error.body?.code === 'INVALID_EMAIL') return { ok: false, errors: { email: 'format' } };
     throw error;
   }
-  return { ok: true };
+  return { ok: true, edit: parsed.edit };
 }
