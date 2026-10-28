@@ -84,6 +84,8 @@ export const customerType = pgEnum('customer_type', customerTypes);
 /**
  * Zákazník. The company fields stay empty for an osoba (packages/domain/src/customer). The IČO is
  * unique; PostgreSQL lets any number of rows have none, and the name is not unique at all.
+ * `search*` are the name, e-mail and phone as the domain normalizes them to be searched (`searchKeys`):
+ * the DAL writes them with every save, so the search needs no `unaccent` and no index so far.
  */
 export const customer = pgTable(
   'customer',
@@ -100,6 +102,9 @@ export const customer = pgTable(
     phone: text('phone'),
     email: text('email'),
     note: text('note'),
+    searchName: text('search_name').notNull(),
+    searchEmail: text('search_email').notNull(),
+    searchPhone: text('search_phone').notNull(),
     ...timestamps,
   },
   (table) => [uniqueIndex('customer_ico_idx').on(table.ico)],
