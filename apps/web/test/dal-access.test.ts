@@ -9,6 +9,7 @@ import * as jobSheet from '../src/dal/job-sheet.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
+import * as printForms from '../src/dal/print-forms.ts';
 import * as settings from '../src/dal/settings.ts';
 import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
@@ -89,6 +90,8 @@ const calls: Record<string, Call> = {
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
+  getQuote: (user, db) => printForms.getQuote(user, orderId, db),
+  getHandoverProtocol: (user, db) => printForms.getHandoverProtocol(user, orderId, db),
   listWorkOrders: (user, db) => workOrders.listWorkOrders(user, { status: 'all', from: '2026-01-01', page: 1 }, db),
   listWorkOrdersOfVehicle: (user, db) => workOrders.listWorkOrdersOfVehicle(user, vehicleId, db),
   listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
@@ -129,6 +132,7 @@ const dataAccess = {
   'job-sheet.ts': jobSheet,
   'logo.ts': logo,
   'password.ts': password,
+  'print-forms.ts': printForms,
   'settings.ts': settings,
   'users.ts': users,
   'vehicles.ts': vehicles,
