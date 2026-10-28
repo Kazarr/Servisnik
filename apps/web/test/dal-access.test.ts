@@ -9,6 +9,7 @@ import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
+import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem, workshop } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
@@ -52,13 +53,21 @@ const calls: Record<string, Call> = {
   listUnclosedWorkOrdersOfVehicle: (user, db) => workOrders.listUnclosedWorkOrdersOfVehicle(user, vehicleId, db),
   getRates: (user, db) => settings.getRates(user, db),
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
+  getWorkshopDetails: (user, db) => workshopDetails.getWorkshopDetails(user, db),
+  getVatPayerType: (user, db) => workshopDetails.getVatPayerType(user, db),
+  saveWorkshopDetails: (user, db) =>
+    workshopDetails.saveWorkshopDetails(
+      user,
+      { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
+      db,
+    ),
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders'];
+const mechanikMay = ['listWorkOrders', 'getWorkshopDetails', 'getVatPayerType'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
-const dataAccess = { 'customers.ts': customers, 'settings.ts': settings, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders };
+const dataAccess = { 'customers.ts': customers, 'settings.ts': settings, 'vehicles.ts': vehicles, 'work-orders.ts': workOrders, 'workshop.ts': workshopDetails };
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the refused
  * constraint, the user, the id check and the page-side wrapper. An export added to one of them fails
