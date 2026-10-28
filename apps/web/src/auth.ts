@@ -1,3 +1,4 @@
+import { passwordLength } from '@servisnik/domain/access';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
@@ -10,7 +11,8 @@ export function createAuth({ db, secret }: { db: Database; secret: string }) {
   return betterAuth({
     secret,
     database: drizzleAdapter(db, { provider: 'pg', schema }),
-    emailAndPassword: { enabled: true, disableSignUp: true },
+    // The password length is the access area's rule (packages/domain/src/access); Better Auth checks the same numbers.
+    emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: passwordLength.min, maxPasswordLength: passwordLength.max },
     user: {
       additionalFields: {
         role: { type: 'string', defaultValue: 'mechanik', input: false },

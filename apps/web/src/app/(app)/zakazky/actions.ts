@@ -1,10 +1,10 @@
 'use server';
 
-import { itemKinds, type ItemErrors } from '@servisnik/domain/work-order';
+import { itemKinds, workOrderStatuses, type ItemErrors } from '@servisnik/domain/work-order';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
-import { addItem, createWorkOrder, deleteItem, markWorkOrderDone, updateItem } from '../../../dal/work-orders.ts';
+import { addItem, changeWorkOrderStatus, createWorkOrder, deleteItem, updateItem } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
@@ -125,18 +125,24 @@ export async function deleteItemOfWorkOrder(_state: DeleteItemState, formData: F
   return null;
 }
 
-export type MarkDoneState = { error: string } | null;
+export type ChangeStatusState = { error: string } | null;
 
 /**
- * Server Action of the "Označiť ako hotovú" button; it checks the session itself, like every action. A
- * second click on a Zákazka that is already Hotová changes nothing and just shows it as it is.
+ * Server Action of the status buttons of a Zákazka (`to` is the button's value) and of "Potvrdiť
+ * zrušenie" (which also sends `confirmed`); it checks the session itself, like every action. A click
+ * the Zákazka no longer allows (a second click, or a status changed in another tab) changes nothing
+ * and just shows it as it is.
  */
-export async function markDone(_state: MarkDoneState, formData: FormData): Promise<MarkDoneState> {
+export async function changeStatus(_state: ChangeStatusState, formData: FormData): Promise<ChangeStatusState> {
   const user = await currentUser();
   const id = field(formData, 'workOrderId');
-  const result = await orForbidden(markWorkOrderDone(user, id));
+  const to = workOrderStatuses.find((status) => status === field(formData, 'to'));
+  if (!to) return { error: 'Neznámy stav zákazky' };
+
+  const result = await orForbidden(changeWorkOrderStatus(user, id, { to, confirmed: field(formData, 'confirmed') === 'yes' }));
   if (result === 'forbidden') return { error: forbiddenMessage };
   if (!result.ok && result.error === 'unknown') notFound();
+  if (!result.ok && result.error === 'confirmation-required') return { error: 'Zrušenie zákazky treba potvrdiť' };
   revalidatePath(`/zakazky/${id}`);
   return null;
 }

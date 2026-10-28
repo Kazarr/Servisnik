@@ -154,6 +154,10 @@ button:disabled {
   margin: 0;
 }
 
+.user a {
+  color: inherit;
+}
+
 .content {
   padding: var(--space-4);
 }
@@ -342,6 +346,10 @@ tfoot td {
 }
 
 .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
   margin-top: var(--space-4);
 }
 
@@ -359,6 +367,16 @@ tfoot td {
   padding: var(--space-2) var(--space-3);
   border-left: var(--border-width-strong) solid var(--color-danger);
   background: var(--color-surface);
+}
+
+/* The buttons of a form sit in the row of .actions as if the form were not there. */
+.actions > form {
+  display: contents;
+}
+
+.actions summary {
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
 }
 
 /* Nastavenia: one section per part, each under its own heading. */

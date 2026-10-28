@@ -1,5 +1,5 @@
 {
-  "id": "0cf501a8-7389-48d0-8feb-c21dcc2f761a",
+  "id": "76f7ec9a-a857-424f-8c50-606adafe6928",
   "prevId": "a4d33db1-a293-40b5-8b7c-b894d9c7abba",
   "version": "7",
   "dialect": "postgresql",
@@ -478,6 +478,31 @@
           "primaryKey": false,
           "notNull": true
         },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel": {
+          "name": "fuel",
+          "type": "vehicle_fuel",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_km": {
+          "name": "mileage_km",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -818,12 +843,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "text",
@@ -841,12 +860,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "purchase_price_cents": {
-          "name": "purchase_price_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         },
         "unit_price_cents": {
           "name": "unit_price_cents",
@@ -914,14 +927,6 @@
         "work_order_item_quantity_check": {
           "name": "work_order_item_quantity_check",
           "value": "\"work_order_item\".\"quantity_hundredths\" > 0"
-        },
-        "work_order_item_purchase_price_check": {
-          "name": "work_order_item_purchase_price_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" >= 0"
-        },
-        "work_order_item_purchase_price_kind_check": {
-          "name": "work_order_item_purchase_price_kind_check",
-          "value": "\"work_order_item\".\"purchase_price_cents\" is null or \"work_order_item\".\"kind\" = 'part'"
         },
         "work_order_item_unit_price_check": {
           "name": "work_order_item_unit_price_check",
@@ -1030,6 +1035,19 @@
       "values": [
         "admin",
         "mechanik"
+      ]
+    },
+    "public.vehicle_fuel": {
+      "name": "vehicle_fuel",
+      "schema": "public",
+      "values": [
+        "petrol",
+        "diesel",
+        "hybrid",
+        "electric",
+        "lpg",
+        "cng",
+        "other"
       ]
     },
     "public.work_order_item_kind": {

@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import {
   amountsOf,
-  canAddItems,
+  canEdit,
   formatWorkOrderNumber,
+  isActive,
   isClosed,
   localDate,
   localYear,
@@ -10,6 +11,7 @@ import {
   parseWorkOrder,
   totalsOf,
   transition,
+  userTransitions,
   workOrderStatuses,
   type TransitionTrigger,
   type WorkOrderStatus,
@@ -53,55 +55,118 @@ describe('dates in Europe/Bratislava', () => {
 });
 
 describe('status transitions', () => {
+  const active = ['received', 'inProgress', 'waitingForParts'] as const;
+  const now = new Date('2026-12-31T23:30:00Z'); // already 1 January in Bratislava
+  const between = active.flatMap((from) => active.filter((to) => to !== from).map((to) => [from, to] as const));
+
+  // Every allowed transition, written out once. The number of all 6 x 6 x 2 combinations is pinned below.
   const allowed: [WorkOrderStatus, WorkOrderStatus, TransitionTrigger][] = [
-    ['received', 'done', 'user'],
+    ...between.map(([from, to]) => [from, to, 'user'] as [WorkOrderStatus, WorkOrderStatus, TransitionTrigger]),
+    ...active.map((from) => [from, 'done', 'user'] as [WorkOrderStatus, WorkOrderStatus, TransitionTrigger]),
+    ...active.map((from) => [from, 'cancelled', 'user'] as [WorkOrderStatus, WorkOrderStatus, TransitionTrigger]),
     ['done', 'invoiced', 'invoice'],
   ];
   const triggers: TransitionTrigger[] = ['user', 'invoice'];
   const every = workOrderStatuses.flatMap((from) => workOrderStatuses.flatMap((to) => triggers.map((by) => [from, to, by] as const)));
   const forbidden = every.filter(([from, to, by]) => !allowed.some(([f, t, b]) => f === from && t === to && b === by));
 
-  test('Prijatá becomes Hotová by the user, and the Dátum dokončenia is the day in Europe/Bratislava', () => {
+  test('the statuses are the six of the glossary', () => {
+    expect(workOrderStatuses).toEqual(['received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled']);
+  });
+
+  test.each(between)('%s becomes %s by the user, in any order, with no Dátum dokončenia', (from, to) => {
+    expect(transition(from, to, 'user', now)).toEqual({ ok: true, status: to });
+  });
+
+  test.each(active)('%s becomes Hotová by the user, and the Dátum dokončenia is the day in Europe/Bratislava', (from) => {
     // 23:30 UTC on New Year's Eve is already 1 January in Bratislava.
-    expect(transition('received', 'done', 'user', new Date('2026-12-31T23:30:00Z'))).toEqual({
-      ok: true,
-      status: 'done',
-      completedOn: '2027-01-01',
-    });
+    expect(transition(from, 'done', 'user', now)).toEqual({ ok: true, status: 'done', completedOn: '2027-01-01' });
+  });
+
+  test('every transition to Hotová carries the day of its own moment, so a later one overwrites an earlier one', () => {
+    expect(transition('inProgress', 'done', 'user', new Date('2026-07-15T10:00:00Z'))).toMatchObject({ completedOn: '2026-07-15' });
+    expect(transition('inProgress', 'done', 'user', new Date('2026-07-20T10:00:00Z'))).toMatchObject({ completedOn: '2026-07-20' });
   });
 
   test('Hotová becomes Vyfakturovaná by the invoice, and the Dátum dokončenia stays as it was', () => {
-    expect(transition('done', 'invoiced', 'invoice', new Date('2026-12-31T23:30:00Z'))).toEqual({ ok: true, status: 'invoiced' });
+    expect(transition('done', 'invoiced', 'invoice', now)).toEqual({ ok: true, status: 'invoiced' });
   });
 
-  test('these two are the only transitions: the other 16 of 18 are refused', () => {
-    expect(every).toHaveLength(18);
-    expect(forbidden).toHaveLength(16);
+  test.each(active)('%s becomes Zrušená only once the user confirmed it, and keeps its Dátum dokončenia', (from) => {
+    expect(transition(from, 'cancelled', 'user', now)).toEqual({ ok: false, error: 'confirmation-required' });
+    expect(transition(from, 'cancelled', 'user', now, { confirmed: false })).toEqual({ ok: false, error: 'confirmation-required' });
+    expect(transition(from, 'cancelled', 'user', now, { confirmed: true })).toEqual({ ok: true, status: 'cancelled' });
+  });
+
+  test('a transition that is refused and unconfirmed is refused, not asked to be confirmed', () => {
+    // Zrušená from Hotová is for the ticket that returns a Zákazka to work; here it is not in the table.
+    expect(transition('done', 'cancelled', 'user', now)).toEqual({ ok: false, error: 'not-allowed' });
+    expect(transition('invoiced', 'cancelled', 'user', now)).toEqual({ ok: false, error: 'not-allowed' });
+  });
+
+  test('the allowed transitions are 13 of 72, and the other 59 are refused, confirmed or not', () => {
+    expect(every).toHaveLength(72);
+    expect(allowed).toHaveLength(13);
+    expect(forbidden).toHaveLength(59);
     for (const [from, to, by] of forbidden) {
-      expect(transition(from, to, by, new Date()), `${from} -> ${to} by ${by}`).toEqual({ ok: false, error: 'not-allowed' });
+      expect(transition(from, to, by, now, { confirmed: true }), `${from} -> ${to} by ${by}, confirmed`).toEqual({ ok: false, error: 'not-allowed' });
+      expect(transition(from, to, by, now), `${from} -> ${to} by ${by}`).toEqual({ ok: false, error: 'not-allowed' });
     }
   });
 
-  test('Hotová cannot be reached again, so the Dátum dokončenia is never overwritten', () => {
-    expect(transition('done', 'done', 'user', new Date())).toEqual({ ok: false, error: 'not-allowed' });
+  test('Hotová is not reached from Hotová, so the Dátum dokončenia is not overwritten by a second click', () => {
+    expect(transition('done', 'done', 'user', now)).toEqual({ ok: false, error: 'not-allowed' });
+  });
+});
+
+describe('the buttons of a status', () => {
+  test.each(['received', 'inProgress', 'waitingForParts'] as const)('%s offers the other two rozpracované statuses, Hotová, and Zrušená with its confirmation', (status) => {
+    const others = (['received', 'inProgress', 'waitingForParts'] as const).filter((to) => to !== status);
+
+    expect(userTransitions(status)).toEqual([
+      ...others.map((to) => ({ to, confirm: false })),
+      { to: 'done', confirm: false },
+      { to: 'cancelled', confirm: true },
+    ]);
+  });
+
+  test.each(['done', 'invoiced', 'cancelled'] as const)('%s offers no button: leaving it is for the invoice or a later ticket', (status) => {
+    expect(userTransitions(status)).toEqual([]);
   });
 });
 
 describe('what a status allows', () => {
   test.each([
+    ['received', true],
+    ['inProgress', true],
+    ['waitingForParts', true],
+    ['done', false],
+    ['invoiced', false],
+    ['cancelled', false],
+  ] as const)('%s is rozpracovaná: %s', (status, active) => {
+    expect(isActive(status)).toBe(active);
+  });
+
+  test.each([
     ['received', false],
+    ['inProgress', false],
+    ['waitingForParts', false],
     ['done', false],
     ['invoiced', true],
-  ] as const)('%s is closed: %s', (status, closed) => {
+    ['cancelled', true],
+  ] as const)('%s is Uzavretá: %s', (status, closed) => {
     expect(isClosed(status)).toBe(closed);
   });
 
   test.each([
     ['received', true],
+    ['inProgress', true],
+    ['waitingForParts', true],
     ['done', false],
     ['invoiced', false],
-  ] as const)('items can be added in %s: %s', (status, allowed) => {
-    expect(canAddItems(status)).toBe(allowed);
+    ['cancelled', false],
+  ] as const)('items and the header can be edited in %s: %s', (status, allowed) => {
+    expect(canEdit(status)).toBe(allowed);
   });
 });
 
@@ -163,6 +228,7 @@ describe('a Zákazka as the admin types it', () => {
     ['0', 0],
     ['123456', 123456],
     ['123 456', 123456],
+    ['00000001', 1],
     [' 9999999 ', 9999999],
   ])('kilometres "%s" are %i, and the Zákazka is these two values and nothing else', (typed, km) => {
     expect(parseWorkOrder({ mileageKm: typed, customerRequest: 'Servis' })).toEqual({

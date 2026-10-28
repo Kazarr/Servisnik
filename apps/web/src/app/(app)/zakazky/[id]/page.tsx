@@ -1,4 +1,4 @@
-import { canAddItems } from '@servisnik/domain/work-order';
+import { canEdit, userTransitions } from '@servisnik/domain/work-order';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -9,7 +9,7 @@ import { formatDate, formatEuro, formatPartCount, formatPercent, formatQuantity,
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { DeleteItemForm } from './delete-item-form.tsx';
 import { ItemForm } from './item-form.tsx';
-import { MarkDoneForm } from './mark-done-form.tsx';
+import { StatusForm } from './status-form.tsx';
 
 export const metadata: Metadata = { title: 'Zákazka' };
 
@@ -17,7 +17,8 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
   const user = await currentUserWith('work-orders.read');
   const order = await getWorkOrder(user, (await params).id);
   if (!order) notFound();
-  const rates = canAddItems(order.status) ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
+  const transitions = userTransitions(order.status);
+  const rates = canEdit(order.status) ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
 
   return (
     <>
@@ -145,9 +146,9 @@ export default async function WorkOrderPage({ params }: { params: Promise<{ id: 
           <ItemForm rates={rates} target={{ workOrderId: order.id, kind: 'labour' }} />
           <h2>Pridať diel</h2>
           <ItemForm rates={rates} target={{ workOrderId: order.id, kind: 'part' }} />
-          <MarkDoneForm workOrderId={order.id} />
         </>
       )}
+      {transitions.length > 0 && <StatusForm workOrderId={order.id} transitions={transitions} />}
     </>
   );
 }

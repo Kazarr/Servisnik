@@ -1,6 +1,6 @@
 import {
   amountsOf,
-  canAddItems,
+  canEdit,
   formatWorkOrderNumber,
   isClosed,
   localYear,
@@ -14,6 +14,7 @@ import {
   type ItemInput,
   type WorkOrderErrors,
   type WorkOrderInput,
+  type WorkOrderStatus,
 } from '@servisnik/domain/work-order';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
@@ -71,13 +72,13 @@ type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /**
  * Locks the Zákazka until the transaction ends and says whether its Položky may change now. The domain's
- * `canAddItems` is that one condition for adding, changing and deleting an item; the lock keeps a change
- * from landing after the Zákazka became Hotová.
+ * `canEdit` is that one condition for adding, changing and deleting an item; the lock keeps a change from
+ * landing after the Zákazka became Hotová or Zrušená.
  */
 async function lockForItems(tx: Transaction, workOrderId: string): Promise<'ok' | 'unknown' | 'not-editable'> {
   const [found] = await rowsIfUuid(workOrderId, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, workOrderId)).for('update'));
   if (!found) return 'unknown';
-  return canAddItems(found.status) ? 'ok' : 'not-editable';
+  return canEdit(found.status) ? 'ok' : 'not-editable';
 }
 
 export type AddItemResult =
@@ -85,7 +86,7 @@ export type AddItemResult =
   | { ok: false; errors: ItemErrors & { workOrder?: 'unknown' | 'not-editable' } };
 
 /**
- * Adds a Práca or a Diel to a Zákazka that is still Prijatá. The item keeps the VAT rate it has now: one of the
+ * Adds a Práca or a Diel to a Zákazka that is still Rozpracovaná. The item keeps the VAT rate it has now: one of the
  * rates of Nastavenia, the default one when none is given (read with getRates, so a Rola that may write work but
  * not read Nastavenia is refused), and a later change of the rates leaves the item alone.
  */
@@ -107,7 +108,7 @@ export type UpdateItemResult =
   | { ok: false; errors: ItemErrors & { item?: 'unknown'; workOrder?: 'not-editable' } };
 
 /**
- * Replaces what the form of an item sends, on a Zákazka that is still Prijatá: the kind of the item stays. What is
+ * Replaces what the form of an item sends, on a Zákazka that is still Rozpracovaná: the kind of the item stays. What is
  * left out is as when adding, except a VAT rate, which stays the one the item has. That rate is allowed even when
  * Nastavenia no longer offer it, so an old item can still be edited; any other must be one they offer.
  */
@@ -129,7 +130,7 @@ export async function updateItem(user: User | null, itemId: string, input: Omit<
 
 export type DeleteItemResult = { ok: true; workOrderId: string } | { ok: false; error: 'unknown' | 'not-editable' };
 
-/** Deletes an item of a Zákazka that is still Prijatá, under the same lock as adding one. */
+/** Deletes an item of a Zákazka that is still Rozpracovaná, under the same lock as adding one. */
 export async function deleteItem(user: User | null, itemId: string, db: Database = getDb()): Promise<DeleteItemResult> {
   assertCan(user, 'work-orders.write');
   return db.transaction(async (tx) => {
@@ -142,16 +143,27 @@ export async function deleteItem(user: User | null, itemId: string, db: Database
   });
 }
 
-export type MarkDoneResult = { ok: true } | { ok: false; error: 'unknown' | 'not-allowed' };
+export type ChangeStatusResult = { ok: true } | { ok: false; error: 'unknown' | 'not-allowed' | 'confirmation-required' };
 
-/** Prijatá becomes Hotová and the Dátum dokončenia is stored; the domain's transition table decides, under a row lock. */
-export async function markWorkOrderDone(user: User | null, id: string, db: Database = getDb(), now: Date = new Date()): Promise<MarkDoneResult> {
+/**
+ * The admin takes a Zákazka to the status `to`: the domain's transition table decides, under a row lock,
+ * so two clicks at once change it once. Hotová stores the Dátum dokončenia (every time), the other
+ * statuses leave it as it is. Zrušená needs `confirmed`. Whether a mechanik may do this is ledger
+ * question 11 (#43), so it is `work-orders.write`, the admin's alone.
+ */
+export async function changeWorkOrderStatus(
+  user: User | null,
+  id: string,
+  { to, confirmed }: { to: WorkOrderStatus; confirmed?: boolean },
+  db: Database = getDb(),
+  now: Date = new Date(),
+): Promise<ChangeStatusResult> {
   assertCan(user, 'work-orders.write');
   return db.transaction(async (tx) => {
     const [found] = await rowsIfUuid(id, tx.select({ status: workOrder.status }).from(workOrder).where(eq(workOrder.id, id)).for('update'));
     if (!found) return { ok: false, error: 'unknown' };
-    const changed = transition(found.status, 'done', 'user', now);
-    if (!changed.ok) return { ok: false, error: 'not-allowed' };
+    const changed = transition(found.status, to, 'user', now, { confirmed });
+    if (!changed.ok) return changed;
     await tx.update(workOrder).set({ status: changed.status, completedOn: changed.completedOn }).where(eq(workOrder.id, id));
     return { ok: true };
   });
