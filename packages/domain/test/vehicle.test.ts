@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { firstVehicleYear, fuels, lastVehicleYear, parseLicensePlate, parseVehicle, parseVin } from '../src/vehicle/index.ts';
+import { firstVehicleYear, fuels, lastVehicleYear, parseLicensePlate, parseMileageKm, parseVehicle, parseVin } from '../src/vehicle/index.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
 const currentYear = 2026;
@@ -147,6 +147,7 @@ describe('Vehicle', () => {
       ['0', 0],
       ['123456', 123456],
       ['123 456', 123456],
+      ['00000001', 1],
       ['9999999', 9_999_999],
     ])('%s km is stored as %i', (typed, stored) => {
       expect(parse({ mileageKm: typed })).toMatchObject({ ok: true, vehicle: { mileageKm: stored } });
@@ -156,12 +157,28 @@ describe('Vehicle', () => {
       expect(parse({ mileageKm: ' ' })).toMatchObject({ ok: true, vehicle: { mileageKm: null } });
     });
 
-    test.each(['-1', '1.5', '1,5', '10 000 km', '10000000'])('%s km is not a whole non-negative number a PostgreSQL integer holds', (typed) => {
+    test.each(['-1', '1.5', '1,5', '10 000 km', '10000000'])('%s km is not a whole number from 0 to 9 999 999', (typed) => {
       expect(parse({ mileageKm: typed })).toEqual({ ok: false, errors: { mileageKm: 'invalid' } });
     });
   });
 
   test('a blank note is no note', () => {
     expect(parse({ note: '  ' })).toMatchObject({ ok: true, vehicle: { note: null } });
+  });
+});
+
+describe('Stav km', () => {
+  test.each([
+    ['0', 0],
+    ['123456', 123456],
+    [' 123 456 ', 123456],
+    ['00000001', 1],
+    ['9 999 999', 9_999_999],
+  ])('"%s" is %i', (typed, km) => {
+    expect(parseMileageKm(typed)).toBe(km);
+  });
+
+  test.each(['', '  ', '-1', '1.5', '1,5', '10 000 km', '10000000', '10 000 000'])('"%s" is not a whole number from 0 to 9 999 999', (typed) => {
+    expect(parseMileageKm(typed)).toBeNull();
   });
 });
