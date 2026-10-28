@@ -14,6 +14,7 @@ import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
+import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
 import { account, customer, user as userTable, vehicle, workOrder, workOrderCounter, workOrderItem, workshop, workshopLogo } from '../src/db/schema.ts';
 import { admin, mechanic } from './support/dal-users.ts';
@@ -65,6 +66,14 @@ const calls: Record<string, Call> = {
   listWorkOrdersOfCustomer: (user, db) => workOrders.listWorkOrdersOfCustomer(user, ownerId, db),
   getRates: (user, db) => settings.getRates(user, db),
   saveRates: (user, db) => settings.saveRates(user, { vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' }, db),
+  getWorkshopDetails: (user, db) => workshopDetails.getWorkshopDetails(user, db),
+  getVatPayerType: (user, db) => workshopDetails.getVatPayerType(user, db),
+  saveWorkshopDetails: (user, db) =>
+    workshopDetails.saveWorkshopDetails(
+      user,
+      { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
+      db,
+    ),
   getLogo: (user, db) => logo.getLogo(user, db),
   getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
   saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
@@ -78,7 +87,7 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'changeOwnPassword', 'getLogo'];
+const mechanikMay = ['listWorkOrders', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = {
@@ -89,6 +98,7 @@ const dataAccess = {
   'users.ts': users,
   'vehicles.ts': vehicles,
   'work-orders.ts': workOrders,
+  'workshop.ts': workshopDetails,
 };
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the refused
