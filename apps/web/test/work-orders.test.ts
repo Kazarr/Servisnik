@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { UnauthenticatedError } from '../src/dal/user.ts';
-import { createVehicle } from '../src/dal/vehicles.ts';
+import { createVehicle, transferOwnership } from '../src/dal/vehicles.ts';
 import {
   addLabour,
   changeWorkOrderStatus,
@@ -114,7 +114,7 @@ test('after the vehicle is transferred to a new owner the Zákazka stays with it
   const buyer = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   const id = await newWorkOrderId();
 
-  await ctx.db.execute(sql`update vehicle set owner_id = ${buyer} where id = ${vehicleId}`);
+  await transferOwnership(admin, vehicleId, { fromOwnerId: ownerId, toOwnerId: buyer }, ctx.db);
   const next = await newWorkOrderId();
 
   expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ customer: { id: ownerId, name: 'Firma s.r.o.' } });
@@ -419,7 +419,7 @@ test('a customer lists every Zákazka they are the customer of, from the newest,
 test('after a Prepis the Zákazky stay with the customer they were made for, not with the owner of the vehicle', async () => {
   const buyer = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   const sold = await newWorkOrderId();
-  await ctx.db.execute(sql`update vehicle set owner_id = ${buyer} where id = ${vehicleId}`);
+  await transferOwnership(admin, vehicleId, { fromOwnerId: ownerId, toOwnerId: buyer }, ctx.db);
   const bought = await newWorkOrderId();
 
   expect((await listWorkOrdersOfCustomer(admin, ownerId, ctx.db)).map(({ id }) => id)).toEqual([sold]);
