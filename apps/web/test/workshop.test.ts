@@ -137,9 +137,9 @@ test('the mechanik cannot save details: forbidden, and what is saved stays', asy
   expect(await getWorkshopDetails(admin, ctx.db)).toEqual(savedDetails);
 });
 
-// The helper reads VAT and IČ DPH as prices by their names. The two keys it finds in the details are an identification and the status of the autoservis, no amount; any other key is a surprise.
-test('the details the mechanik reads have no price in them: the helper finds only the IČ DPH and the platiteľ DPH', async () => {
+// The IČ DPH and the platiteľ DPH are identification and status, no amount (the helper skips exactly those two keys); any other key with a price word in the details would show here.
+test('the details the mechanik reads have no price key in them', async () => {
   await saveWorkshopDetails(admin, typed, ctx.db);
 
-  expect(findPriceKeys(await getWorkshopDetails(mechanic, ctx.db))).toEqual(['$.icDph', '$.vatPayerType']);
+  expect(findPriceKeys(await getWorkshopDetails(mechanic, ctx.db))).toEqual([]);
 });

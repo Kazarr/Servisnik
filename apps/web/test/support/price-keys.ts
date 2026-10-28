@@ -18,6 +18,12 @@ const wordsOf = (key: string) =>
     .toLowerCase()
     .split(/[^a-z0-9]+/);
 
+// The only two keys with a price word that are none: the IČ DPH and the platiteľ DPH of the autoservis (Údaje autoservisu)
+// identify it on the tlačivá a mechanik prints, and are no amount. Exactly these keys, so `vatRate` or `icDphAmount` stay prices.
+const notPriceKeys = new Set(['icDph', 'vatPayerType']);
+
+const isPriceKey = (key: string) => !notPriceKeys.has(key) && wordsOf(key).some((word) => priceWords.has(word));
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !(value instanceof Date);
 
@@ -25,12 +31,12 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
  * The path of every price key anywhere in `response`, however deep in objects and arrays, e.g.
  * `$[0].items[1].unitPriceCents`; empty when there is none. A mechanik must never get one from the
  * Data Access Layer (`expect(findPriceKeys(response)).toEqual([])`). A price key is reported as a
- * whole, its value is not searched.
+ * whole, its value is not searched; `icDph` and `vatPayerType` are not price keys (`notPriceKeys`).
  */
 export function findPriceKeys(response: unknown, path = '$'): string[] {
   if (Array.isArray(response)) return response.flatMap((item, index) => findPriceKeys(item, `${path}[${index}]`));
   if (!isObject(response)) return [];
   return Object.entries(response).flatMap(([key, value]) =>
-    wordsOf(key).some((word) => priceWords.has(word)) ? [`${path}.${key}`] : findPriceKeys(value, `${path}.${key}`),
+    isPriceKey(key) ? [`${path}.${key}`] : findPriceKeys(value, `${path}.${key}`),
   );
 }
