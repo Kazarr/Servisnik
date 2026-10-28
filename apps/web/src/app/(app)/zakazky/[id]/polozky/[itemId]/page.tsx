@@ -1,4 +1,4 @@
-import { canAddItems } from '@servisnik/domain/work-order';
+import { canEdit } from '@servisnik/domain/work-order';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -16,7 +16,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
   const order = await getWorkOrder(user, id);
   const item = order?.items.find((found) => found.id === itemId);
   if (!order || !item) notFound();
-  if (!canAddItems(order.status)) redirect(`/zakazky/${order.id}`);
+  if (!canEdit(order.status)) redirect(`/zakazky/${order.id}`);
   const rates = await getRates(user);
 
   return (
