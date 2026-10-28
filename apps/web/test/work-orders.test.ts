@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
-import { UnauthenticatedError, type User } from '../src/dal/user.ts';
+import { UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
 import {
   addLabour,
@@ -12,10 +12,10 @@ import {
   listWorkOrders,
   markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
+import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 
-const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
 const summer = new Date('2026-07-15T10:00:00Z');
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;

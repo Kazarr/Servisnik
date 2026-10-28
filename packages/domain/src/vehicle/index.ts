@@ -1,4 +1,4 @@
-// Vehicle area (GLOSSARY: Zákazníci a vozidlá). Pure rules: no framework, database or network.
+// Vehicle area (GLOSSARY: Vozidlá). Pure rules: no framework, database or network.
 
 /** `confusable`: an I, O or Q, which a VIN never has (1 is meant by I, 0 by O and Q); `characters`: anything else but A-Z and 0-9. */
 export type VinError = 'length' | 'characters' | 'confusable';

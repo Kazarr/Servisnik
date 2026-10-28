@@ -4,13 +4,13 @@ import { parseLicensePlate } from '@servisnik/domain/vehicle';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer } from '../src/dal/customers.ts';
-import { UnauthenticatedError, type User } from '../src/dal/user.ts';
+import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle, getVehicle, listVehicles, updateVehicle } from '../src/dal/vehicles.ts';
 import { createWorkOrder, getWorkOrder } from '../src/dal/work-orders.ts';
+import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 
-const admin: User = { id: 'user-1', email: 'admin@autoservis.test', name: 'Admin', role: 'admin' };
 const vin = 'WVWZZZ1JZ3W386752';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
@@ -49,6 +49,37 @@ test('without a user every function rejects, and nothing is written', async () =
   await expect(getVehicle(null, saved, ctx.db)).rejects.toBeInstanceOf(UnauthenticatedError);
 
   expect(await listVehicles(admin, ctx.db)).toEqual(before);
+});
+
+test('a mechanik cannot add a vehicle, and nothing is written', async () => {
+  await expect(createVehicle(mechanic, golf(), ctx.db)).rejects.toBeInstanceOf(ForbiddenError);
+
+  expect(await listVehicles(admin, ctx.db)).toEqual([]);
+});
+
+test('a vehicle for an owner that does not exist, or an id that is not one, is not saved', async () => {
+  const unknown = { ok: false, errors: { owner: 'unknown' } };
+
+  await expect(createVehicle(admin, golf({ ownerId: randomUUID() }), ctx.db)).resolves.toEqual(unknown);
+  await expect(createVehicle(admin, golf({ ownerId: 'zakaznik-1' }), ctx.db)).resolves.toEqual(unknown);
+  expect(await listVehicles(admin, ctx.db)).toEqual([]);
+});
+
+test('a field error, and a VIN that is taken, are answered before an owner that does not exist', async () => {
+  idOf(await createVehicle(admin, golf(), ctx.db));
+  const nobody = randomUUID();
+
+  // Every input below also names an owner that does not exist, or one that is not an id.
+  await expect(createVehicle(admin, golf({ ownerId: nobody, vin: 'WVWZZZ1JZ3W38675O' }), ctx.db)).resolves.toEqual({
+    ok: false,
+    errors: { vin: 'confusable' },
+  });
+  await expect(createVehicle(admin, golf({ ownerId: 'zakaznik-1', vin: 'WVWZZZ1JZ3W38675O' }), ctx.db)).resolves.toEqual({
+    ok: false,
+    errors: { vin: 'confusable' },
+  });
+  await expect(createVehicle(admin, golf({ ownerId: nobody }), ctx.db)).resolves.toMatchObject({ ok: false, errors: { vin: 'taken' } });
+  expect(await listVehicles(admin, ctx.db)).toHaveLength(1);
 });
 
 test('a vehicle is saved with its VIN and ŠPZ normalised and read back with its owner', async () => {

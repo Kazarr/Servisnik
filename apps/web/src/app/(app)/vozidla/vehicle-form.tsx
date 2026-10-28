@@ -4,6 +4,7 @@ import { fuels, type Fuel } from '@servisnik/domain/vehicle';
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { Field, FormError, SelectField, TextAreaField } from '../field.tsx';
+import { valueIn } from '../form-value.ts';
 import type { VehicleFormState } from './actions.ts';
 import { fuelLabels } from './fuel-labels.ts';
 
@@ -43,7 +44,7 @@ export function VehicleForm({
     mileageKm: String(vehicle?.mileageKm ?? ''),
     note: vehicle?.note ?? '',
   };
-  const value = (name: keyof typeof saved) => (state ? state.values[name] : saved[name]);
+  const value = valueIn(state, saved);
   const errors = state?.errors ?? {};
   const existing = state?.existing;
   const taken = existing && (

@@ -20,7 +20,7 @@ _Avoid_: účet, pracovník
 Určuje, čo používateľ v Servisníku vidí: `admin` vidí všetko, `mechanik` len zákazky a bez cien.
 _Avoid_: oprávnenie, typ používateľa
 
-### Zákazníci a vozidlá
+### Zákazníci
 
 **Zákazník** (`Customer`):
 Osoba alebo firma, ktorej autoservis opravuje vozidlá a vystavuje faktúry. Je to buď osoba, alebo firma.
@@ -34,6 +34,8 @@ _Avoid_: fyzická osoba, súkromník
 Zákazník s IČO, teda právnická osoba aj živnostník.
 _Avoid_: podnikateľ, organizácia, SZČO
 
+### Vozidlá
+
 **Vozidlo** (`Vehicle`):
 Auto, ktoré autoservis eviduje a opravuje, určené svojím VIN.
 _Avoid_: auto, motorové vozidlo
@@ -42,9 +44,16 @@ _Avoid_: auto, motorové vozidlo
 17-miestny identifikačný kód vozidla. Určuje vozidlo v Servisníku jednoznačne.
 _Avoid_: číslo karosérie, výrobné číslo
 
+**Značka vozidla** (`make`):
+Výrobca vozidla, napríklad Volkswagen alebo Škoda. Pri vozidle (stĺpec, pole formulára) stačí „Značka“; ŠPZ sa tak nenazýva.
+
+**Model** (`model`):
+Označenie vozidla od jeho výrobcu, napríklad Golf alebo Octavia.
+_Avoid_: typ (to je osoba alebo firma)
+
 **ŠPZ** (`licensePlate`):
-Evidenčné číslo na značke vozidla. Neurčuje vozidlo, lebo sa môže zmeniť alebo prejsť na iné auto.
-_Avoid_: EČV, evidenčné číslo, značka
+Evidenčné číslo na tabuľke vozidla. Neurčuje vozidlo, lebo sa môže zmeniť alebo prejsť na iné auto.
+_Avoid_: EČV, evidenčné číslo, poznávacia značka, značka (to je výrobca vozidla)
 
 **Majiteľ** (`owner`):
 Zákazník, ku ktorému autoservis vozidlo práve eviduje. Je to ten, kto auto vozí a platí, nie vlastník z technického preukazu (pri lízingu je vlastníkom lízingová spoločnosť).
