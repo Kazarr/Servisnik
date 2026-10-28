@@ -390,9 +390,8 @@ test('a customer lists every Zákazka they are the customer of, from the newest,
   const second = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   const received = await newWorkOrderId();
   const done = await newWorkOrderId({ vehicleId: second });
-  await markWorkOrderDone(admin, done, ctx.db, summer);
-  const invoiced = await newWorkOrderId();
-  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
+  await move(done, 'done');
+  const invoiced = await workOrderIn('invoiced'); // Uzavretá, and still listed
   await newWorkOrderId({ customerId: other }); // on a vehicle of the owner, but for someone else
 
   const orders = await listWorkOrdersOfCustomer(admin, ownerId, ctx.db);
