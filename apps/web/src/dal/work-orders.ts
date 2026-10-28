@@ -147,6 +147,17 @@ export async function listWorkOrdersOfVehicle(user: User | null, vehicleId: stri
   return rowsIfUuid(vehicleId, selectListed(db, {}).where(eq(workOrder.vehicleId, vehicleId)).orderBy(desc(workOrder.createdAt)));
 }
 
+/**
+ * The Zákazky made for a Zákazník, in any Stav, newest first, each with its customer and vehicle. A Zákazka
+ * belongs to the customer it was made for, so the Zákazky of other customers on his vehicles are not here,
+ * and after a Prepis the Zákazky stay with the customer they were made for.
+ */
+export async function listWorkOrdersOfCustomer(user: User | null, customerId: string, db: Database = getDb()) {
+  assertCan(user, 'work-orders.read');
+  if (!isUuid(customerId)) return [];
+  return selectListed(db, {}).where(eq(workOrder.customerId, customerId)).orderBy(desc(workOrder.createdAt));
+}
+
 /** One Zákazka with its items, the amounts of each and the totals, or null when there is none with this id. */
 export async function getWorkOrder(user: User | null, id: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
