@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer } from '../src/dal/customers.ts';
-import { UnauthenticatedError } from '../src/dal/user.ts';
+import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
 import { createVehicle, getVehicle, listVehicles } from '../src/dal/vehicles.ts';
-import { admin, idOf } from './support/dal.ts';
+import { admin, idOf, mechanic } from './support/dal.ts';
 import { createTestDb } from './support/db.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
@@ -38,6 +38,20 @@ test('without a user every function rejects, and nothing is written', async () =
   await expect(getVehicle(null, saved, ctx.db)).rejects.toBeInstanceOf(UnauthenticatedError);
 
   expect(await listVehicles(admin, ctx.db)).toEqual(before);
+});
+
+test('a mechanik cannot add a vehicle, and nothing is written', async () => {
+  await expect(createVehicle(mechanic, golf(), ctx.db)).rejects.toBeInstanceOf(ForbiddenError);
+
+  expect(await listVehicles(admin, ctx.db)).toEqual([]);
+});
+
+test('a vehicle for an owner that does not exist, or an id that is not one, is not saved', async () => {
+  const unknown = { ok: false, errors: { owner: 'unknown' } };
+
+  await expect(createVehicle(admin, golf({ ownerId: randomUUID() }), ctx.db)).resolves.toEqual(unknown);
+  await expect(createVehicle(admin, golf({ ownerId: 'zakaznik-1' }), ctx.db)).resolves.toEqual(unknown);
+  expect(await listVehicles(admin, ctx.db)).toEqual([]);
 });
 
 test('a vehicle is saved with its VIN normalised and read back with its owner', async () => {
