@@ -1,6 +1,6 @@
-import { capabilities } from '@servisnik/domain/access';
+import { can, capabilities, roles } from '@servisnik/domain/access';
 import { expect, test } from 'vitest';
-import { menu, menuFor } from '../src/app/(app)/menu.ts';
+import { menu, menuFor, ownPassword } from '../src/app/(app)/menu.ts';
 
 const shown = (role: 'admin' | 'mechanik') => menuFor(role).map(({ href, label }) => ({ href, label }));
 
@@ -19,4 +19,10 @@ test('the mechanik sees only Zákazky', () => {
 
 test('every item of the menu names a capability the domain knows', () => {
   for (const { href, capability } of menu) expect(capabilities, href).toContain(capability);
+});
+
+test('the e-mail under the menu links to the change of the own password, which both roles may open', () => {
+  expect(ownPassword).toEqual({ href: '/heslo', capability: 'password.change' });
+  expect(capabilities).toContain(ownPassword.capability);
+  for (const role of roles) expect(can(role, ownPassword.capability), role).toBe(true);
 });
