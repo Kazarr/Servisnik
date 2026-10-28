@@ -22,8 +22,9 @@ type Spec = {
 };
 const spec = () => parse(read('.do/app.yaml')) as Spec;
 
-type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
-type Workflow = { on: Record<string, unknown>; jobs: Record<string, { if?: string; environment?: string; steps: Step[] }> };
+type Step = { id?: string; name?: string; if?: string; shell?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
+type Job = { if?: string; environment?: string; defaults?: { run?: { shell?: string } }; steps: Step[] };
+type Workflow = { on: Record<string, unknown>; jobs: Record<string, Job> };
 const workflow = () => parse(read('.github/workflows/deploy.yml')) as Workflow;
 const steps = () => workflow().jobs.deploy!.steps;
 const stepIndex = (match: (step: Step) => boolean) => {
@@ -39,6 +40,7 @@ const isSmoke = (step: Step) => /pnpm smoke/.test(step.run ?? '');
 const isLogBefore = (step: Step) => /doctl apps logs/.test(step.run ?? '') && !isLogDiff(step);
 const isLogDiff = (step: Step) => (step.run ?? '').includes('tools/log-diff.ts');
 const isRetention = (step: Step) => (step.run ?? '').includes('tools/registry-retention.ts');
+const isGcWait = (step: Step) => (step.run ?? '').includes('garbage-collection get-active');
 const step = (match: (step: Step) => boolean) => steps()[stepIndex(match)]!;
 
 // What DigitalOcean fills in itself: bindable variables of a component (`${db.DATABASE_URL}`) and the app URL.
@@ -219,11 +221,25 @@ test('the deploy does not print the deployment logs of a public repository', () 
   expect(step(isDeploy).with?.print_deploy_logs).toBe(false);
 });
 
-test('the deploy workflow checks secrets, then the ticket check, then builds, records the log, deploys, smokes, compares the log and cleans the registry, in that order', () => {
-  const order = [isSecretCheck, isGate, isBuild, isLogBefore, isDeploy, isSmoke, isLogDiff, isRetention].map(stepIndex);
+test('the deploy workflow checks secrets, then the ticket check, waits for the registry, builds, records the log, deploys, smokes, compares the log and cleans the registry, in that order', () => {
+  const order = [isSecretCheck, isGate, isGcWait, isBuild, isLogBefore, isDeploy, isSmoke, isLogDiff, isRetention].map(stepIndex);
 
   expect(order).toEqual([...order].sort((a, b) => a - b));
   expect(new Set(order).size).toBe(order.length);
+});
+
+// The runner runs `bash -e {0}` for a step without `shell:`, which lets a pipe pass when its first command fails.
+const shellOf = (step: Step) => step.shell ?? workflow().jobs.deploy!.defaults?.run?.shell;
+const piping = (step: Step) => /(^|[^|])\|([^|]|$)/.test(step.run ?? '');
+
+test('every step that pipes runs under `shell: bash`, which adds pipefail: a failing first command of a pipe fails the step', () => {
+  expect(steps().filter(piping).map(({ name }) => name)).toEqual(expect.arrayContaining([step(isGate).name, step(isRetention).name]));
+  for (const piped of steps().filter(piping)) expect(shellOf(piped), piped.name).toBe('bash');
+});
+
+test('the registry is cleaned after a failed deploy too, as long as the image was pushed: a streak of failed deploys must not fill it', () => {
+  expect(step(isBuild).id).toBe('push');
+  expect(step(isRetention).if).toBe("always() && steps.push.outcome == 'success'");
 });
 
 test('the deploy workflow tags the image with the commit SHA and smokes the URL of the deployed app', () => {
@@ -240,18 +256,35 @@ test('the commit travels from the workflow into the image and back into the smok
   expect(step(isSmoke).run).toMatch(/pnpm smoke "\$LIVE_URL" "\$GITHUB_SHA"/);
 });
 
-// The log and registry steps run as they are, in a temporary directory, against a `doctl` that records its calls and
-// answers from the files `logs` and `tags` there (no `logs` file: it fails, as it does for an app that does not exist).
+// The log and registry steps run as they are, the way the runner runs them (bash with -e, and pipefail under `shell: bash`),
+// in a temporary directory, against a `doctl` that records its calls and answers from the files there: `logs`, `tags`,
+// `apps` (a missing file makes that call fail, as an app that does not exist or an API that is down would) and
+// `gc-active`, the number of times `garbage-collection get-active` still finds a collection running.
 const repoRoot = fileURLToPath(new URL('..', import.meta.url)).replaceAll('\\', '/');
+const fakeDoctl = [
+  '#!/bin/sh',
+  'echo "$*" >> "$DIR/calls"',
+  'case "$1 $2 $3" in',
+  '  "apps logs"*) cat "$DIR/logs" || exit 1 ;;',
+  '  "apps list"*) cat "$DIR/apps" ;;',
+  '  "registry repository list-tags") cat "$DIR/tags" ;;',
+  '  "registry garbage-collection get-active")',
+  '    left=$(cat "$DIR/gc-active" 2>/dev/null || echo 0)',
+  '    [ "$left" -gt 0 ] || exit 1',
+  '    echo $((left - 1)) > "$DIR/gc-active" ;;',
+  'esac',
+  '',
+].join('\n');
 type Given = { logs?: string; tags?: string; files?: Record<string, string>; env?: Record<string, string> };
-function execute({ run }: Step, { logs, tags, files = {}, env = {} }: Given) {
+function execute(workflowStep: Step, { logs, tags, files = {}, env = {} }: Given) {
   const dir = mkdtempSync(join(tmpdir(), 'deploy-step-')).replaceAll('\\', '/');
   mkdirSync(`${dir}/bin`);
-  writeFileSync(`${dir}/bin/doctl`, '#!/bin/sh\necho "$*" >> "$DIR/calls"\ncase "$1 $2 $3" in\n  "apps logs"*) cat "$DIR/logs" || exit 1 ;;\n  "registry repository list-tags") cat "$DIR/tags" ;;\nesac\n', { mode: 0o755 });
+  writeFileSync(`${dir}/bin/doctl`, fakeDoctl, { mode: 0o755 });
   for (const [file, content] of Object.entries({ ...files, ...(logs === undefined ? {} : { logs }), ...(tags === undefined ? {} : { tags }) })) writeFileSync(`${dir}/${file}`, content);
   const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
   const environment = { ...process.env, ...env, DIR: dir, RUNNER_TEMP: dir, [pathKey]: `${dir}/bin${delimiter}${process.env[pathKey]}` };
-  const { status, stdout, stderr } = spawnSync('bash', ['-c', run!], { cwd: repoRoot, env: environment, encoding: 'utf8' });
+  const flags = shellOf(workflowStep) === 'bash' ? ['-eo', 'pipefail'] : ['-e'];
+  const { status, stdout, stderr } = spawnSync('bash', [...flags, '-c', workflowStep.run!], { cwd: repoRoot, env: environment, encoding: 'utf8' });
   const saved = (file: string) => (existsSync(`${dir}/${file}`) ? readFileSync(`${dir}/${file}`, 'utf8') : undefined);
   const result = { status, output: stdout + stderr, calls: saved('calls')?.split('\n').filter(Boolean) ?? [], saved: saved('run-before.log') };
   rmSync(dir, { recursive: true, force: true });
@@ -282,27 +315,60 @@ test('after the smoke the workflow fails on an error the run log gained, and pas
   expect(gained.output).toContain('::error title=Nové chyby v logu služby');
 });
 
-test('after the deploy the registry keeps the newest tags and the one just deployed, deletes the rest and collects the garbage', () => {
-  const tag = (name: string, day: number) => ({ tag: name, updated_at: `2026-10-0${day}T10:00:00Z` });
-  const tags = JSON.stringify([tag('a', 1), tag('b', 2), tag('c', 3), tag('d', 4), tag('e', 5)]);
+// Registry cleanup: the tags of the registry (a..e, e the newest) and the apps of the account, one of them ours.
+const tagged = (name: string, day: number) => ({ tag: name, updated_at: `2026-10-0${day}T10:00:00Z` });
+const registryTags = JSON.stringify([tagged('a', 1), tagged('b', 2), tagged('c', 3), tagged('d', 4), tagged('e', 5)]);
+const runningApps = (liveTag?: string) =>
+  JSON.stringify([{ spec: { name: spec().name }, ...(liveTag && { active_deployment: { spec: { services: [{ image: { tag: liveTag } }], jobs: [{ image: { tag: liveTag } }] } } }) }]);
+const listApps = 'apps list --output json';
+const listTags = 'registry repository list-tags servisnik --output json';
+const collect = 'registry garbage-collection start --include-untagged-manifests --force';
+const cleanup = (given: Given & { sha?: string } = {}) => execute(step(isRetention), { tags: registryTags, ...given, env: { GITHUB_SHA: given.sha ?? 'e', ...given.env } });
 
-  const { status, calls } = execute(step(isRetention), { tags, env: { GITHUB_SHA: 'e' } });
-
-  expect(status).toBe(0);
-  expect(calls).toEqual([
-    'registry repository list-tags servisnik --output json',
-    'registry repository delete-tag servisnik --force b a',
-    'registry garbage-collection start --include-untagged-manifests --force',
-  ]);
+test('after the push the registry keeps the newest tags, the one just pushed and the live one, deletes the rest and collects the garbage', () => {
+  expect(cleanup({ files: { apps: runningApps('d') } })).toMatchObject({
+    status: 0,
+    calls: [listApps, listTags, 'registry repository delete-tag servisnik --force b a', collect],
+  });
+  // The live version is the oldest tag: it stays, beside the one just pushed and the newest other.
+  expect(cleanup({ files: { apps: runningApps('a') } })).toMatchObject({
+    status: 0,
+    calls: [listApps, listTags, 'registry repository delete-tag servisnik --force c b', collect],
+  });
 });
 
-test('after the deploy the registry deletes no tag while it holds few, and still collects the garbage', () => {
-  const tags = JSON.stringify([{ tag: 'a', updated_at: '2026-10-01T10:00:00Z' }]);
+test('after the push the registry deletes no tag while it holds few, or while the app has no live version yet, and still collects the garbage', () => {
+  const few = JSON.stringify([tagged('a', 1)]);
 
-  const { status, calls } = execute(step(isRetention), { tags, env: { GITHUB_SHA: 'a' } });
+  expect(cleanup({ tags: few, sha: 'a', files: { apps: runningApps() } })).toMatchObject({ status: 0, calls: [listApps, listTags, collect] });
+});
 
-  expect(status).toBe(0);
-  expect(calls).toEqual(['registry repository list-tags servisnik --output json', 'registry garbage-collection start --include-untagged-manifests --force']);
+test('the registry is left alone, and the step fails, when the live version cannot be told: the apps call fails, or the deployment shows no image tag', () => {
+  const noTag = JSON.stringify([{ spec: { name: spec().name }, active_deployment: { spec: { services: [] } } }]);
+
+  expect(cleanup({})).toMatchObject({ status: 1, calls: [listApps] }); // no `apps` file: doctl fails
+  expect(cleanup({ files: { apps: noTag } })).toMatchObject({ status: 1, calls: [listApps, listTags] });
+});
+
+test('the registry is left alone, and the step fails, when listing its tags fails or its output is no JSON: a pipe does not hide the failure', () => {
+  const apps = { apps: runningApps('d') };
+  const listingFails = execute(step(isRetention), { files: apps, env: { GITHUB_SHA: 'e' } }); // no `tags` file: doctl fails
+  const notJson = cleanup({ tags: 'doctl: unauthorized', files: apps });
+
+  expect(listingFails).toMatchObject({ status: 1, calls: [listApps, listTags] });
+  expect(notJson).toMatchObject({ status: 1, calls: [listApps, listTags] });
+});
+
+test('before the build the workflow waits while the registry collects garbage, which keeps it read-only, and gives up after ten minutes', () => {
+  const wait = (collections: number) => execute(step(isGcWait), { files: { 'gc-active': String(collections) }, env: { GC_POLL_SECONDS: '0' } });
+  const poll = 'registry garbage-collection get-active';
+
+  expect(wait(0)).toMatchObject({ status: 0, calls: [poll] });
+  expect(wait(2)).toMatchObject({ status: 0, calls: [poll, poll, poll] });
+  const stuck = wait(99);
+  expect(stuck.status).toBe(1);
+  expect(stuck.calls).toHaveLength(30);
+  expect(stuck.output).toContain('::error');
 });
 
 test('the deploy workflow stops with a clear error naming each secret that is missing, before it builds', () => {
