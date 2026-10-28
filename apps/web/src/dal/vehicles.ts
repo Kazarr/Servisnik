@@ -1,7 +1,7 @@
 import { parseVehicle, parseVehicleSearch, type VehicleErrors, type VehicleInput, type VinError } from '@servisnik/domain/vehicle';
 import { localYear } from '@servisnik/domain/work-order';
 import { count, desc, eq, or } from 'drizzle-orm';
-import { getDb, type Database } from '../db/index.ts';
+import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { violates } from './constraint.ts';
 import { contains, pageWindow } from './paging.ts';
@@ -19,7 +19,7 @@ export type CreateVehicleResult =
 export type UpdateVehicleResult = { ok: true } | { ok: false; errors: VehicleSaveErrors & { vehicle?: 'unknown' }; existing?: Existing };
 
 /** The Vozidlá with their Majiteľ; the caller adds the filter and the order. */
-const vehiclesWithOwner = (db: Database) =>
+const vehiclesWithOwner = (db: Executor) =>
   db
     .select({
       id: vehicle.id,
@@ -37,7 +37,7 @@ const vehiclesWithOwner = (db: Database) =>
     .innerJoin(customer, eq(vehicle.ownerId, customer.id));
 
 /** The failure for a VIN that is taken, with the Vozidlo that has it. */
-async function vinTaken(vin: string, db: Database) {
+async function vinTaken(vin: string, db: Executor) {
   const [found] = await vehiclesWithOwner(db).where(eq(vehicle.vin, vin));
   const existing = found && { id: found.id, make: found.make, model: found.model, owner: found.owner };
   return { ok: false, errors: { vin: 'taken' }, existing } as const;
@@ -49,12 +49,13 @@ async function vinTaken(vin: string, db: Database) {
  * attempts at once cannot both get through. Once the fields parse and the VIN is free, an `ownerId`
  * that is no Zákazník comes back as `owner: 'unknown'`; the foreign key decides that too, so no check
  * can go stale before the insert. An `ownerId` that is not even an id comes back so as soon as the
- * fields parse.
+ * fields parse. As a step of a bigger transaction (`db`), an `ownerId` that is no Zákazník leaves that
+ * transaction aborted, because PostgreSQL aborts one on a foreign key violation: the caller rolls it back.
  */
 export async function createVehicle(
   user: User | null,
   input: VehicleInput & { ownerId: string },
-  db: Database = getDb(),
+  db: Executor = getDb(),
 ): Promise<CreateVehicleResult> {
   assertCan(user, 'vehicles.write');
   const { ownerId, ...fields } = input;

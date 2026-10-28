@@ -16,7 +16,7 @@ import {
 } from '@servisnik/domain/work-order';
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
-import { getDb, type Database } from '../db/index.ts';
+import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
 import { getRates } from './settings.ts';
 import { assertCan, type User } from './user.ts';
@@ -41,7 +41,7 @@ export type CreateWorkOrderResult =
 export async function createWorkOrder(
   user: User | null,
   input: WorkOrderInput & { vehicleId: string; customerId?: string },
-  db: Database = getDb(),
+  db: Executor = getDb(),
   now: Date = new Date(),
 ): Promise<CreateWorkOrderResult> {
   assertCan(user, 'work-orders.write');
