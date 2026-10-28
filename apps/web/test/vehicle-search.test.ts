@@ -116,7 +116,7 @@ test('a vehicle without a ŠPZ is found by its VIN and its owner, and a search b
   expect((await found('novak')).sort()).toEqual([vinOf(1), vinOf(2)]);
 });
 
-test('the list shows the VIN, ŠPZ, značka, model and owner of each vehicle, and the id that leads to it', async () => {
+test('the search returns the VIN, ŠPZ, značka, model and owner of each vehicle, and its id', async () => {
   const owner = await customer('Ján Novák');
   const id = await add(owner, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'ba-123 ab', make: 'Volkswagen', model: 'Golf' });
   await add(await customer('Peter Kováč'), { vin: vinOf(2) });
