@@ -10,6 +10,7 @@ import {
   getWorkOrder,
   listUnclosedWorkOrdersOfVehicle,
   listWorkOrders,
+  listWorkOrdersOfCustomer,
   markWorkOrderDone,
 } from '../src/dal/work-orders.ts';
 import { admin } from './support/dal-users.ts';
@@ -56,6 +57,7 @@ test('without a user every function rejects, and nothing is written', async () =
     getWorkOrder(null, id, ctx.db),
     listWorkOrders(null, ctx.db),
     listUnclosedWorkOrdersOfVehicle(null, vehicleId, ctx.db),
+    listWorkOrdersOfCustomer(null, ownerId, ctx.db),
   ];
   for (const call of rejected) await expect(call).rejects.toBeInstanceOf(UnauthenticatedError);
 
@@ -291,6 +293,50 @@ test('a vehicle lists its Zákazky that are not Uzavretá, Prijatá and Hotová,
     { id: received, number: 'Z2026-0001', status: 'received' },
   ]);
   expect(await listUnclosedWorkOrdersOfVehicle(admin, 'vozidlo-1', ctx.db)).toEqual([]);
+});
+
+test('a customer lists every Zákazka they are the customer of, from the newest, and none of other customers on their vehicles', async () => {
+  const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
+  const second = idOf(await createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000002', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
+  const received = await newWorkOrderId();
+  const done = await newWorkOrderId({ vehicleId: second });
+  await markWorkOrderDone(admin, done, ctx.db, summer);
+  const invoiced = await newWorkOrderId();
+  await ctx.db.execute(sql`update work_order set status = 'invoiced' where id = ${invoiced}`);
+  await newWorkOrderId({ customerId: other }); // on a vehicle of the owner, but for someone else
+
+  const orders = await listWorkOrdersOfCustomer(admin, ownerId, ctx.db);
+
+  expect(orders).toEqual([
+    {
+      id: invoiced,
+      number: 'Z2026-0003',
+      status: 'invoiced',
+      customer: { id: ownerId, name: 'Firma s.r.o.' },
+      vehicle: { id: vehicleId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
+    },
+    expect.objectContaining({ id: done, number: 'Z2026-0002', status: 'done', vehicle: expect.objectContaining({ id: second }) }),
+    expect.objectContaining({ id: received, number: 'Z2026-0001', status: 'received' }),
+  ]);
+});
+
+test('after a Prepis the Zákazky stay with the customer they were made for, not with the owner of the vehicle', async () => {
+  const buyer = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
+  const sold = await newWorkOrderId();
+  await ctx.db.execute(sql`update vehicle set owner_id = ${buyer} where id = ${vehicleId}`);
+  const bought = await newWorkOrderId();
+
+  expect((await listWorkOrdersOfCustomer(admin, ownerId, ctx.db)).map(({ id }) => id)).toEqual([sold]);
+  expect((await listWorkOrdersOfCustomer(admin, buyer, ctx.db)).map(({ id }) => id)).toEqual([bought]);
+});
+
+test('a customer without Zákazky, one that does not exist, or an id that is not one, lists nothing', async () => {
+  const idle = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
+  await newWorkOrderId();
+
+  await expect(listWorkOrdersOfCustomer(admin, idle, ctx.db)).resolves.toEqual([]);
+  await expect(listWorkOrdersOfCustomer(admin, randomUUID(), ctx.db)).resolves.toEqual([]);
+  await expect(listWorkOrdersOfCustomer(admin, 'zakaznik-1', ctx.db)).resolves.toEqual([]);
 });
 
 test('a Zákazka that does not exist, or an id that is not one, reads as nothing', async () => {
