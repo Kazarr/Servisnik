@@ -38,14 +38,14 @@ function refused({ currentPassword, newPassword, confirmation }: PasswordChangeE
  * request's old cookie, which no longer names a session. The passwords are never sent back to the form.
  */
 export async function changePassword(_state: PasswordFormState, formData: FormData): Promise<PasswordFormState> {
-  const user = await currentUser();
+  await currentUser(); // a user without a session goes to the login page; the DAL takes the user from the same session
   const input = {
     currentPassword: String(formData.get('currentPassword') ?? ''),
     newPassword: String(formData.get('newPassword') ?? ''),
     confirmation: String(formData.get('confirmation') ?? ''),
   };
 
-  const result = await orForbidden(changeOwnPassword(user, await headers(), input));
+  const result = await orForbidden(changeOwnPassword(await headers(), input));
   if (result === 'forbidden') return { errors: { form: forbiddenMessage } };
   if (!result.ok) return refused(result.errors);
   redirect(`${ownPassword.href}?zmenene`); // page.tsx shows the confirmation for this parameter
