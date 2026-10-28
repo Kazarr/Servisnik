@@ -23,7 +23,7 @@ export function LabourForm({ workOrderId, defaultVatRate, hourlyRateCents }: { w
         label="Cena za jednotku bez DPH (€)"
         name="unitPrice"
         inputMode="decimal"
-        defaultValue={value('unitPrice') ?? (hourlyRateCents === null ? '' : formatEuroInput(hourlyRateCents))}
+        defaultValue={value('unitPrice') ?? formatEuroInput(hourlyRateCents)}
         error={state?.errors.unitPrice}
         autoComplete="off"
         required

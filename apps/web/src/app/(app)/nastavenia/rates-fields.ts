@@ -5,6 +5,6 @@ import { formatEuroInput } from '../../../format.ts';
 export const ratesToFields = (rates: Rates): RatesInput => ({
   vatRates: rates.vatRates.join('\n'),
   defaultVatRate: String(rates.defaultVatRate),
-  hourlyRate: rates.hourlyRateCents === null ? '' : formatEuroInput(rates.hourlyRateCents),
+  hourlyRate: formatEuroInput(rates.hourlyRateCents),
   markup: String(rates.markupPercent),
 });
