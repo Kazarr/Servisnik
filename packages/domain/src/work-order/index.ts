@@ -72,12 +72,19 @@ export function totalsOf(items: readonly Priced[]): Amounts {
   );
 }
 
-/** Práca or Diel. The model has both from the start; only Práca is added anywhere so far. */
+/** Práca or Diel. */
 export const itemKinds = ['labour', 'part'] as const;
 export type ItemKind = (typeof itemKinds)[number];
 
-/** Položka zákazky; the price is per unit and without VAT (ledger question 8 is open). */
-export type WorkOrderItem = Priced & { kind: ItemKind; name: string; unit: string };
+/** The unit a Položka starts with: hours for a Práca, pieces for a Diel. */
+export const defaultUnits: Record<ItemKind, string> = { labour: 'h', part: 'ks' };
+
+/**
+ * Položka zákazky. Its prices are per unit and without VAT (ledger question 8 is open): `unitPriceCents`
+ * is the Predajná cena, `purchasePriceCents` the Nákupná cena of a Diel, which is none when it is not known
+ * and always none for a Práca.
+ */
+export type WorkOrderItem = Priced & { kind: ItemKind; code: string | null; name: string; unit: string; purchasePriceCents: number | null };
 
 // Limits keep every product below 2^53 and every stored number inside a PostgreSQL integer.
 const maxQuantityHundredths = 9_999_999; // 99 999,99
@@ -156,24 +163,64 @@ export function parseWorkOrder(
   return { ok: true, workOrder: { mileageKm: mileageKm!, customerRequest } };
 }
 
-/** What the form sends for a Práca; `vatRate` left out means the default rate of Nastavenia, a blank one is a mistake. */
-export type LabourInput = { name: string; quantity: string; unitPrice: string; vatRate?: string };
-export type LabourErrors = { name?: 'required'; quantity?: 'invalid'; unitPrice?: 'invalid'; vatRate?: 'invalid' };
+/**
+ * What the form sends for a Položka. Left out, `unit` is the default of its kind and `vatRate` the default
+ * rate of Nastavenia; sent blank, either is a mistake. `purchasePrice` is only read for a Diel, blank is none.
+ */
+export type ItemInput = {
+  kind: ItemKind;
+  code?: string;
+  name: string;
+  quantity: string;
+  unit?: string;
+  purchasePrice?: string;
+  unitPrice: string;
+  vatRate?: string;
+};
+export type ItemErrors = {
+  name?: 'required';
+  quantity?: 'invalid';
+  unit?: 'required';
+  purchasePrice?: 'invalid';
+  unitPrice?: 'invalid';
+  vatRate?: 'invalid';
+};
 
 /**
- * A Práca ready to store: hours (more than 0), a unit price without VAT (0 or more) and a whole VAT
- * percentage from 0 to 100. `defaultVatRate` is the one to take when none was typed.
+ * A Položka ready to store: a quantity of more than 0, prices without VAT (0 or more) and one of the
+ * `vatRates` of Nastavenia, `defaultVatRate` when none was typed.
  */
-export function parseLabour(input: LabourInput, defaultVatRate: number): { ok: true; item: WorkOrderItem } | { ok: false; errors: LabourErrors } {
+export function parseItem(
+  input: ItemInput,
+  rates: { defaultVatRate: number; vatRates: readonly number[] },
+): { ok: true; item: WorkOrderItem } | { ok: false; errors: ItemErrors } {
   const name = input.name.trim();
   const quantityHundredths = hundredths(input.quantity);
+  const unit = input.unit === undefined ? defaultUnits[input.kind] : input.unit.trim();
+  const typedPurchasePrice = input.kind === 'part' ? (input.purchasePrice ?? '').trim() : '';
+  const purchasePriceCents = typedPurchasePrice === '' ? null : parseUnitPrice(typedPurchasePrice);
   const unitPriceCents = parseUnitPrice(input.unitPrice);
-  const vatRate = input.vatRate === undefined ? defaultVatRate : parseVatRate(input.vatRate);
-  const errors: LabourErrors = {};
+  const vatRate = input.vatRate === undefined ? rates.defaultVatRate : parseVatRate(input.vatRate);
+  const errors: ItemErrors = {};
   if (!name) errors.name = 'required';
   if (quantityHundredths === null || quantityHundredths < 1 || quantityHundredths > maxQuantityHundredths) errors.quantity = 'invalid';
+  if (!unit) errors.unit = 'required';
+  if (typedPurchasePrice !== '' && purchasePriceCents === null) errors.purchasePrice = 'invalid';
   if (unitPriceCents === null) errors.unitPrice = 'invalid';
-  if (vatRate === null) errors.vatRate = 'invalid';
+  if (vatRate === null || !rates.vatRates.includes(vatRate)) errors.vatRate = 'invalid';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, item: { kind: 'labour', name, quantityHundredths: quantityHundredths!, unit: 'h', unitPriceCents: unitPriceCents!, vatRate: vatRate! } };
+  return {
+    ok: true,
+    item: {
+      kind: input.kind,
+      code: input.code?.trim() || null,
+      name,
+      quantityHundredths: quantityHundredths!,
+      unit,
+      purchasePriceCents,
+      unitPriceCents: unitPriceCents!,
+      vatRate: vatRate!,
+    },
+  };
 }
+
