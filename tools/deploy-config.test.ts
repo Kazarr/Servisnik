@@ -82,14 +82,14 @@ function playwrightLibraries() {
 }
 
 test('the image installs the libraries of Chromium and the fonts from a list of its own, not the `tools` group of --with-deps: xvfb and the Chinese, emoji and unifont fonts', () => {
-  const dockerfile = read('Dockerfile');
-  const words = new Set(dockerfile.split(/[\s\\]+/));
+  const instructions = read('Dockerfile').replace(/^#.*$/gm, ''); // the comments say what is left out, and may name it
+  const words = new Set(instructions.split(/[\s\\]+/));
 
-  expect(dockerfile).not.toContain('--with-deps');
+  expect(instructions).not.toContain('--with-deps');
   expect(playwrightLibraries()).toContain('libnss3'); // the list was found, and holds what Chromium cannot start without
   // Every library Playwright lists for the locked version is in the list of the image, so a new version that needs one more fails here, not in the image.
   for (const name of ['fonts-liberation', 'libfontconfig1', 'libfreetype6', ...playwrightLibraries()]) expect(words.has(name), name).toBe(true);
-  for (const name of ['xvfb', 'fonts-wqy-zenhei', 'fonts-unifont', 'fonts-noto-color-emoji', 'fonts-ipafont-gothic']) expect(dockerfile, name).not.toContain(name);
+  for (const name of ['xvfb', 'fonts-wqy-zenhei', 'fonts-unifont', 'fonts-noto-color-emoji', 'fonts-ipafont-gothic']) expect(instructions, name).not.toContain(name);
 });
 
 test('the migration tooling is a workspace install, not `pnpm deploy`, whose copy of @servisnik/domain lands in node_modules', () => {
