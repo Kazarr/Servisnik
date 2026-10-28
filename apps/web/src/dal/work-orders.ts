@@ -2,19 +2,17 @@ import {
   amountsOf,
   canAddItems,
   formatWorkOrderNumber,
-  isClosed,
   localYear,
   parseLabour,
   parseWorkOrder,
   totalsOf,
   transition,
-  workOrderStatuses,
   type LabourErrors,
   type LabourInput,
   type WorkOrderErrors,
   type WorkOrderInput,
 } from '@servisnik/domain/work-order';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
@@ -135,17 +133,6 @@ export async function listWorkOrders(user: User | null, db: Database = getDb()) 
 export async function listWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
   return rowsIfUuid(vehicleId, selectListed(db, {}).where(eq(workOrder.vehicleId, vehicleId)).orderBy(desc(workOrder.createdAt)));
-}
-
-/** The Zákazky of a Vozidlo that are not Uzavretá, newest first. */
-export async function listUnclosedWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
-  assertCan(user, 'work-orders.read');
-  if (!isUuid(vehicleId)) return [];
-  return db
-    .select({ id: workOrder.id, number: workOrder.number, status: workOrder.status })
-    .from(workOrder)
-    .where(and(eq(workOrder.vehicleId, vehicleId), inArray(workOrder.status, workOrderStatuses.filter((status) => !isClosed(status)))))
-    .orderBy(desc(workOrder.createdAt));
 }
 
 /** One Zákazka with its items, the amounts of each and the totals, or null when there is none with this id. */
