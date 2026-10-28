@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { deployGate } from './deploy-gate.ts';
+import { deployGate, run as gate } from './deploy-gate.ts';
 
 // The deploy workflow deploys only a commit whose check `ticket` is green. The gate is a check, so it
 // has one passing and one failing example per rule and asserts the exact refusal. Its input is what
@@ -37,4 +37,16 @@ test('the gate refuses when any ticket check is not green, even if another one i
 
 test('the gate refuses a skipped ticket check', () => {
   expect(deployGate(lines(run('ticket', 'completed', 'skipped')))).toBe('Check ticket tohto commitu skončil ako skipped, nie success.');
+});
+
+// The CLI wrapper only pipes stdin in and the result out: the annotation GitHub shows and the exit code are `run`'s (imported as `gate`).
+test('gate exits 0 without output when the gate lets the commit through', () => {
+  expect(gate(lines(run('ticket', 'completed', 'success')))).toEqual({ exitCode: 0, output: [] });
+});
+
+test('gate exits 1 and prints the refusal as a GitHub error annotation', () => {
+  expect(gate(lines(run('ticket', 'completed', 'failure')))).toEqual({
+    exitCode: 1,
+    output: ['::error title=Nasadenie odmietnuté::Check ticket tohto commitu skončil ako failure, nie success.'],
+  });
 });

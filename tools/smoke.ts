@@ -1,15 +1,21 @@
-// Deploy tier of verify (AGENTS.md): `pnpm smoke <url>` checks that a deployed Servisník serves its
-// login page and has its database. Needs no dependency, so the deploy workflow runs it without `pnpm install`.
+// Deploy tier of verify (AGENTS.md): `pnpm smoke <url> [sha]` checks that a deployed Servisník serves its
+// login page and has its database, and, given a sha, that it runs that commit. Needs no dependency, so the
+// deploy workflow runs it without `pnpm install`.
 const paths = ['/login', '/api/health'];
 
-/** Fetches each path without following redirects; returns one line per path that did not answer 200. */
-export async function smoke(baseUrl: string, { timeoutMs = 10_000 } = {}): Promise<string[]> {
+/** Fetches each path without following redirects; returns one line per path that did not answer 200 (or named another commit than `sha`). */
+export async function smoke(baseUrl: string, { timeoutMs = 10_000, sha }: { timeoutMs?: number; sha?: string } = {}): Promise<string[]> {
   const failures: string[] = [];
   for (const path of paths) {
     try {
       const response = await fetch(new URL(path, baseUrl), { redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
-      await response.body?.cancel();
       if (response.status !== 200) failures.push(`${path}: HTTP ${response.status}, čakalo sa 200`);
+      if (response.status === 200 && sha && path === '/api/health') {
+        const running = ((await response.json().catch(() => ({}))) as { sha?: string }).sha;
+        if (running !== sha) failures.push(`${path}: commit ${running ?? 'nie je uvedený'}, čakalo sa ${sha}`);
+      } else {
+        await response.body?.cancel();
+      }
     } catch (error) {
       const reason = (error as { cause?: { code?: string } }).cause?.code ?? (error as Error).name;
       failures.push(`${path}: nedostupné (${reason})`);
@@ -19,12 +25,12 @@ export async function smoke(baseUrl: string, { timeoutMs = 10_000 } = {}): Promi
 }
 
 export async function run(argv: string[]): Promise<{ exitCode: number; output: string[] }> {
-  const [url] = argv;
-  if (!url) return { exitCode: 2, output: ['Použitie: pnpm smoke <url>'] };
-  const failures = await smoke(url);
+  const [url, sha] = argv;
+  if (!url) return { exitCode: 2, output: ['Použitie: pnpm smoke <url> [sha]'] };
+  const failures = await smoke(url, { sha });
   if (failures.length > 0) return { exitCode: 1, output: ['Smoke zlyhal:', ...failures] };
-  const base = url.replace(/\/$/, '');
-  return { exitCode: 0, output: [`Smoke prešiel: ${paths.map((path) => `${base}${path} 200`).join(', ')}`] };
+  const checked = paths.map((path) => `${new URL(path, url)} 200`).join(', ');
+  return { exitCode: 0, output: [`Smoke prešiel: ${checked}${sha ? ` (commit ${sha})` : ''}`] };
 }
 
 if (import.meta.main) {
