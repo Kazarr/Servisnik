@@ -1,4 +1,4 @@
-import type { WorkOrderStatus } from '@servisnik/domain/work-order';
+import type { StatusFilter, WorkOrderStatus } from '@servisnik/domain/work-order';
 
 export const workOrderStatusLabels: Record<WorkOrderStatus, string> = {
   received: 'Prijatá',
@@ -8,3 +8,6 @@ export const workOrderStatusLabels: Record<WorkOrderStatus, string> = {
   invoiced: 'Vyfakturovaná',
   cancelled: 'Zrušená',
 };
+
+/** What the filter of the list says: a status, or Neuzavreté (the default) or Všetky. */
+export const statusFilterLabels: Record<StatusFilter, string> = { unclosed: 'Neuzavreté', all: 'Všetky', ...workOrderStatusLabels };

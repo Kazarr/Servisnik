@@ -2,8 +2,10 @@
 
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
-import { createCustomer, updateCustomer, type CustomerSaveErrors } from '../../../dal/customers.ts';
+import { createCustomer, deleteCustomer, updateCustomer, type CustomerSaveErrors } from '../../../dal/customers.ts';
+import type { DeleteState } from '../delete-form.tsx';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
+import { formatMessages } from '../format-messages.ts';
 
 export type CustomerFormValues = Record<'name' | 'ico' | 'dic' | 'icDph' | 'street' | 'city' | 'postalCode' | 'phone' | 'email' | 'note', string>;
 
@@ -18,13 +20,13 @@ const messages = {
   name: 'Vyplňte názov, pri osobe meno a priezvisko',
   ico: {
     required: 'Vyplňte IČO firmy',
-    format: 'IČO má mať presne 8 číslic',
+    format: formatMessages.ico,
     taken: 'Firma s týmto IČO už existuje',
   },
-  dic: 'DIČ má mať presne 10 číslic',
-  icDph: 'IČ DPH začína kódom krajiny (2 veľké písmená) a pokračuje 2 až 12 písmenami alebo číslicami, napríklad SK2020123456',
-  postalCode: 'PSČ má mať presne 5 číslic',
-  email: 'Zadajte e-mail v tvare meno@domena.sk',
+  dic: formatMessages.dic,
+  icDph: formatMessages.icDph,
+  postalCode: formatMessages.postalCode,
+  email: formatMessages.email,
 };
 
 function read(formData: FormData) {
@@ -89,4 +91,21 @@ export async function editCustomer(_state: CustomerFormState, formData: FormData
     return refused(values, result);
   }
   redirect(`/zakaznici/${id}`);
+}
+
+/**
+ * Server Action of "Potvrdiť zmazanie" on a customer's detail; it checks the session and the Rola itself,
+ * like every action. A customer who got a Vozidlo or a Zákazka after the page was opened is not deleted:
+ * the database refuses, and the page says so.
+ */
+export async function removeCustomer(_state: DeleteState, formData: FormData): Promise<DeleteState> {
+  const user = await currentUser();
+
+  const result = await orForbidden(deleteCustomer(user, String(formData.get('id') ?? '')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if (result.error === 'unknown') notFound();
+    return { error: 'Zákazník má vozidlo alebo zákazku, preto ho nemožno zmazať' };
+  }
+  redirect('/zakaznici');
 }

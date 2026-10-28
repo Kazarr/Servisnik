@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { forbiddenMessage, orForbidden } from '../src/app/(app)/forbidden.ts';
 import * as settingsActions from '../src/app/(app)/nastavenia/actions.ts';
+import * as userActions from '../src/app/(app)/nastavenia/user-actions.ts';
 import * as vehicleActions from '../src/app/(app)/vozidla/actions.ts';
 import * as workOrderActions from '../src/app/(app)/zakazky/actions.ts';
 import * as customerActions from '../src/app/(app)/zakaznici/actions.ts';
@@ -10,11 +11,16 @@ import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
 // (docs/adr/0001-stack.md, packages/domain/src/access). Fast tier; e2e/mechanik.spec.ts proves the
 // same in a browser.
 
-// The actions run as a mechanik. The DAL is the real one: it refuses before it touches the database,
-// and the database it is handed records every property read from it.
-const { touched } = vi.hoisted(() => ({ touched: [] as string[] }));
+// The actions run as a mechanik. The DAL is the real one: it refuses before it touches the database
+// or Better Auth, and the ones it is handed record every property read from them (the Better Auth
+// of the DAL is built from the environment, which this fast tier does not have).
+const { touched, watched } = vi.hoisted(() => {
+  const touched: string[] = [];
+  return { touched, watched: (what: string) => new Proxy({}, { get: (_target, property) => (touched.push(`${what}.${String(property)}`), undefined) }) };
+});
 vi.mock('../src/dal/current-user.ts', async () => ({ currentUser: async () => (await import('./support/dal-users.ts')).mechanic }));
-vi.mock('../src/db/index.ts', () => ({ getDb: () => new Proxy({}, { get: (_target, property) => (touched.push(String(property)), undefined) }) }));
+vi.mock('../src/db/index.ts', () => ({ getDb: () => watched('db') }));
+vi.mock('../src/auth.ts', () => ({ getAuth: () => watched('auth') }));
 
 test('orForbidden gives the result of the call', async () => {
   expect(await orForbidden(Promise.resolve({ ok: true }))).toEqual({ ok: true });
@@ -46,35 +52,67 @@ const formRefused = expect.objectContaining({ errors: { form: forbiddenMessage }
 const actions = {
   addCustomer: { call: () => customerActions.addCustomer(null, form({ type: 'person', name: 'Ján Novák' })), answer: formRefused },
   editCustomer: { call: () => customerActions.editCustomer(null, form({ id, type: 'person', name: 'Premenovaný' })), answer: formRefused },
+  removeCustomer: { call: () => customerActions.removeCustomer(null, form({ id })), answer: { error: forbiddenMessage } },
   addVehicle: { call: () => vehicleActions.addVehicle(null, form({ ownerId: id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Octavia' })), answer: formRefused },
   editVehicle: { call: () => vehicleActions.editVehicle(null, form({ id, vin: 'TMBZZZ5JZ3W000101', make: 'Škoda', model: 'Fabia' })), answer: formRefused },
+  removeVehicle: { call: () => vehicleActions.removeVehicle(null, form({ id })), answer: { error: forbiddenMessage } },
   addWorkOrder: {
     call: () => workOrderActions.addWorkOrder(null, form({ vehicleId: id, customerId: id, mileageKm: '1', customerRequest: 'Brzdy' })),
     answer: formRefused,
   },
-  addLabourToWorkOrder: {
-    call: () => workOrderActions.addLabourToWorkOrder(null, form({ workOrderId: id, name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' })),
+  editWorkOrder: {
+    call: () => workOrderActions.editWorkOrder(null, form({ id, mileageKm: '1', customerRequest: 'Brzdy', deadline: '2026-12-01', note: 'Poznámka' })),
     answer: formRefused,
   },
+  addItemToWorkOrder: {
+    call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', unitPrice: '10', vatRate: '23' })),
+    answer: formRefused,
+  },
+  updateItemOfWorkOrder: {
+    call: () => workOrderActions.updateItemOfWorkOrder(null, form({ itemId: id, name: 'Brzdy', quantity: '2', unit: 'h', unitPrice: '12', vatRate: '23' })),
+    answer: formRefused,
+  },
+  deleteItemOfWorkOrder: { call: () => workOrderActions.deleteItemOfWorkOrder(null, form({ itemId: id, workOrderId: id })), answer: { error: forbiddenMessage } },
   changeStatus: { call: () => workOrderActions.changeStatus(null, form({ workOrderId: id, to: 'done' })), answer: { error: forbiddenMessage } },
   saveRatesAction: {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),
     answer: formRefused,
   },
+  saveWorkshopDetailsAction: {
+    call: () => settingsActions.saveWorkshopDetailsAction(null, form({ name: 'Autoservis Novák', vatPayerType: 'nonPayer' })),
+    answer: formRefused,
+  },
+  createUserAction: {
+    call: () =>
+      userActions.createUserAction(null, form({ newUserName: 'Nový Mechanik', newUserEmail: 'novy@autoservis.test', newUserRole: 'mechanik', newUserPassword: 'pociatocne-heslo-1234' })),
+    answer: formRefused,
+  },
 };
 
-// Every actions.ts under app/(app), found by the file system rather than listed, so that a new one is not missed.
-const actionFiles = import.meta.glob<Record<string, unknown>>('../src/app/[(]app[)]/**/actions.ts', { eager: true });
+// Every file under app/(app) whose first statement is 'use server', whatever it is called: found by the file system rather than listed or named, so that a new one is not missed.
+const sources = import.meta.glob<string>('../src/app/[(]app[)]/**/*.{ts,tsx}', { eager: true, query: '?raw', import: 'default' });
+const loaders = import.meta.glob<Record<string, unknown>>('../src/app/[(]app[)]/**/*.{ts,tsx}');
+const startsWithUseServer = /^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*(['"])use server\1/;
+const actionFiles = Object.keys(sources).filter((file) => startsWithUseServer.test(sources[file]!));
 /**
  * Server Actions the DAL does not refuse a mechanik: signOut uses no DAL, and changePassword needs
  * `password.change`, which is on the mechanik's list.
  */
 const notRefusedToMechanik = ['signOut', 'changePassword'];
 
-test('the table has a row for every Server Action of every actions.ts under app/(app) that the DAL can refuse a mechanik, and for nothing else', () => {
-  expect(Object.keys(actionFiles).length).toBeGreaterThan(0);
+test('the first statement of a file is read as use server, with comments before it, and not when it comes later', () => {
+  expect(startsWithUseServer.test("'use server';\nexport const a = 1;")).toBe(true);
+  expect(startsWithUseServer.test('"use server"\n')).toBe(true);
+  expect(startsWithUseServer.test("// Actions\n/* of the form */\n'use server';")).toBe(true);
+  expect(startsWithUseServer.test("import { a } from 'a';\n'use server';")).toBe(false);
+  expect(startsWithUseServer.test("export const text = 'use server';")).toBe(false);
+});
 
-  const exported = Object.values(actionFiles).flatMap((module) => Object.keys(module));
+test('the table has a row for every Server Action of every file under app/(app) that starts with use server and that the DAL can refuse a mechanik, and for nothing else', async () => {
+  expect(actionFiles.length).toBeGreaterThan(0);
+
+  const modules = await Promise.all(actionFiles.map((file) => loaders[file]!()));
+  const exported = modules.flatMap((module) => Object.keys(module));
 
   expect(exported.filter((name) => !notRefusedToMechanik.includes(name)).sort()).toEqual(Object.keys(actions).sort());
 });
