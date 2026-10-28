@@ -45,7 +45,7 @@ test('the admin adds a vehicle from the list, picks its owner by search, and the
   await page.getByLabel('Model').fill('Golf');
   await page.getByLabel('Rok výroby').fill('2015');
   await page.getByLabel('Palivo').selectOption({ label: 'Nafta' });
-  await page.getByLabel('Najazdené km').fill('123 456');
+  await page.getByLabel('Stav km').fill('123 456');
   await page.getByLabel('Poznámka').fill('Nová spojka');
   await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
   await expect(page).toHaveURL(/\/zakaznici\/[0-9a-f-]{36}$/);
@@ -65,7 +65,7 @@ test('the admin adds a vehicle from the list, picks its owner by search, and the
   await expect(page.getByLabel('ŠPZ')).toHaveValue('BA123AB');
   await expect(page.getByLabel('Rok výroby')).toHaveValue('2015');
   await expect(page.getByLabel('Palivo')).toHaveValue('diesel');
-  await expect(page.getByLabel('Najazdené km')).toHaveValue('123456');
+  await expect(page.getByLabel('Stav km')).toHaveValue('123456');
   await expect(page.getByLabel('Poznámka')).toHaveValue('Nová spojka');
 
   // The VIN of another vehicle is refused, with that vehicle and its owner to follow.
@@ -126,7 +126,7 @@ test('the vehicle form opened from a customer takes him as the owner and refuses
     await expect(yearField).toHaveValue(year);
   }
   await yearField.fill(String(lastYear()));
-  const kmField = page.getByLabel('Najazdené km');
+  const kmField = page.getByLabel('Stav km');
   await kmField.fill('-5');
   await save();
   // The app groups the digits with a no-break space, which \s matches.
