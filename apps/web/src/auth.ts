@@ -24,13 +24,32 @@ const mechanikRole = defaultAc.newRole({ user: [], session: [] });
 /**
  * Better Auth with e-mail and password. There is no registration: the first admin comes from the seed
  * command and every other Používateľ from an admin, through the admin plugin's server API.
+ *
+ * `clientIpHeader` names the request header the address of the client is read from, which the limit of the
+ * attempts to sign in and to change the password counts by (src/dal/attempt-limit.ts). Better Auth takes the
+ * header as the client only when it holds exactly one address, and puts every client into one shared bucket
+ * when it holds several or is missing. Behind DigitalOcean's ingress `x-forwarded-for` is the ingress, so
+ * App Platform names `do-connecting-ip` (`CLIENT_IP_HEADER` in .do/app.yaml, read by `getAuth`); with a single
+ * forged `x-forwarded-for` instead, a client would get new attempts at will. Without a proxy the default holds:
+ * Next.js fills `x-forwarded-for` with the address of the socket when the request brings none.
  */
-export function createAuth({ db, secret, rateLimit }: { db: Database; secret: string; rateLimit?: { enabled: boolean } }) {
+export function createAuth({
+  db,
+  secret,
+  rateLimit,
+  clientIpHeader = 'x-forwarded-for',
+}: {
+  db: Database;
+  secret: string;
+  rateLimit?: { enabled: boolean };
+  clientIpHeader?: string;
+}) {
   return betterAuth({
     secret,
     basePath: authBasePath,
     // Better Auth's default: limited when NODE_ENV is production, with its default rules (src/dal/attempt-limit.ts). Tests switch it on.
     rateLimit,
+    advanced: { ipAddress: { ipAddressHeaders: [clientIpHeader] } },
     database: drizzleAdapter(db, { provider: 'pg', schema }),
     // The password length is the access area's rule (packages/domain/src/access); Better Auth checks the same numbers.
     emailAndPassword: { enabled: true, disableSignUp: true, minPasswordLength: passwordLength.min, maxPasswordLength: passwordLength.max },
@@ -54,5 +73,10 @@ export type Auth = ReturnType<typeof createAuth>;
 
 const shared = globalThis as { servisnikAuth?: Auth };
 
-/** The app's auth, created on first use so that importing it needs no environment. */
-export const getAuth = () => (shared.servisnikAuth ??= createAuth({ db: getDb(), secret: appEnv().BETTER_AUTH_SECRET }));
+/**
+ * The app's auth, created on first use so that importing it needs no environment. `CLIENT_IP_HEADER` is optional
+ * and read here and not by appEnv(), which would refuse to start the app without it: unset or empty, the client is
+ * read from `x-forwarded-for`.
+ */
+export const getAuth = () =>
+  (shared.servisnikAuth ??= createAuth({ db: getDb(), secret: appEnv().BETTER_AUTH_SECRET, clientIpHeader: process.env.CLIENT_IP_HEADER || undefined }));
