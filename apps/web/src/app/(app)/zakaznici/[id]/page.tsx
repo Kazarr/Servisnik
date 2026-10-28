@@ -19,12 +19,19 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
     ['Ulica', customer.street],
     ['Mesto', customer.city],
     ['PSČ', customer.postalCode],
+    ['Telefón', customer.phone],
     ['E-mail', customer.email],
+    ['Poznámka', customer.note],
   ];
 
   return (
     <>
-      <h1>{customer.name}</h1>
+      <div className="page-header">
+        <h1>{customer.name}</h1>
+        <Link href={`/zakaznici/${customer.id}/upravit`} className="button">
+          Upraviť
+        </Link>
+      </div>
       <dl className="details">
         {details
           .filter(([, value]) => value)

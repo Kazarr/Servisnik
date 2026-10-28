@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 
-type Common = { label: string; name: string; error?: string };
+type Common = { label: string; name: string; error?: ReactNode };
 
 /** The reason a whole form was refused, above its fields. */
 export function FormError({ message }: { message?: string }) {
@@ -26,7 +26,7 @@ function Shell({ label, name, error, children }: Common & { children: ReactNode 
   );
 }
 
-const describedBy = (name: string, error?: string) => ({
+const describedBy = (name: string, error?: ReactNode) => ({
   id: name,
   'aria-invalid': error ? true : undefined,
   'aria-describedby': error ? `${name}-error` : undefined,

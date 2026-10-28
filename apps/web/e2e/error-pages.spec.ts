@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { signIn } from './fixtures.ts';
-import { watchPage } from './page-problems.ts';
+import { watchPage } from './watch-page.ts';
 
 // Plain `test`, not the one from fixtures.ts: Chromium logs the 404 of the navigation as a console
 // error, which the page fixture would fail on, and this test asks for the 404 on purpose. It watches

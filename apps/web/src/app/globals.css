@@ -28,6 +28,7 @@
   --sidebar-width: 14rem;
   --form-width: 22rem;
   --viewport-height: 100vh;
+  --width-full: 100%;
 
   --opacity-disabled: 0.6;
 }
@@ -258,7 +259,7 @@ button:disabled {
 }
 
 table {
-  width: 100%;
+  width: var(--width-full);
   border-collapse: collapse;
 }
 

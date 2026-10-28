@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { EventEmitter } from 'node:events';
 import { expect, test } from 'vitest';
-import { watchPage } from '../e2e/page-problems.ts';
+import { watchPage } from '../e2e/watch-page.ts';
 import { unexpectedStderr } from '../e2e/server-stderr.ts';
 
 // The checks of the e2e tier are code too (testing-strategy): each has a case that passes and a case

@@ -22,6 +22,13 @@
       "when": 1793048464466,
       "tag": "0002_work_order",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793183970437,
+      "tag": "0003_customer_company_ico_phone_note",
+      "breakpoints": true
     }
   ]
 }

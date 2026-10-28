@@ -1,11 +1,32 @@
-import { parseCustomer, type CustomerInput } from '@servisnik/domain/customer';
+import { parseCustomer, type CustomerErrors, type CustomerInput } from '@servisnik/domain/customer';
 import { desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 
-export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: { name: 'required' } };
+/** What the domain finds wrong, or an IČO that another Firma already has. */
+export type CustomerSaveErrors = Omit<CustomerErrors, 'ico'> & { ico?: NonNullable<CustomerErrors['ico']> | 'taken' };
+/** The Firma that has the IČO, so the form can link to it. */
+type Existing = { id: string; name: string };
+
+export type CreateCustomerResult = { ok: true; id: string } | { ok: false; errors: CustomerSaveErrors; existing?: Existing };
+export type UpdateCustomerResult =
+  | { ok: true }
+  | { ok: false; errors: CustomerSaveErrors & { customer?: 'unknown' }; existing?: Existing };
+
+/** PostgreSQL refused a second Zákazník with an IČO (the unique index decides, so two saves at once cannot both get through). */
+function isIcoTaken(error: unknown) {
+  // Drizzle wraps the driver's error as `cause`.
+  return error instanceof Error && (error.cause as { constraint?: string } | undefined)?.constraint === 'customer_ico_idx';
+}
+
+/** The failure for an IČO that is taken; any other error is not ours to handle. */
+async function icoTaken(error: unknown, ico: string | null, db: Database) {
+  if (!ico || !isIcoTaken(error)) throw error;
+  const [existing] = await db.select({ id: customer.id, name: customer.name }).from(customer).where(eq(customer.ico, ico));
+  return { ok: false, errors: { ico: 'taken' }, existing } as const;
+}
 
 /** Saves a Zákazník; the domain decides what is stored (packages/domain/src/customer). */
 export async function createCustomer(
@@ -16,8 +37,31 @@ export async function createCustomer(
   assertCan(user, 'customers.write');
   const parsed = parseCustomer(input);
   if (!parsed.ok) return parsed;
-  const [saved] = await db.insert(customer).values(parsed.customer).returning({ id: customer.id });
-  return { ok: true, id: saved!.id };
+  try {
+    const [saved] = await db.insert(customer).values(parsed.customer).returning({ id: customer.id });
+    return { ok: true, id: saved!.id };
+  } catch (error) {
+    return icoTaken(error, parsed.customer.ico, db);
+  }
+}
+
+/** Replaces every field of a Zákazník with `input`: a Firma changed to an Osoba loses its IČO, DIČ and IČ DPH. */
+export async function updateCustomer(
+  user: User | null,
+  id: string,
+  input: CustomerInput,
+  db: Database = getDb(),
+): Promise<UpdateCustomerResult> {
+  assertCan(user, 'customers.write');
+  const parsed = parseCustomer(input);
+  if (!parsed.ok) return parsed;
+  if (!isUuid(id)) return { ok: false, errors: { customer: 'unknown' } };
+  try {
+    const [saved] = await db.update(customer).set(parsed.customer).where(eq(customer.id, id)).returning({ id: customer.id });
+    return saved ? { ok: true } : { ok: false, errors: { customer: 'unknown' } };
+  } catch (error) {
+    return icoTaken(error, parsed.customer.ico, db);
+  }
 }
 
 /** Every Zákazník, newest first. */
