@@ -23,6 +23,22 @@ const put = (user: User | null, body: BodyInit | null, headers: Record<string, s
 const get = (user: User | null) => getLogoResponse(user, ctx.db);
 const remove = (user: User | null) => deleteLogoResponse(user, ctx.db);
 
+/** A body of `file` that reports whether anybody read it: its queue holds nothing ahead of a read. */
+function watchedBody(file: Uint8Array) {
+  let read = false;
+  const body = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        read = true;
+        controller.enqueue(file);
+        controller.close();
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return { body, wasRead: () => read };
+}
+
 const bytesOf = async (response: Response) => new Uint8Array(await response.arrayBuffer());
 const stored = async () => (await getLogo(admin, ctx.db))?.bytes ?? null;
 
@@ -97,20 +113,13 @@ test('a file of exactly 1 MB is kept and one byte more is refused with 413, the 
 });
 
 test('a body that says in advance it is over 1 MB is refused before it is read', async () => {
-  let pulled = false;
-  const body = new ReadableStream<Uint8Array>({
-    pull(controller) {
-      pulled = true;
-      controller.enqueue(png);
-      controller.close();
-    },
-  });
+  const { body, wasRead } = watchedBody(png);
   const request = new Request(url, { method: 'PUT', body, duplex: 'half', headers: { 'Content-Length': String(maxLogoBytes + 1) } } as RequestInit);
 
   const response = await putLogoResponse(admin, request, ctx.db);
 
   expect(response.status).toBe(413);
-  expect(pulled).toBe(false);
+  expect(wasRead()).toBe(false);
 });
 
 // A sender that declares nothing, or lies, can still send without end: the answer must come after 1 MB and one byte, not after the body.
@@ -135,14 +144,7 @@ test('a body that never ends is refused with 413 after the first byte over 1 MB,
 
 test('the mechanik may neither upload nor remove the logo: 403 with a message, nothing read or changed', async () => {
   await saveLogo(admin, png, ctx.db);
-  let pulled = false;
-  const body = new ReadableStream<Uint8Array>({
-    pull(controller) {
-      pulled = true;
-      controller.enqueue(jpeg);
-      controller.close();
-    },
-  });
+  const { body, wasRead } = watchedBody(jpeg);
 
   const uploaded = await putLogoResponse(mechanic, new Request(url, { method: 'PUT', body, duplex: 'half' } as RequestInit), ctx.db);
   const removed = await remove(mechanic);
@@ -151,7 +153,7 @@ test('the mechanik may neither upload nor remove the logo: 403 with a message, n
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: 'Na túto akciu nemáte oprávnenie' });
   }
-  expect(pulled).toBe(false);
+  expect(wasRead()).toBe(false);
   expect(await stored()).toEqual(png);
 });
 
