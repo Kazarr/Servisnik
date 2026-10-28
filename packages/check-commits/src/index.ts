@@ -24,7 +24,11 @@ export function checkCommits(commits: Commit[], allowed: ReadonlySet<string> = n
         const tests = files.filter((f) => TEST_FILE.test(f));
         if (tests.length) fail(`feat/fix changes test files: ${tests.join(', ')}`);
       }
-      if (type === 'test') tested = true;
+      if (type === 'test') {
+        const others = files.filter((f) => !TEST_FILE.test(f));
+        if (others.length) fail(`test commit changes non-test files: ${others.join(', ')}`);
+        tested = true;
+      }
       if (type === 'feat') {
         if (!tested) fail('feat without a test commit since the previous feat or the branch base');
         tested = false;
