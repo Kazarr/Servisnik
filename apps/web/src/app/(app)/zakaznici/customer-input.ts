@@ -1,4 +1,5 @@
 import type { CustomerSaveErrors } from '../../../dal/customers.ts';
+import { formatMessages } from '../format-messages.ts';
 
 // What a form of a Zákazník sends and what it is told back: shared by the form of a new Zákazník, the one that
 // edits him, and the intake that saves a new Zákazník with his Vozidlo and Zákazka (zakazky/actions.ts).
@@ -15,13 +16,13 @@ const messages = {
   name: 'Vyplňte názov, pri osobe meno a priezvisko',
   ico: {
     required: 'Vyplňte IČO firmy',
-    format: 'IČO má mať presne 8 číslic',
+    format: formatMessages.ico,
     taken: 'Firma s týmto IČO už existuje',
   },
-  dic: 'DIČ má mať presne 10 číslic',
-  icDph: 'IČ DPH začína kódom krajiny (2 veľké písmená) a pokračuje 2 až 12 písmenami alebo číslicami, napríklad SK2020123456',
-  postalCode: 'PSČ má mať presne 5 číslic',
-  email: 'Zadajte e-mail v tvare meno@domena.sk',
+  dic: formatMessages.dic,
+  icDph: formatMessages.icDph,
+  postalCode: formatMessages.postalCode,
+  email: formatMessages.email,
 };
 
 /** The type and the fields of a Zákazník from a form whose field names start with `prefix`. */

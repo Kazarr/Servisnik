@@ -1,5 +1,7 @@
 import { expect, test as base, type Browser, type Locator, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
+import type { Database } from '../src/db/index.ts';
+import { seedUser } from '../test/support/users.ts';
 import { watchPage } from './watch-page.ts';
 
 export { expect };
@@ -50,6 +52,24 @@ export async function signIn(page: Page) {
 export async function signInAs(page: Page, { email, password }: { email: string; password: string }) {
   await submitLogin(page, password, email);
   await expect(page).toHaveURL(/\/zakazky$/);
+}
+
+/** A mechanik made straight in the database, with the tag in his name and e-mail so that specs do not meet each other's users. */
+export async function seedMechanik(db: Database, tag: string, name = `Mechanik ${tag}`) {
+  const mechanik = { name, email: `mechanik-${tag}@autoservis.test`, password: randomBytes(12).toString('base64url') };
+  await seedUser(db, { ...mechanik, role: 'mechanik' });
+  return mechanik;
+}
+
+/**
+ * The day `offset` days from today in Europe/Bratislava, as a date field and the address of the list of work
+ * orders carry it (`YYYY-MM-DD`). A spec that reads the list asks for the days from today (`?od=`), so that the
+ * work orders other workers keep making do not push its own rows to a second page.
+ */
+export function dayFromToday(offset: number) {
+  const day = new Date(`${new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava' })}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + offset);
+  return day.toISOString().slice(0, 10);
 }
 
 /** All specs share one database and an IČO is unique, so every firma takes a random one of its own. */

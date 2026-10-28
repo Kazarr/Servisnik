@@ -2,7 +2,8 @@
 
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
-import { createVehicle, updateVehicle, type ExistingVehicle, type VehicleSaveErrors } from '../../../dal/vehicles.ts';
+import { createVehicle, deleteVehicle, updateVehicle, type ExistingVehicle, type VehicleSaveErrors } from '../../../dal/vehicles.ts';
+import type { DeleteState } from '../delete-form.tsx';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import { readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from './vehicle-input.ts';
 
@@ -49,4 +50,21 @@ export async function editVehicle(_state: VehicleFormState, formData: FormData):
     return refused(values, result);
   }
   redirect(`/vozidla/${id}`);
+}
+
+/**
+ * Server Action of "Potvrdiť zmazanie" on a vehicle's detail; it checks the session and the Rola itself,
+ * like every action. A vehicle that got a Zákazka after the page was opened is not deleted: the
+ * database refuses, and the page says so.
+ */
+export async function removeVehicle(_state: DeleteState, formData: FormData): Promise<DeleteState> {
+  const user = await currentUser();
+
+  const result = await orForbidden(deleteVehicle(user, String(formData.get('id') ?? '')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if (result.error === 'unknown') notFound();
+    return { error: 'Vozidlo má zákazku, preto ho nemožno zmazať' };
+  }
+  redirect('/vozidla');
 }

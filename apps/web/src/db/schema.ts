@@ -3,6 +3,7 @@ import { customerTypes } from '@servisnik/domain/customer';
 import type { LogoContentType } from '@servisnik/domain/settings';
 import { fuels } from '@servisnik/domain/vehicle';
 import { itemKinds, workOrderStatuses } from '@servisnik/domain/work-order';
+import { vatPayerTypes } from '@servisnik/domain/workshop';
 import { sql } from 'drizzle-orm';
 import { boolean, check, customType, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
@@ -19,7 +20,7 @@ const timestamps = {
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow()
-    .$onUpdate(() => new Date()),
+    .$onUpdate(() => sql`now()`),
 };
 
 /** Používateľ. */
@@ -179,6 +180,10 @@ export const workOrder = pgTable(
     status: workOrderStatus('status').notNull().default('received'),
     /** The Dátum dokončenia, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
     completedOn: date('completed_on', { mode: 'string' }),
+    /** The Termín, a calendar day in Europe/Bratislava the vehicle was promised for, or null. */
+    deadline: date('deadline', { mode: 'string' }),
+    /** The internal note; it goes on no document. */
+    note: text('note'),
     ...timestamps,
   },
   (table) => [
@@ -189,11 +194,17 @@ export const workOrder = pgTable(
   ],
 );
 
+/** Platiteľ DPH: a platiteľ, a neplatiteľ or a registrovaný podľa §7 (packages/domain/src/workshop). */
+export const vatPayerType = pgEnum('vat_payer_type', vatPayerTypes);
+
 /**
  * Autoservis: the one row of values for the whole workshop (GLOSSARY: Nastavenia). The migration
  * creates it and nothing inserts another: the primary key is always 1. Other parts of Nastavenia add
  * their columns here. Here are the rates (packages/domain/src/settings): the VAT rates with the default
- * one, the hourly rate in cents without VAT (null when none) and the markup on parts in whole percent.
+ * one, the hourly rate in cents without VAT (null when none) and the markup on parts in whole percent;
+ * and Údaje autoservisu (packages/domain/src/workshop). Of these only the name is required, and it is
+ * empty until the admin first saves them, as the migration cannot know it; the platiteľ DPH starts as
+ * a platiteľ, which the domain lets be saved only with an IČ DPH, so no check of the database says so.
  */
 export const workshop = pgTable(
   'workshop',
@@ -203,6 +214,18 @@ export const workshop = pgTable(
     defaultVatRate: integer('default_vat_rate').notNull(),
     hourlyRateCents: integer('hourly_rate_cents'),
     markupPercent: integer('markup_percent').notNull().default(0),
+    name: text('name').notNull().default(''),
+    street: text('street'),
+    city: text('city'),
+    postalCode: text('postal_code'),
+    ico: text('ico'),
+    dic: text('dic'),
+    icDph: text('ic_dph'),
+    vatPayerType: vatPayerType('vat_payer_type').notNull().default('payer'),
+    iban: text('iban'),
+    phone: text('phone'),
+    email: text('email'),
+    commercialRegister: text('commercial_register'),
     ...timestamps,
   },
   (table) => [
@@ -245,7 +268,11 @@ export const workshopLogo = pgTable(
 /** Práca or Diel. */
 export const workOrderItemKind = pgEnum('work_order_item_kind', itemKinds);
 
-/** Položka zákazky. The quantity is in hundredths and the price in cents without VAT, so there are no floats. */
+/**
+ * Položka zákazky. The quantity is in hundredths and the prices in cents without VAT, so there are no
+ * floats. `unitPriceCents` is the Predajná cena. `purchasePriceCents` is the Nákupná cena of a Diel, null
+ * while it is not known and always null for a Práca. The Prirážka is not stored: the form derives it.
+ */
 export const workOrderItem = pgTable(
   'work_order_item',
   {
@@ -254,9 +281,11 @@ export const workOrderItem = pgTable(
       .notNull()
       .references(() => workOrder.id, { onDelete: 'cascade' }),
     kind: workOrderItemKind('kind').notNull(),
+    code: text('code'),
     name: text('name').notNull(),
     quantityHundredths: integer('quantity_hundredths').notNull(),
     unit: text('unit').notNull(),
+    purchasePriceCents: integer('purchase_price_cents'),
     unitPriceCents: integer('unit_price_cents').notNull(),
     vatRate: integer('vat_rate').notNull(),
     ...timestamps,
@@ -264,6 +293,8 @@ export const workOrderItem = pgTable(
   (table) => [
     index('work_order_item_work_order_id_idx').on(table.workOrderId),
     check('work_order_item_quantity_check', sql`${table.quantityHundredths} > 0`),
+    check('work_order_item_purchase_price_check', sql`${table.purchasePriceCents} >= 0`),
+    check('work_order_item_purchase_price_kind_check', sql`${table.purchasePriceCents} is null or ${table.kind} = 'part'`),
     check('work_order_item_unit_price_check', sql`${table.unitPriceCents} >= 0`),
     check('work_order_item_vat_rate_check', sql`${table.vatRate} between 0 and 100`),
   ],

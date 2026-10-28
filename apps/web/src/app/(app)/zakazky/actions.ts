@@ -1,12 +1,12 @@
 'use server';
 
-import { workOrderStatuses } from '@servisnik/domain/work-order';
+import { itemKinds, workOrderStatuses, type ItemErrors, type WorkOrderErrors } from '@servisnik/domain/work-order';
 import { notFound, redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
 import type { ExistingCustomer } from '../../../dal/customers.ts';
 import type { ExistingVehicle } from '../../../dal/vehicles.ts';
-import { addLabour, changeWorkOrderStatus, createIntake, createWorkOrder } from '../../../dal/work-orders.ts';
+import { addItem, changeWorkOrderStatus, createIntake, createWorkOrder, deleteItem, updateItem, updateWorkOrderHeader } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import { customerMessages, intakeCustomerPrefix, readCustomer, type CustomerFormErrors, type CustomerFormValues } from '../zakaznici/customer-input.ts';
 import { intakeVehiclePrefix, readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from '../vozidla/vehicle-input.ts';
@@ -21,6 +21,11 @@ export type WorkOrderFormState = {
   saved?: { id: string; number: string; vehicleMileageKm: number };
 } | null;
 
+/** The form again, with what was typed and the reason at each field the domain refused (and `form` for a reason that is not a field's). */
+function refused(values: OrderFormValues, errors: WorkOrderErrors, form?: string): WorkOrderFormState {
+  return { values, errors: { ...orderMessages(errors), form } };
+}
+
 /**
  * Server Action of the new-work-order form. It checks the session itself: the proxy only sees a cookie,
  * and the action is a public endpoint. The customer is the one chosen on the form, the vehicle's
@@ -34,7 +39,7 @@ export async function addWorkOrder(_state: WorkOrderFormState, formData: FormDat
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.vehicle || result.errors.customer) notFound();
-    return { values, errors: orderMessages(result.errors) };
+    return refused(values, result.errors);
   }
   if (result.lowerMileage) return { values, errors: {}, saved: { id: result.id, number: result.number, ...result.lowerMileage } };
   redirect(`/zakazky/${result.id}`);
@@ -81,39 +86,109 @@ export async function addIntake(_state: IntakeFormState, formData: FormData): Pr
   redirect(`/zakazky/${result.id}`);
 }
 
-export type LabourFormState = {
-  values: Record<'name' | 'quantity' | 'unitPrice' | 'vatRate', string>;
-  errors: { name?: string; quantity?: string; unitPrice?: string; vatRate?: string; form?: string };
-} | null;
-
-/** Server Action of the add-work form; it checks the session itself, like every action. */
-export async function addLabourToWorkOrder(_state: LabourFormState, formData: FormData): Promise<LabourFormState> {
+/**
+ * Server Action of the form that edits the header of the Zákazka whose id the form carries; it checks
+ * the session itself, like every action. A Zákazka that is no longer Rozpracovaná (a click that came
+ * late, or a status changed in another tab) is refused with a message on the form and changes nothing.
+ */
+export async function editWorkOrder(_state: WorkOrderFormState, formData: FormData): Promise<WorkOrderFormState> {
   const user = await currentUser();
-  const workOrderId = field(formData, 'workOrderId');
-  const values = {
-    name: field(formData, 'name'),
-    quantity: field(formData, 'quantity'),
-    unitPrice: field(formData, 'unitPrice'),
-    vatRate: field(formData, 'vatRate'),
-  };
+  const id = field(formData, 'id');
+  const values = readOrder(formData);
 
-  const result = await orForbidden(addLabour(user, workOrderId, values));
+  const result = await orForbidden(updateWorkOrderHeader(user, id, values));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
-    const { workOrder, name, quantity, unitPrice, vatRate } = result.errors;
-    if (workOrder === 'unknown') notFound();
-    return {
-      values,
-      errors: {
-        name: name && 'Vyplňte názov',
-        quantity: quantity && 'Množstvo musí byť väčšie ako 0, najviac na 2 desatinné miesta',
-        unitPrice: unitPrice && 'Cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
-        vatRate: vatRate && 'Sadzba DPH je celé číslo od 0 do 100',
-        form: workOrder && 'Zákazka už nie je rozpracovaná, prácu do nej nemožno pridať',
-      },
-    };
+    if (result.errors.workOrder === 'unknown') notFound();
+    return refused(values, result.errors, result.errors.workOrder && 'Zákazka už nie je rozpracovaná, jej hlavičku nemožno upraviť');
+  }
+  redirect(`/zakazky/${id}`);
+}
+
+const itemFields = ['code', 'name', 'quantity', 'unit', 'purchasePrice', 'markup', 'unitPrice', 'vatRate'] as const;
+
+export type ItemFormState = {
+  values: Record<(typeof itemFields)[number], string>;
+  errors: Partial<Record<'name' | 'quantity' | 'unit' | 'purchasePrice' | 'unitPrice' | 'vatRate' | 'form', string>>;
+} | null;
+
+/**
+ * What the form of an item sent. The Prirážka is read only to be shown again with a refused form: the item
+ * keeps its two prices, and the Prirážka is worked out from them (item-form.tsx).
+ */
+const itemValues = (formData: FormData) => Object.fromEntries(itemFields.map((name) => [name, field(formData, name)])) as NonNullable<ItemFormState>['values'];
+
+/** The domain's input from the values of the form: everything but the Prirážka. */
+const itemInput = ({ code, name, quantity, unit, purchasePrice, unitPrice, vatRate }: NonNullable<ItemFormState>['values']) => ({
+  code,
+  name,
+  quantity,
+  unit,
+  purchasePrice,
+  unitPrice,
+  vatRate,
+});
+
+const notEditableMessage = 'Položky sa dajú meniť len na rozpracovanej zákazke';
+
+/** The messages for the reasons an item was refused, at the fields; `notEditable` is the reason for the whole form. */
+function itemErrors(errors: ItemErrors, notEditable: boolean): NonNullable<ItemFormState>['errors'] {
+  return {
+    name: errors.name && 'Vyplňte názov',
+    quantity: errors.quantity && 'Množstvo musí byť väčšie ako 0, najviac na 2 desatinné miesta',
+    unit: errors.unit && 'Vyplňte jednotku',
+    purchasePrice: errors.purchasePrice && 'Nákupná cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
+    unitPrice: errors.unitPrice && 'Cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
+    vatRate: errors.vatRate && 'Vyberte sadzbu DPH zo sadzieb v Nastaveniach',
+    form: notEditable ? notEditableMessage : undefined,
+  };
+}
+
+/** Server Action of the form that adds a Práca or a Diel; it checks the session itself, like every action. */
+export async function addItemToWorkOrder(_state: ItemFormState, formData: FormData): Promise<ItemFormState> {
+  const user = await currentUser();
+  const workOrderId = field(formData, 'workOrderId');
+  const kind = itemKinds.find((known) => known === field(formData, 'kind'));
+  if (!kind) notFound();
+  const values = itemValues(formData);
+
+  const result = await orForbidden(addItem(user, workOrderId, { kind, ...itemInput(values) }));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
+  if (!result.ok) {
+    if (result.errors.workOrder === 'unknown') notFound();
+    return { values, errors: itemErrors(result.errors, result.errors.workOrder === 'not-editable') };
   }
   revalidatePath(`/zakazky/${workOrderId}`);
+  return null;
+}
+
+/** Server Action of the form that edits an item; it checks the session itself, and goes back to the Zákazka once the item is saved. */
+export async function updateItemOfWorkOrder(_state: ItemFormState, formData: FormData): Promise<ItemFormState> {
+  const user = await currentUser();
+  const values = itemValues(formData);
+
+  const result = await orForbidden(updateItem(user, field(formData, 'itemId'), itemInput(values)));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
+  if (!result.ok) {
+    if (result.errors.item === 'unknown') notFound();
+    return { values, errors: itemErrors(result.errors, result.errors.workOrder === 'not-editable') };
+  }
+  revalidatePath(`/zakazky/${result.workOrderId}`);
+  redirect(`/zakazky/${result.workOrderId}`);
+}
+
+export type DeleteItemState = { error: string } | null;
+
+/**
+ * Server Action of the button that deletes an item; it checks the session itself, like every action. A second
+ * click on an item that is already gone changes nothing and just shows the Zákazka as it is.
+ */
+export async function deleteItemOfWorkOrder(_state: DeleteItemState, formData: FormData): Promise<DeleteItemState> {
+  const user = await currentUser();
+  const result = await orForbidden(deleteItem(user, field(formData, 'itemId')));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok && result.error === 'not-editable') return { error: notEditableMessage };
+  revalidatePath(`/zakazky/${result.ok ? result.workOrderId : field(formData, 'workOrderId')}`);
   return null;
 }
 

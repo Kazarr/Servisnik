@@ -1,5 +1,17 @@
 import { describe, expect, test } from 'vitest';
-import { can, canSeePrices, capabilities, parseNewUser, passwordError, passwordLength, roles, type Capability, type NewUserInput } from '../src/access/index.ts';
+import {
+  can,
+  canSeePrices,
+  capabilities,
+  parseNewUser,
+  parseUserEdit,
+  passwordError,
+  passwordLength,
+  roles,
+  type Capability,
+  type NewUserInput,
+  type UserEditInput,
+} from '../src/access/index.ts';
 
 // A capability the code has never heard of, e.g. one a newer version adds.
 const unknown = 'work-orders.delete' as Capability;
@@ -35,6 +47,15 @@ describe('Prístup', () => {
       expect(can('admin', capability), capability).toBe(true);
       expect(can('mechanik', capability), capability).toBe(false);
     }
+  });
+
+  // The Údaje autoservisu are printed on the documents a mechanik prints (the job sheet), so he reads them; only the admin writes them, with settings.write.
+  test('the mechanik reads Údaje autoservisu, which the Nastavenia capabilities do not give him, and writes none', () => {
+    expect(capabilities).toContain('workshop.read');
+    expect(can('admin', 'workshop.read')).toBe(true);
+    expect(can('mechanik', 'workshop.read')).toBe(true);
+    expect(can('mechanik', 'settings.read')).toBe(false);
+    expect(can('mechanik', 'settings.write')).toBe(false);
   });
 
   // The list of Používatelia and the creation of one are the admin's alone: they hand out access to everything.
@@ -104,5 +125,38 @@ describe('Nový používateľ', () => {
       ok: false,
       errors: { name: 'required', email: 'format', role: 'invalid', password: 'tooShort' },
     });
+  });
+});
+
+describe('Úprava používateľa', () => {
+  const valid: UserEditInput = { name: 'Ján Novák', email: 'jan@autoservis.sk', role: 'mechanik' };
+
+  test('a name, an e-mail and a role are accepted as typed, but for the e-mail in lower case and the name trimmed', () => {
+    expect(parseUserEdit(valid)).toEqual({ ok: true, edit: valid });
+    expect(parseUserEdit({ name: '  Ján Novák ', email: ' Jan@AutoServis.SK ', role: 'admin' })).toEqual({
+      ok: true,
+      edit: { ...valid, role: 'admin' },
+    });
+  });
+
+  test('no role means the Rola stays as it is, so the edit carries none', () => {
+    expect(parseUserEdit({ name: 'Ján Novák', email: 'jan@autoservis.sk' })).toEqual({ ok: true, edit: { name: 'Ján Novák', email: 'jan@autoservis.sk' } });
+  });
+
+  test('a name is required, and a name of spaces is none', () => {
+    expect(parseUserEdit({ ...valid, name: '   ' })).toEqual({ ok: false, errors: { name: 'required' } });
+  });
+
+  test.each(['', 'jan', 'jan@', '@autoservis.sk', 'jan@autoservis', 'jan novak@autoservis.sk'])('the e-mail "%s" is refused', (email) => {
+    expect(parseUserEdit({ ...valid, email })).toEqual({ ok: false, errors: { email: 'format' } });
+  });
+
+  // A role that was sent must be one of ours: an empty one is not "none", it is a form that sent nothing valid.
+  test.each(['user', '', 'admin,mechanik'])('the role "%s" is refused', (role) => {
+    expect(parseUserEdit({ ...valid, role })).toEqual({ ok: false, errors: { role: 'invalid' } });
+  });
+
+  test('every reason comes back at once', () => {
+    expect(parseUserEdit({ name: '', email: 'x', role: 'x' })).toEqual({ ok: false, errors: { name: 'required', email: 'format', role: 'invalid' } });
   });
 });
