@@ -60,6 +60,22 @@ export async function addCustomer(page: Page, name: string, type: 'Osoba' | 'Fir
   await expect(page.locator('main h1')).toHaveText(name);
 }
 
+/** From a customer's detail: opens the form for a new vehicle and fills VIN, make and model. The form is not sent. */
+export async function fillVehicleForm(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
+  await page.getByLabel('VIN').fill(vin);
+  await page.getByLabel('Značka').fill(make);
+  await page.getByLabel('Model').fill(model);
+}
+
+/** From a customer's detail: adds a vehicle through the form and opens its detail. */
+export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda', model = 'Octavia') {
+  await fillVehicleForm(page, vin, make, model);
+  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
+  await page.locator('main').getByRole('link', { name: vin }).click();
+  await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
+}
+
 /** Ends the admin's session on the server, as another tab or an expiry would, while `page` stays open. */
 export async function endSessionBehindThePage(page: Page, browser: Browser, baseURL: string | undefined) {
   const elsewhere = await browser.newContext({ baseURL });

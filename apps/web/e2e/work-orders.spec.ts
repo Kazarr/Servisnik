@@ -1,20 +1,9 @@
 import type { Locator, Page } from '@playwright/test';
-import { addCustomer, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
+import { addCustomer, addVehicleAndOpen, endSessionBehindThePage, expect, runTag, signIn, test, vinOf } from './fixtures.ts';
 
 /** Today in Europe/Bratislava as the app writes it, e.g. "26. 10. 2026". */
 const today = () => new Date().toLocaleDateString('sk-SK', { timeZone: 'Europe/Bratislava' });
 const year = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Bratislava', year: 'numeric' });
-
-/** From a customer's detail: adds a vehicle and opens its detail. */
-async function addVehicleAndOpen(page: Page, vin: string) {
-  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
-  await page.getByLabel('VIN').fill(vin);
-  await page.getByLabel('Značka').fill('Škoda');
-  await page.getByLabel('Model').fill('Octavia');
-  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await page.locator('main').getByRole('link', { name: vin }).click();
-  await expect(page.locator('main h1')).toHaveText('Škoda Octavia');
-}
 
 /** On a vehicle's detail: opens the form for a new work order. */
 async function startWorkOrder(page: Page) {

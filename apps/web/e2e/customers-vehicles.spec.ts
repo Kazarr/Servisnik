@@ -1,4 +1,4 @@
-import { addCustomer, endSessionBehindThePage, expect, newIco, runTag, signIn, test, vinOf } from './fixtures.ts';
+import { addCustomer, endSessionBehindThePage, expect, fillVehicleForm, newIco, runTag, signIn, test, vinOf } from './fixtures.ts';
 
 test('the admin adds a company and its vehicle, and a second vehicle with the same VIN is refused', async ({ page }) => {
   test.slow(); // one long walk through the forms; under --repeat-each the workers share one server
@@ -69,10 +69,7 @@ test('the admin adds a company and its vehicle, and a second vehicle with the sa
   await expect(page).toHaveURL(customerUrl);
 
   // A second vehicle with the same VIN is refused, however it is typed.
-  await main.getByRole('link', { name: 'Pridať vozidlo' }).click();
-  await vinField.fill(vin.toLowerCase());
-  await page.getByLabel('Značka').fill('Škoda');
-  await page.getByLabel('Model').fill('Octavia');
+  await fillVehicleForm(page, vin.toLowerCase());
   await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
   await expect(vinField).toHaveAccessibleDescription('Vozidlo s týmto VIN už existuje');
   await page.goto(customerUrl);
@@ -120,10 +117,7 @@ test('a vehicle form submitted after the session ended is refused and saves noth
   const vin = vinOf(tag);
   await signIn(page);
   await addCustomer(page, `Majiteľ bez auta ${tag}`);
-  await page.locator('main').getByRole('link', { name: 'Pridať vozidlo' }).click();
-  await page.getByLabel('VIN').fill(vin);
-  await page.getByLabel('Značka').fill('Škoda');
-  await page.getByLabel('Model').fill('Fabia');
+  await fillVehicleForm(page, vin, 'Škoda', 'Fabia');
   await endSessionBehindThePage(page, browser, baseURL);
 
   await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
