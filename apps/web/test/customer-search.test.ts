@@ -178,6 +178,26 @@ test('a page that does not exist is the nearest one that does', async () => {
   }
 });
 
+test('a search leaves out the customer named in `except`, from the count and from the pages, with or without a query', async () => {
+  const ids: string[] = [];
+  for (let i = 1; i <= 26; i++) ids.push(await add({ type: 'person', name: `Ján Novák ${String(i).padStart(2, '0')}` }));
+  const left = ids[0]!;
+
+  for (const query of ['novak', '']) {
+    const result = await searchCustomers(admin, { query, except: left }, ctx.db);
+
+    expect(result.total, query).toBe(25);
+    expect(result.pageCount, query).toBe(1);
+    expect(result.customers.map((customer) => customer.id).sort(), query).toEqual(ids.slice(1).sort());
+  }
+});
+
+test('an `except` that is no id leaves nobody out', async () => {
+  await add({ type: 'person', name: 'Ján Novák' });
+
+  expect(await searchCustomers(admin, { except: 'zakaznik-1' }, ctx.db)).toMatchObject({ total: 1 });
+});
+
 test('an edit moves the customer in the search: the old name is not found, the new one is', async () => {
   const id = await add({ type: 'company', name: 'Ján Novák', ico: '36396567', email: 'jan@novak.sk', phone: '0905 123 456' });
 

@@ -2,7 +2,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
-import { createVehicle, deleteVehicle, updateVehicle, type ExistingVehicle, type VehicleSaveErrors } from '../../../dal/vehicles.ts';
+import { createVehicle, deleteVehicle, transferOwnership, updateVehicle, type ExistingVehicle, type VehicleSaveErrors } from '../../../dal/vehicles.ts';
 import type { DeleteState } from '../delete-form.tsx';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import { readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from './vehicle-input.ts';
@@ -48,6 +48,32 @@ export async function editVehicle(_state: VehicleFormState, formData: FormData):
   if (!result.ok) {
     if (result.errors.vehicle) notFound();
     return refused(values, result);
+  }
+  redirect(`/vozidla/${id}`);
+}
+
+export type TransferFormState = { error: string } | null;
+
+const transferMessages = {
+  same: 'Vozidlo už patrí tomuto zákazníkovi',
+  changed: 'Majiteľ vozidla sa medzitým zmenil, nič sa neprepísalo. Otvorte detail vozidla a skúste to znova.',
+};
+
+/**
+ * Server Action of "Potvrdiť prepis". It checks the session itself, like every action, and sends the
+ * Majiteľ the page showed along with the new one, so that a Prepis confirmed after another one is
+ * refused (`transferOwnership`), unless the Vozidlo has come back to that Majiteľ. A Vozidlo or a Zákazník that does not exist is a page that does not.
+ */
+export async function transferVehicle(_state: TransferFormState, formData: FormData): Promise<TransferFormState> {
+  const user = await currentUser();
+  const id = String(formData.get('vehicleId') ?? '');
+  const owners = { fromOwnerId: String(formData.get('fromOwnerId') ?? ''), toOwnerId: String(formData.get('toOwnerId') ?? '') };
+
+  const result = await orForbidden(transferOwnership(user, id, owners));
+  if (result === 'forbidden') return { error: forbiddenMessage };
+  if (!result.ok) {
+    if ('vehicle' in result.errors || result.errors.owner === 'unknown') notFound();
+    return { error: transferMessages[result.errors.owner] };
   }
   redirect(`/vozidla/${id}`);
 }

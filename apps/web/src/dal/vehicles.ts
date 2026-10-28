@@ -1,6 +1,6 @@
 import { parseVehicle, parseVehicleSearch, type VehicleErrors, type VehicleInput, type VinError } from '@servisnik/domain/vehicle';
 import { localYear } from '@servisnik/domain/work-order';
-import { count, desc, eq, or } from 'drizzle-orm';
+import { and, count, desc, eq, or } from 'drizzle-orm';
 import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { blockedByLink, violates } from './constraint.ts';
@@ -92,6 +92,46 @@ export async function updateVehicle(user: User | null, id: string, input: Vehicl
     if (!violates(error, 'vehicle_vin_idx')) throw error;
     return vinTaken(parsed.vehicle.vin, db);
   }
+}
+
+/**
+ * Why a Prepis did not happen. `vehicle: 'unknown'`: there is no such Vozidlo. `owner`: the new Majiteľ
+ * is no Zákazník (`unknown`) or is the one the confirmation names as the old (`same`), or the Vozidlo
+ * no longer has the Majiteľ the Prepis was confirmed from (`changed`).
+ */
+export type TransferOwnershipResult = { ok: true } | { ok: false; errors: { vehicle: 'unknown' } | { owner: 'unknown' | 'same' | 'changed' } };
+
+/**
+ * Prepis (GLOSSARY): gives the Vozidlo `id` to the Zákazník `toOwnerId` and changes nothing else; the
+ * Zákazky stay with the Vozidlo and with the Zákazník they were made for. `fromOwnerId` is the Majiteľ
+ * the admin saw when he confirmed. The update only matches while the Vozidlo still has him, so two
+ * Prepisy at once cannot both get through and a stale confirmation does not overwrite a newer Prepis,
+ * unless the Vozidlo has meanwhile come back to that Majiteľ. Admin only (GLOSSARY, Rola).
+ */
+export async function transferOwnership(
+  user: User | null,
+  id: string,
+  { fromOwnerId, toOwnerId }: { fromOwnerId: string; toOwnerId: string },
+  db: Database = getDb(),
+): Promise<TransferOwnershipResult> {
+  assertCan(user, 'vehicles.write');
+  if (!isUuid(id)) return { ok: false, errors: { vehicle: 'unknown' } };
+  if (!isUuid(toOwnerId)) return { ok: false, errors: { owner: 'unknown' } };
+  if (toOwnerId === fromOwnerId) return { ok: false, errors: { owner: 'same' } };
+  if (!isUuid(fromOwnerId)) return { ok: false, errors: { owner: 'changed' } }; // no Majiteľ is called that
+  try {
+    const [moved] = await db
+      .update(vehicle)
+      .set({ ownerId: toOwnerId })
+      .where(and(eq(vehicle.id, id), eq(vehicle.ownerId, fromOwnerId)))
+      .returning({ id: vehicle.id });
+    if (moved) return { ok: true };
+  } catch (error) {
+    if (!violates(error, 'vehicle_owner_id_customer_id_fk')) throw error;
+    return { ok: false, errors: { owner: 'unknown' } };
+  }
+  const [found] = await db.select({ id: vehicle.id }).from(vehicle).where(eq(vehicle.id, id));
+  return found ? { ok: false, errors: { owner: 'changed' } } : { ok: false, errors: { vehicle: 'unknown' } };
 }
 
 /**

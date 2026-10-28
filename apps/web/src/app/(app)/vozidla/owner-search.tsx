@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { searchCustomers } from '../../../dal/customers.ts';
 import type { User } from '../../../dal/user.ts';
 import { Field } from '../field.tsx';
@@ -8,32 +7,14 @@ import { searchHref } from '../search-params.ts';
 import { customerTypeLabels } from '../zakaznici/type-labels.ts';
 
 /**
- * Before the form of a new Vozidlo: its Majiteľ is found by the same search as on the list of Zákazníci,
- * and picking one leads to `ownerHref(id)`. The page is `path` and has the heading `title`; `children`
- * come under the heading, for a way on that is not a search.
+ * The search for a Majiteľ, the same as on the list of Zákazníci, for the pages that pick one: the form
+ * of a new Vozidlo and a Prepis. Each result links to `path?zakaznik=<id>`, and `path` also receives the
+ * search. `except` is the Majiteľ the Vozidlo has now, who is not offered.
  */
-export async function PickOwner({
-  user,
-  query,
-  page,
-  path,
-  title,
-  ownerHref,
-  children,
-}: {
-  user: User;
-  query: string;
-  page: number;
-  path: string;
-  title: string;
-  ownerHref: (customerId: string) => string;
-  children?: ReactNode;
-}) {
-  const { customers, page: current, pageCount } = await searchCustomers(user, { query, page });
+export async function OwnerSearch({ user, query, page, path, except }: { user: User; query: string; page: number; path: string; except?: string }) {
+  const { customers, page: current, pageCount } = await searchCustomers(user, { query, page, except });
   return (
     <>
-      <h1>{title}</h1>
-      {children}
       <form role="search" action={path} className="search">
         <Field label="Hľadať majiteľa" name="q" type="search" defaultValue={query} placeholder="Názov, IČO, e-mail alebo telefón" />
         <button type="submit">Hľadať</button>
@@ -54,7 +35,7 @@ export async function PickOwner({
               {customers.map((customer) => (
                 <tr key={customer.id}>
                   <td>
-                    <Link href={ownerHref(customer.id)}>{customer.name}</Link>
+                    <Link href={`${path}?zakaznik=${customer.id}`}>{customer.name}</Link>
                   </td>
                   <td>{customerTypeLabels[customer.type]}</td>
                   <td>{customer.ico}</td>

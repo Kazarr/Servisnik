@@ -1,4 +1,4 @@
-import { expect, test as base, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test as base, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { randomBytes, randomInt } from 'node:crypto';
 import type { Database } from '../src/db/index.ts';
 import { seedUser } from '../test/support/users.ts';
@@ -31,25 +31,47 @@ export const test = base.extend({
   },
 });
 
+const hasOwnAddress = new WeakSet<BrowserContext>();
+
+/**
+ * Gives the browser context a client address that no other has. The server limits the attempts to sign in and to
+ * change the password by the address of the client (src/dal/attempt-limit.ts), and every browser here connects
+ * from 127.0.0.1, so without it all tests would share the 3 attempts in 10 seconds. The e2e server is started with
+ * `CLIENT_IP_HEADER=x-forwarded-for` (global-setup.ts), where Better Auth takes a single address as the client's;
+ * on DigitalOcean the header is do-connecting-ip (.do/app.yaml). 24 random bits make two contexts meeting rare.
+ */
+async function useNewAddress(context: BrowserContext) {
+  const [a, b, c] = randomBytes(3);
+  await context.setExtraHTTPHeaders({ 'x-forwarded-for': `10.${a}.${b}.${c}` });
+  hasOwnAddress.add(context);
+}
+
 /**
  * Submits the login form with the e-mail and password of the admin the global setup seeded, unless
- * a test names another user or wants a wrong password.
+ * a test names another user or wants a wrong password. The context keeps the address it has, or gets one
+ * at its first login: a test that makes several attempts in a row, like the one of the limit, makes them from one.
  */
 export async function submitLogin(page: Page, password = process.env.E2E_ADMIN_PASSWORD!, email = process.env.E2E_ADMIN_EMAIL!) {
+  if (!hasOwnAddress.has(page.context())) await useNewAddress(page.context());
   await page.goto('/login');
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Heslo').fill(password);
   await page.getByRole('button', { name: 'Prihlásiť sa' }).click();
 }
 
-/** Signs in as the admin the global setup seeded and waits for the first page after the login. */
+/**
+ * Signs in as the admin the global setup seeded and waits for the first page after the login. It is a way to get a
+ * session, so every call comes from a new address: a test that signs in again and again would meet the limit.
+ */
 export async function signIn(page: Page) {
+  await useNewAddress(page.context());
   await submitLogin(page);
   await expect(page).toHaveURL(/\/zakazky$/);
 }
 
-/** Signs in as a user the spec created (see test/support/users.ts) and waits for the first page after the login. */
+/** Signs in as a user the spec created (see test/support/users.ts) and waits for the first page after the login, from a new address like signIn. */
 export async function signInAs(page: Page, { email, password }: { email: string; password: string }) {
+  await useNewAddress(page.context());
   await submitLogin(page, password, email);
   await expect(page).toHaveURL(/\/zakazky$/);
 }
@@ -109,6 +131,26 @@ export async function addVehicleAndOpen(page: Page, vin: string, make = 'Škoda'
   await expect(page.locator('main h1')).toHaveText(`${make} ${model}`);
 }
 
+/** On a vehicle's detail: opens the form for a new work order. */
+export async function startWorkOrder(page: Page) {
+  await page.locator('main').getByRole('link', { name: 'Nová zákazka' }).click();
+  await expect(page.locator('main h1')).toHaveText('Nová zákazka');
+}
+
+/** On the form for a new work order: fills the intake and sends it. */
+export async function fillIntake(page: Page, mileage: string, request: string) {
+  await page.getByLabel('Kilometre pri príjme').fill(mileage);
+  await page.getByLabel('Požiadavka zákazníka').fill(request);
+  await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
+}
+
+/** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
+export async function numberOnTheDetail(page: Page) {
+  const heading = page.locator('main h1');
+  await expect(heading).toHaveText(/^Z\d{4}-\d{4}$/);
+  return (await heading.textContent())!;
+}
+
 /**
  * Types `text` into the search field called `label`, searches, and waits until the page of that
  * search has loaded, so what the caller asserts next cannot be true of the page of the search before.
@@ -122,6 +164,9 @@ async function searchList(page: Page, label: string, text: string) {
 
 /** Searches the list of customers for `text` (see searchList). */
 export const searchCustomers = (page: Page, text: string) => searchList(page, 'Hľadať zákazníka', text);
+
+/** On a page that picks a Majiteľ (the new vehicle, a Prepis): searches the customers for `text` (see searchList). */
+export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľadať majiteľa', text);
 
 /** Searches the list of vehicles for `text` (see searchList). */
 export const searchVehicles = (page: Page, text: string) => searchList(page, 'Hľadať vozidlo', text);

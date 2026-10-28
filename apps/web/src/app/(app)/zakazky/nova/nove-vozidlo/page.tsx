@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../../dal/current-user.ts';
 import { getCustomer } from '../../../../../dal/customers.ts';
 import { first, pageOf } from '../../../search-params.ts';
-import { PickOwner } from '../../../vozidla/pick-owner.tsx';
+import { OwnerSearch } from '../../../vozidla/owner-search.tsx';
 import { intakePaths } from '../paths.ts';
 import { IntakeForm } from './intake-form.tsx';
 
@@ -37,13 +37,15 @@ export default async function NewVehicleIntakePage({
   }
   if (zakaznik === undefined) {
     return (
-      <PickOwner user={user} query={first(q)} page={pageOf(strana)} path={intakePaths.newVehicle} title={title} ownerHref={intakePaths.withOwner}>
+      <>
+        <h1>{title}</h1>
         <p>
           <Link href={intakePaths.withNewOwner} className="button">
             Nový zákazník
           </Link>
         </p>
-      </PickOwner>
+        <OwnerSearch user={user} query={first(q)} page={pageOf(strana)} path={intakePaths.newVehicle} />
+      </>
     );
   }
 
