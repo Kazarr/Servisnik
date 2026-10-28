@@ -13,14 +13,19 @@ export const runTag = () => randomBytes(3).toString('hex');
 /** A VIN unique per tag (24 random bits): the 11 characters of `prefix`, then the tag in capitals (hex digits are never I, O or Q). */
 export const vinOf = (tag: string, prefix = 'TMBZZZ5JZ3W') => `${prefix}${tag.toUpperCase()}`;
 
-/** `page` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see watch-page.ts). */
+/**
+ * `context` that fails its test on a console error, an uncaught page exception or an HTTP 5xx (see
+ * watch-page.ts) of any page that opens in it: the `page` fixture, a `context.newPage()` of the test
+ * and a popup alike.
+ */
 export const test = base.extend({
-  page: async ({ page }, use) => {
-    const problems = watchPage(page);
+  context: async ({ context }, use) => {
+    const problems: string[][] = [];
+    context.on('page', (page) => problems.push(watchPage(page)));
 
-    await use(page);
+    await use(context);
 
-    expect(problems, 'the page reported errors').toEqual([]);
+    expect(problems.flat(), 'a page reported errors').toEqual([]);
   },
 });
 

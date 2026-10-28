@@ -35,3 +35,22 @@ test('prices, sums, VAT, margins, discounts and invoices are found by their Engl
 test('a price key is reported once, not its whole subtree', () => {
   expect(findPriceKeys({ id: '1', totals: { net: 1, vat: 2, gross: 3 } })).toEqual(['$.totals']);
 });
+
+test('the one-word keys subtotal, základ, eur and fee are found, in either number and any case', () => {
+  const keys = ['subtotal', 'subtotals', 'základ', 'zaklad', 'eur', 'EUR', 'fee', 'fees'];
+
+  expect(findPriceKeys(Object.fromEntries(keys.map((key) => [key, 1])))).toEqual(keys.map((key) => `$.${key}`));
+});
+
+// A run of capitals is a word of its own: "VATRate" is VAT and Rate, "unitPriceEUR" is unit, Price and EUR.
+test('a price word next to a run of capitals is found, on either side of it', () => {
+  const keys = ['VATRate', 'DPHSadzba', 'EURTotal', 'unitPriceEUR', 'netVAT', 'APIPrice'];
+
+  expect(findPriceKeys(Object.fromEntries(keys.map((key) => [key, 1])))).toEqual(keys.map((key) => `$.${key}`));
+});
+
+test('a key that holds a price word only inside another word, or only capitals that are none, passes', () => {
+  const keys = ['feedback', 'europe', 'zakladna', 'format', 'internet', 'NETWORK', 'URLInfo', 'HTTPStatus', 'vehicleVIN'];
+
+  expect(findPriceKeys(Object.fromEntries(keys.map((key) => [key, 1])))).toEqual([]);
+});

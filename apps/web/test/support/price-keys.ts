@@ -1,16 +1,20 @@
-// Words that make a key a price: prices, sums, VAT, margins, discounts and invoices, in English and
-// Slovak. A key is split into words ("unitPriceCents" is unit, price, cents) so that "internet" is not "net".
+// Words that make a key a price: prices, sums, VAT, margins, discounts, fees, currencies and invoices,
+// in English and Slovak. A key is split into words ("unitPriceCents" is unit, price, cents) so that
+// "internet" is not "net".
 const priceWords = new Set([
-  'price', 'prices', 'cena', 'ceny', 'cost', 'costs', 'cents', 'rate', 'sadzba',
-  'amount', 'amounts', 'sum', 'suma', 'total', 'totals', 'net', 'gross',
+  'price', 'prices', 'cena', 'ceny', 'cost', 'costs', 'cents', 'eur', 'rate', 'sadzba', 'fee', 'fees',
+  'amount', 'amounts', 'sum', 'suma', 'total', 'totals', 'subtotal', 'subtotals', 'zaklad', 'net', 'gross',
   'vat', 'dph', 'margin', 'marza', 'markup', 'prirazka', 'discount', 'zlava', 'invoice', 'faktura',
 ]);
 
+// A word starts at a capital after a lower-case letter or digit ("unitPrice"), and a run of capitals is a
+// word of its own that ends before the capital which starts a lower-case one ("VATRate" is VAT, Rate).
 const wordsOf = (key: string) =>
   key
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
     .toLowerCase()
     .split(/[^a-z0-9]+/);
 
