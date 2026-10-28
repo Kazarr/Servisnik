@@ -27,10 +27,11 @@ function sharedBrowser() {
 
 /**
  * The PDF of `html` on A4, with margins, backgrounds, and "Strana X/Y" at the bottom of every page. The page
- * runs no script, so nothing a form carries (a customer's text) can do anything but be printed.
+ * runs no script and has no network, so nothing a form carries (a customer's text) can do anything but be
+ * printed: an address in it is never asked for.
  */
 export async function printPdf(html: string): Promise<Uint8Array> {
-  const context = await (await sharedBrowser()).newContext({ javaScriptEnabled: false, locale: 'sk-SK' });
+  const context = await (await sharedBrowser()).newContext({ javaScriptEnabled: false, offline: true, locale: 'sk-SK' });
   try {
     const page = await context.newPage();
     await page.setContent(html);

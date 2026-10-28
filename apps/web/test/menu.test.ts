@@ -9,11 +9,12 @@ test('the admin sees the whole menu', () => {
     { href: '/zakaznici', label: 'Zákazníci' },
     { href: '/vozidla', label: 'Vozidlá' },
     { href: '/zakazky', label: 'Zákazky' },
+    { href: '/cennik', label: 'Cenník' },
     { href: '/nastavenia', label: 'Nastavenia' },
   ]);
 });
 
-test('the mechanik sees only Zákazky', () => {
+test('the mechanik sees only Zákazky, and no Cenník', () => {
   expect(shown('mechanik')).toEqual([{ href: '/zakazky', label: 'Zákazky' }]);
 });
 

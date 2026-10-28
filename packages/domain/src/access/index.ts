@@ -17,6 +17,8 @@ export const capabilities = [
   'work-orders.job-sheet',
   'work-orders.quote',
   'work-orders.handover',
+  'price-list.read',
+  'price-list.write',
   'password.change',
   'settings.read',
   'settings.write',

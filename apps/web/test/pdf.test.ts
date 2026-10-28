@@ -1,3 +1,6 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { once } from 'node:events';
 import { afterAll, expect, test } from 'vitest';
 import { printPdf } from '../src/print/pdf.ts';
 import { watchChromium } from './support/chromium.ts';
@@ -71,6 +74,22 @@ test('the reader of the PDF counts a character no font has as a missing glyph', 
   const [first] = readPdf(await printPdf(page('<p>A\u{10FFFE}B</p>')));
 
   expect(first!.missingGlyphs).toBe(1);
+});
+
+test('a page that asks for something on the network is not answered, because nothing leaves the process', async () => {
+  let asked = 0;
+  const server = createServer((_request, response) => {
+    asked++;
+    response.end();
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const { port } = server.address() as AddressInfo;
+
+  await printPdf(page(`<p>Obrázok zo siete</p><img src="http://127.0.0.1:${port}/logo.png">`));
+  await new Promise((resolve) => server.close(resolve));
+
+  expect(asked).toBe(0);
 });
 
 test('a script in the HTML does not run: what the HTML says is printed and what a script would add is not', async () => {

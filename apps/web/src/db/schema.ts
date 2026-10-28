@@ -299,3 +299,34 @@ export const workOrderItem = pgTable(
     check('work_order_item_vat_rate_check', sql`${table.vatRate} between 0 and 100`),
   ],
 );
+
+/**
+ * Položka cenníka: a Práca or a Diel with the prices in cents without VAT and the VAT rate it was given, as a
+ * Položka zákazky has them, but no quantity. Adding one to a Zákazka copies its values: `work_order_item` has no
+ * column that points here, so changing or deleting an item never reaches a Zákazka. The code is unique whatever its
+ * case; PostgreSQL lets any number of rows have none. `search*` are the code and the name as the domain normalizes
+ * them to be searched (`priceListSearchKeys`): the DAL writes them with every save, so the search needs no `unaccent`.
+ */
+export const priceListItem = pgTable(
+  'price_list_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: workOrderItemKind('kind').notNull(),
+    code: text('code'),
+    name: text('name').notNull(),
+    unit: text('unit').notNull(),
+    purchasePriceCents: integer('purchase_price_cents'),
+    unitPriceCents: integer('unit_price_cents').notNull(),
+    vatRate: integer('vat_rate').notNull(),
+    searchCode: text('search_code').notNull(),
+    searchName: text('search_name').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('price_list_item_code_idx').on(sql`lower(${table.code})`),
+    check('price_list_item_purchase_price_check', sql`${table.purchasePriceCents} >= 0`),
+    check('price_list_item_purchase_price_kind_check', sql`${table.purchasePriceCents} is null or ${table.kind} = 'part'`),
+    check('price_list_item_unit_price_check', sql`${table.unitPriceCents} >= 0`),
+    check('price_list_item_vat_rate_check', sql`${table.vatRate} between 0 and 100`),
+  ],
+);

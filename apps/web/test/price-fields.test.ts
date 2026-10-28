@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { syncPriceFields, type PriceFields } from '../src/app/(app)/zakazky/[id]/price-fields.ts';
+import { syncPriceFields, type PriceFields } from '../src/app/(app)/price-fields.ts';
 
 // The form of a Diel has a Nákupná cena, a Prirážka and a Predajná cena, of which the Prirážka is never saved. Changing
 // one of them changes another, as the admin would work it out; every value below is worked out by hand.
