@@ -119,9 +119,11 @@ class IntakeRefused extends Error {
  * Príjem vozidla with a new Vozidlo (GLOSSARY): saves the new Zákazník when there is one, the Vozidlo with
  * him or the existing Zákazník as its Majiteľ, and the Zákazka for it, whose Zákazník is the Majiteľ, all
  * in one transaction. A part that cannot be saved takes the others with it, whether the rules refuse it, a
- * VIN or an IČO is taken, or PostgreSQL fails. Every part is checked before any is written, so every
- * reason comes back at once. Each part is saved by its own function (createCustomer, createVehicle,
- * createWorkOrder), so the rules of each stay where they are.
+ * VIN or an IČO is taken, an owner is no Zákazník, or PostgreSQL fails. Every part is checked against the
+ * rules before any is written, so every reason of the rules comes back at once; a taken IČO or VIN and an
+ * owner that is no Zákazník are found while saving, one after the other, so only the first of them comes
+ * back. Each part is saved by its own function (createCustomer, createVehicle, createWorkOrder), so the
+ * rules of each stay where they are.
  */
 export async function createIntake(user: User | null, input: IntakeInput, db: Database = getDb(), now: Date = new Date()): Promise<CreateIntakeResult> {
   assertCan(user, 'work-orders.write');
