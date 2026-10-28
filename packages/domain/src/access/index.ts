@@ -15,6 +15,8 @@ export const capabilities = [
   'work-orders.read',
   'work-orders.write',
   'work-orders.job-sheet',
+  'work-orders.quote',
+  'work-orders.handover',
   'password.change',
   'settings.read',
   'settings.write',
@@ -28,7 +30,8 @@ export type Capability = (typeof capabilities)[number];
  * What a mechanik may do. Everything else is forbidden to him, so a forgotten check reveals nothing.
  * `workshop.read` is the details and the logo of the Autoservis, which the forms he prints carry; the
  * rates and every other value of Nastavenia stay behind `settings.read`. Writing them is `settings.write`.
- * `work-orders.job-sheet` is printing the zákazkový list, the one form without a price (spec #95, Mechanik).
+ * `work-orders.job-sheet` is printing the zákazkový list, the one form he prints (spec #95, Mechanik); the cenová ponuka
+ * (`work-orders.quote`) and the odovzdávací protokol (`work-orders.handover`) are the admin's alone.
  */
 const mechanikCapabilities: readonly Capability[] = ['work-orders.list', 'work-orders.job-sheet', 'password.change', 'workshop.read'];
 
