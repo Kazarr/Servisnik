@@ -1,3 +1,4 @@
+import { workOrderItemFromPriceListItem } from '@servisnik/domain/price-list';
 import {
   amountsOf,
   canEdit,
@@ -17,7 +18,7 @@ import {
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
-import { customer, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
+import { customer, priceListItem, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
 import { getRates } from './settings.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
@@ -97,6 +98,35 @@ export async function addItem(user: User | null, workOrderId: string, input: Ite
     const locked = await lockForItems(tx, workOrderId);
     if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
     const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...parsed.item }).returning({ id: workOrderItem.id });
+    return { ok: true, id: saved!.id };
+  });
+}
+
+export type AddItemFromPriceListResult =
+  | { ok: true; id: string }
+  | { ok: false; errors: { workOrder?: 'unknown' | 'not-editable'; priceListItem?: 'unknown' } };
+
+/**
+ * Adds a Položka cenníka to a Zákazka that is still Rozpracovaná, under the lock of the other adds, as an item of
+ * quantity 1 (packages/domain/src/price-list). What is added is a copy of its values and refers back to nothing, so a
+ * later change or deletion in the Cenník leaves the Zákazka as it is. The item keeps the VAT rate it has, even
+ * one Nastavenia no longer offer. Reading the Cenník is the admin's alone.
+ */
+export async function addItemFromPriceList(
+  user: User | null,
+  workOrderId: string,
+  priceListItemId: string,
+  db: Database = getDb(),
+): Promise<AddItemFromPriceListResult> {
+  assertCan(user, 'work-orders.write');
+  assertCan(user, 'price-list.read');
+
+  return db.transaction(async (tx) => {
+    const locked = await lockForItems(tx, workOrderId);
+    if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
+    const [source] = await rowsIfUuid(priceListItemId, tx.select().from(priceListItem).where(eq(priceListItem.id, priceListItemId)));
+    if (!source) return { ok: false, errors: { priceListItem: 'unknown' } };
+    const [saved] = await tx.insert(workOrderItem).values({ workOrderId, ...workOrderItemFromPriceListItem(source) }).returning({ id: workOrderItem.id });
     return { ok: true, id: saved!.id };
   });
 }
