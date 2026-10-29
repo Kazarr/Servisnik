@@ -7,6 +7,7 @@ import { valueIn } from '../form-value.ts';
 import { roleLabels } from './role-labels.ts';
 import { updateUserAction } from './user-actions.ts';
 import type { UserFormValues } from './user-fields.ts';
+import { userMessages } from './user-messages.ts';
 
 /**
  * The form that changes the name, e-mail and Rola of a Používateľ, filled in with `initial`; after a
@@ -26,7 +27,9 @@ export function UserEditForm({ userId, initial, ownRole }: { userId: string; ini
       <Field label="Meno používateľa" name="userName" autoComplete="off" defaultValue={value('name')} error={errors.name} required />
       <Field label="E-mail používateľa" name="userEmail" type="email" autoComplete="off" defaultValue={value('email')} error={errors.email} required />
       {ownRole ? (
-        <p>Rola: {roleLabels[ownRole]}. Svoju rolu nezmeníte.</p>
+        <p>
+          Rola: {roleLabels[ownRole]}. {userMessages.role.own}.
+        </p>
       ) : (
         <SelectField label="Rola používateľa" name="userRole" defaultValue={value('role')} error={errors.role}>
           {roles.map((role) => (
