@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer } from '../src/dal/customers.ts';
 import { createVehicle, getVehicle, searchVehicles, transferOwnership } from '../src/dal/vehicles.ts';
@@ -7,6 +6,7 @@ import { createWorkOrder, getWorkOrder, listWorkOrdersOfCustomer, listWorkOrders
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The Prepis of a Vozidlo (GLOSSARY): it changes the Majiteľ and nothing else, and the Zákazky stay with
 // the Vozidlo and with the Zákazník they were made for (spec #67). Against a real PostgreSQL.
@@ -20,7 +20,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer cascade`);
+  await truncateTables(ctx.db, 'customer');
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   buyerId = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   vehicleId = idOf(

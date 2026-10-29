@@ -2,7 +2,7 @@ import { searchPriceList } from '../../../../dal/price-list.ts';
 import type { User } from '../../../../dal/user.ts';
 import { formatEuro } from '../../../../format.ts';
 import { Field } from '../../field.tsx';
-import { itemKindLabels } from '../../item-kind-labels.ts';
+import { itemKindLabels } from '../../../../item-kind-labels.ts';
 import { Pager } from '../../pager.tsx';
 import { searchHref } from '../../search-params.ts';
 import { AddFromPriceListForm } from './add-from-price-list-form.tsx';
@@ -49,7 +49,7 @@ export async function PriceListSearch({ user, workOrderId, query, page }: { user
                       <td>{item.code}</td>
                       <td>{item.name}</td>
                       <td>{item.unit}</td>
-                      <td className="amount">{formatEuro(item.unitPriceCents)}</td>
+                      <td className="amount">{formatEuro(item.salePriceCents)}</td>
                       <td className="amount">{item.vatRate} %</td>
                       <td>
                         <AddFromPriceListForm priceListItemId={item.id} workOrderId={workOrderId} name={item.name} />

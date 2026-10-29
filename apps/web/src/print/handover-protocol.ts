@@ -1,16 +1,14 @@
-import type { ItemKind } from '@servisnik/domain/work-order';
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import type { Logo } from '../dal/logo.ts';
 import type { HandoverProtocol } from '../dal/print-forms.ts';
 import { formatDate, formatQuantity, formatWhole } from '../format.ts';
+import { itemKindLabels } from '../item-kind-labels.ts';
 import { printedDocument } from './document.ts';
 import { html } from './html.ts';
 
-const kindLabels: Record<ItemKind, string> = { labour: 'Práca', part: 'Diel' };
-
 const itemRow = ({ kind, code, name, quantityHundredths, unit }: HandoverProtocol['items'][number]) => html`
 <tr>
-  <td>${kindLabels[kind]}</td>
+  <td>${itemKindLabels[kind]}</td>
   <td>${code}</td>
   <td>${name}</td>
   <td class="amount">${formatQuantity(quantityHundredths)} ${unit}</td>

@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { getUnpricedWorkOrder } from '../src/dal/unpriced-work-order.ts';
@@ -8,6 +7,7 @@ import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The detail of a Zákazka the mechanik reads (spec #95, Mechanik): a shape of its own with a list of the allowed fields,
 // so a field nobody adds to it, a price above all, he does not get.
@@ -20,7 +20,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter');
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 });
@@ -31,8 +31,8 @@ const newWorkOrder = async (fields: { customerId?: string; deadline?: string; no
 /** A Zákazka with a work and a part, both priced: the work at 58,91, the part bought for 333,33 and sold for 777,77, so that the digits of a price are easy to look for. */
 async function pricedWorkOrder() {
   const id = await newWorkOrder({ deadline: '2026-12-01', note: 'Zákazník príde po štvrtej' });
-  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '58,91', vatRate: '23' }, ctx.db));
-  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '2', unit: 'ks', purchasePrice: '333,33', unitPrice: '777,77', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '58,91', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '2', unit: 'ks', purchasePrice: '333,33', salePrice: '777,77', vatRate: '23' }, ctx.db));
   return id;
 }
 

@@ -5,6 +5,7 @@ import * as attemptLimit from '../src/dal/attempt-limit.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as formHeader from '../src/dal/form-header.ts';
 import * as jobSheet from '../src/dal/job-sheet.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
@@ -18,6 +19,7 @@ import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user
 import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
+import * as workOrderItems from '../src/dal/work-order-items.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
@@ -61,8 +63,8 @@ beforeAll(async () => {
   idleCustomerId = idOf(await customers.createCustomer(admin, { type: 'person', name: 'Bez väzieb' }, ctx.db)); // nothing links to these two, so an admin may delete them
   idleVehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
-  itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
-  priceListItemId = idOf(await priceList.createPriceListItem(admin, { kind: 'part', code: 'FIL-1', name: 'Olejový filter', purchasePrice: '5', unitPrice: '9' }, ctx.db));
+  itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db));
+  priceListItemId = idOf(await priceList.createPriceListItem(admin, { kind: 'part', code: 'FIL-1', name: 'Olejový filter', purchasePrice: '5', salePrice: '9' }, ctx.db));
   await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
@@ -99,12 +101,12 @@ const calls: Record<string, Call> = {
   // Whether a mechanik may change the header or the states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   updateWorkOrderHeader: (user, db) =>
     workOrders.updateWorkOrderHeader(user, orderId, { mileageKm: '2', customerRequest: 'Nová požiadavka', deadline: '2026-12-01', note: 'Poznámka' }, db),
-  addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
-  updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', unitPrice: '12' }, db),
+  addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', salePrice: '10', vatRate: '23' }, db),
+  updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', salePrice: '12' }, db),
   deleteItem: (user, db) => workOrders.deleteItem(user, itemId, db),
   addItemFromPriceList: (user, db) => workOrders.addItemFromPriceList(user, orderId, priceListItemId, db),
-  createPriceListItem: (user, db) => priceList.createPriceListItem(user, { kind: 'part', code: 'FIL-2', name: 'Vzduchový filter', unitPrice: '12' }, db),
-  updatePriceListItem: (user, db) => priceList.updatePriceListItem(user, priceListItemId, { code: 'FIL-1', name: 'Olejový filter', unitPrice: '10' }, db),
+  createPriceListItem: (user, db) => priceList.createPriceListItem(user, { kind: 'part', code: 'FIL-2', name: 'Vzduchový filter', salePrice: '12' }, db),
+  updatePriceListItem: (user, db) => priceList.updatePriceListItem(user, priceListItemId, { code: 'FIL-1', name: 'Olejový filter', salePrice: '10' }, db),
   deletePriceListItem: (user, db) => priceList.deletePriceListItem(user, priceListItemId, db),
   searchPriceList: (user, db) => priceList.searchPriceList(user, { query: 'filter' }, db),
   getPriceListItem: (user, db) => priceList.getPriceListItem(user, priceListItemId, db),
@@ -166,17 +168,24 @@ const dataAccess = {
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the limit of
  * the attempts to check a password, the refused constraint, the user of the pages (current-user),
- * the paging of the lists, the user and the id check. An export added to one of them fails
+ * the order and the amounts of the items of a Zákazka (work-order-items, which reads nothing), the paging of the
+ * lists, the user and the id check. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
+ *
+ * One exception: `readFormHeader` of form-header.ts does read data, without asking a capability. Only job-sheet.ts
+ * and print-forms.ts call it, each after its own `assertCan`. It is pinned here, not in `calls`, because it takes no
+ * user; the functions that call it are in `calls`, so one that forgets its `assertCan` fails there.
  */
 const helpers = {
   'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
+  'form-header.ts': { module: formHeader, exports: ['readFormHeader'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
+  'work-order-items.ts': { module: workOrderItems, exports: ['inOrderAdded', 'withAmounts'] },
 };
 
 test('every file of src/dal is either a data access file or a helper with its exports pinned', () => {

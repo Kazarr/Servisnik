@@ -4,11 +4,17 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from './db/index.ts';
 import { account, user } from './db/schema.ts';
 
-/** Creates the admin, or brings an existing one back to: role admin, this password. Safe to run any number of times. */
+/**
+ * Creates the first admin, and does nothing once an admin exists: the admin owns his password and e-mail from
+ * then on, and the seed that runs after every deploy must not take them back. Only when no admin is left does
+ * it bring the user with this e-mail to: role admin, this password. Safe to run any number of times.
+ */
 export async function seedAdmin(db: Database, input: { email: string; password: string }) {
   const email = input.email.trim().toLowerCase(); // Better Auth looks users up in lower case
 
   await db.transaction(async (tx) => {
+    if ((await tx.$count(user, eq(user.role, 'admin'))) > 0) return;
+
     const [existing] = await tx.select({ id: user.id }).from(user).where(eq(user.email, email));
     const userId = existing?.id ?? randomUUID();
     if (existing) {

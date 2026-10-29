@@ -6,6 +6,7 @@ import { changeWorkOrderStatus, createWorkOrder, getWorkOrder } from '../src/dal
 import type { Database } from '../src/db/index.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { form } from './support/form-data.ts';
 import { idOf } from './support/id-of.ts';
 
 // The Server Actions that save the header of a Zákazka, called as the admin's forms call them (docs/adr/0001-stack.md):
@@ -24,12 +25,6 @@ beforeAll(async () => {
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: '', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 });
 afterAll(() => ctx.close());
-
-function form(fields: Record<string, string>) {
-  const data = new FormData();
-  for (const [name, value] of Object.entries(fields)) data.set(name, value);
-  return data;
-}
 
 const header = { mileageKm: '150000', customerRequest: 'Výmena brzdových kotúčov', deadline: '2026-08-01', note: 'Zákazník príde po 16:00' };
 

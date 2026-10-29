@@ -5,34 +5,36 @@ import { defaultUnits, markupFromSalePrice, type ItemKind } from '@servisnik/dom
 import { useRef, type ChangeEvent, type ReactNode } from 'react';
 import { formatEuroInput, formatMarkupInput } from '../../format.ts';
 import { Field, SelectField } from './field.tsx';
+import type { ItemMessages } from './item-messages.ts';
 import { syncPriceFields, type PriceFields } from './price-fields.ts';
 
 // The fields a Práca or a Diel has wherever it is entered: on a Zákazka and in the Cenník. The Prirážka is only a
-// helper in the form (price-fields.ts); what is saved are the two prices.
+// helper in the form (price-fields.ts); what is saved are the two prices. The form still sends the Prirážka, and the
+// domain refuses an item whose Prirážka is none or does not fit its prices, at this field (parseItem).
 
 /** The fields of an item but its quantity, which only the form of a Zákazka has. */
-export type ItemFieldName = 'code' | 'name' | 'unit' | 'purchasePrice' | 'markup' | 'unitPrice' | 'vatRate';
-export type ItemFieldErrors = Partial<Record<Exclude<ItemFieldName, 'markup'>, string>>;
+export type ItemFieldName = 'code' | 'name' | 'unit' | 'purchasePrice' | 'markup' | 'salePrice' | 'vatRate';
+export type ItemFieldErrors = ItemMessages & { code?: string };
 
 /** What a new item starts with: the unit of its kind, the Prirážka of Nastavenia, the hourly rate as the price of a Práca and the default VAT rate. */
 export function startingValues(kind: ItemKind, rates: Rates) {
   return {
     unit: defaultUnits[kind],
     markup: formatMarkupInput(rates.markupPercent * 10),
-    unitPrice: kind === 'labour' ? formatEuroInput(rates.hourlyRateCents) : '',
+    salePrice: kind === 'labour' ? formatEuroInput(rates.hourlyRateCents) : '',
     vatRate: String(rates.defaultVatRate),
   };
 }
 
 /** What the fields start with when an item is edited: its values, and the Prirážka its two prices make (none without a Nákupná cena). */
-export function valuesOfItem(item: { code: string | null; name: string; unit: string; purchasePriceCents: number | null; unitPriceCents: number; vatRate: number }) {
+export function valuesOfItem(item: { code: string | null; name: string; unit: string; purchasePriceCents: number | null; salePriceCents: number; vatRate: number }) {
   return {
     code: item.code,
     name: item.name,
     unit: item.unit,
     purchasePrice: formatEuroInput(item.purchasePriceCents),
-    markup: formatMarkupInput(item.purchasePriceCents === null ? null : markupFromSalePrice(item.purchasePriceCents, item.unitPriceCents)),
-    unitPrice: formatEuroInput(item.unitPriceCents),
+    markup: formatMarkupInput(item.purchasePriceCents === null ? null : markupFromSalePrice(item.purchasePriceCents, item.salePriceCents)),
+    salePrice: formatEuroInput(item.salePriceCents),
     vatRate: String(item.vatRate),
   };
 }
@@ -42,17 +44,17 @@ export function valuesOfItem(item: { code: string | null; name: string; unit: st
  * the others follow (price-fields.ts). `startsLeading` is the one that leads before he types anything: the Prirážka
  * on a new item, the Predajná cena on one that is edited. `resetLeading` is for the reset of the form.
  */
-export function usePriceSync(startsLeading: 'markup' | 'unitPrice') {
-  const leading = useRef<'markup' | 'unitPrice'>(startsLeading);
+export function usePriceSync(startsLeading: 'markup' | 'salePrice') {
+  const leading = useRef<'markup' | 'salePrice'>(startsLeading);
 
   /** Reads the three price fields of the form, lets the helper work out the others, and writes the changed ones back. */
   const syncPrices = (changed: keyof PriceFields) => (event: ChangeEvent<HTMLInputElement>) => {
     const { elements } = event.currentTarget.form!;
     const control = (name: keyof PriceFields) => elements.namedItem(name) as HTMLInputElement;
-    const typed = { purchasePrice: control('purchasePrice').value, markup: control('markup').value, unitPrice: control('unitPrice').value };
+    const typed = { purchasePrice: control('purchasePrice').value, markup: control('markup').value, salePrice: control('salePrice').value };
     const next = syncPriceFields(changed, typed, leading.current);
     leading.current = next.leading;
-    for (const name of ['markup', 'unitPrice'] as const) if (control(name).value !== next.fields[name]) control(name).value = next.fields[name];
+    for (const name of ['markup', 'salePrice'] as const) if (control(name).value !== next.fields[name]) control(name).value = next.fields[name];
   };
 
   return { syncPrices, resetLeading: () => (leading.current = startsLeading) };
@@ -99,17 +101,26 @@ export function ItemFields({
             onChange={syncPrices('purchasePrice')}
             autoComplete="off"
           />
-          <Field label="Prirážka (%)" id={`${prefix}-markup`} name="markup" inputMode="decimal" defaultValue={value('markup')} onChange={syncPrices('markup')} autoComplete="off" />
+          <Field
+            label="Prirážka (%)"
+            id={`${prefix}-markup`}
+            name="markup"
+            inputMode="decimal"
+            defaultValue={value('markup')}
+            error={errors?.markup}
+            onChange={syncPrices('markup')}
+            autoComplete="off"
+          />
         </>
       )}
       <Field
         label="Predajná cena za jednotku bez DPH (€)"
-        id={`${prefix}-unitPrice`}
-        name="unitPrice"
+        id={`${prefix}-salePrice`}
+        name="salePrice"
         inputMode="decimal"
-        defaultValue={value('unitPrice')}
-        error={errors?.unitPrice}
-        onChange={kind === 'part' ? syncPrices('unitPrice') : undefined}
+        defaultValue={value('salePrice')}
+        error={errors?.salePrice}
+        onChange={kind === 'part' ? syncPrices('salePrice') : undefined}
         autoComplete="off"
         required
       />

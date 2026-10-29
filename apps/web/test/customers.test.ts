@@ -1,18 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, getCustomer, listCustomers, updateCustomer } from '../src/dal/customers.ts';
 import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { truncateTables } from './support/reset.ts';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => {
   ctx = await createTestDb();
 });
 afterAll(() => ctx.close());
-beforeEach(() => ctx.db.execute(sql`truncate customer cascade`));
+beforeEach(() => truncateTables(ctx.db, 'customer'));
 
 test('without a user every function rejects, and nothing is written', async () => {
   const saved = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));

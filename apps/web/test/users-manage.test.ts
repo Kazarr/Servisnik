@@ -1,5 +1,5 @@
 import type { Role } from '@servisnik/domain/access';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { signInWithPassword } from '../src/app/login/sign-in.ts';
 import { createAuth } from '../src/auth.ts';
@@ -9,7 +9,9 @@ import { account, session, user } from '../src/db/schema.ts';
 import { createTestDb } from './support/db.ts';
 import { raceForUserWrites } from './support/race.ts';
 import { signInHeaders } from './support/sessions.ts';
-import { seedUser } from './support/users.ts';
+import { signedInUser } from './support/signed-in-user.ts';
+import { userRow } from './support/users.ts';
+import { truncateTables } from './support/reset.ts';
 
 // What an admin does to another Používateľ: edit him, deactivate and activate him, give him a new password.
 // On the real Better Auth (admin plugin) and PostgreSQL. Who may do it is the table in dal-access.test.ts.
@@ -26,23 +28,15 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 // Every test starts without a user.
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate "user" cascade`);
+  await truncateTables(ctx.db, '"user"');
 });
 
-let counter = 0;
-/** A Používateľ of its own with this Rola, signed in: his id, e-mail, the headers of his session and the user the DAL gets from them. */
-async function newUser(role: Role) {
-  const email = `uzivatel${++counter}@autoservis.test`;
-  const name = `Používateľ ${counter}`;
-  const id = await seedUser(ctx.db, { email, password, role, name });
-  const headers = await signInHeaders(auth, email, password);
-  return { id, name, email, headers, user: await requireUser(headers, auth) };
-}
+const newUser = (role: Role) => signedInUser(ctx.db, auth, role, password);
 
 type Account = Awaited<ReturnType<typeof newUser>>;
-const rowOf = async (id: string) => (await ctx.db.select({ name: user.name, email: user.email, role: user.role }).from(user).where(eq(user.id, id)))[0];
+const rowOf = (id: string) => userRow(ctx.db, id);
 
-test("Better Auth's own routes give an admin session neither remove, impersonate nor create, and a mechanik session no part of the admin plugin", async () => {
+test("Better Auth's own routes give an admin session neither remove, impersonate nor create, and a mechanik session neither ban, set a password nor set a Rola", async () => {
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
   const refused = (call: Promise<unknown>) => expect(call).rejects.toMatchObject({ statusCode: 403 });
@@ -52,7 +46,7 @@ test("Better Auth's own routes give an admin session neither remove, impersonate
   await refused(auth.api.removeUser({ body: { userId: worker.id }, headers: boss.headers }));
   await refused(auth.api.impersonateUser({ body: { userId: worker.id }, headers: boss.headers }));
   await refused(auth.api.createUser({ body: { name: 'Krátke heslo', email: 'kratke@autoservis.test', password: '1', role: 'admin' }, headers: boss.headers }));
-  // The mechanik: nothing.
+  // The mechanik: none of the routes the admin's role has, tried on three of them.
   await refused(auth.api.banUser({ body: { userId: boss.id }, headers: worker.headers }));
   await refused(auth.api.setUserPassword({ body: { userId: boss.id, newPassword: 'ukradnute-heslo-1' }, headers: worker.headers }));
   await refused(auth.api.setRole({ body: { userId: worker.id, role: 'admin' }, headers: worker.headers }));
@@ -211,24 +205,32 @@ test('the admin deactivates a user: every sign-in of his ends at once, and the s
   expect(await stateOf(worker.id)).toMatchObject({ banned: true, banExpires: null });
 });
 
-test('a Deaktivovaný používateľ cannot sign in: the right password is told his account is deactivated, a wrong one gets the ordinary message', async () => {
+test('a Deaktivovaný používateľ cannot sign in: the right password is told he is deactivated, a wrong one gets the ordinary message', async () => {
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
   await deactivate(boss, worker.id);
 
-  expect(await signIn(worker.email)).toEqual({ ok: false, message: 'Účet je deaktivovaný. Obráťte sa na admina.' });
+  expect(await signIn(worker.email)).toEqual({ ok: false, message: 'Používateľ je deaktivovaný. Obráťte sa na admina.' });
   expect(await signIn(worker.email, 'nespravne-heslo-1')).toEqual({ ok: false, message: 'Nesprávny e-mail alebo heslo.' });
   expect(await sessionsOf(worker.id)).toBe(0);
 });
 
-test('deactivating a user who is deactivated already changes nothing', async () => {
+/** Every column of the user but the time of the last update, which any write moves. */
+async function rowWithoutUpdateTime(id: string) {
+  const { updatedAt, ...columns } = (await ctx.db.select().from(user).where(eq(user.id, id)))[0]!;
+  return columns;
+}
+
+test('deactivating a user who is deactivated already leaves his row, apart from the time of the update, as it was', async () => {
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
   await deactivate(boss, worker.id);
+  const before = await rowWithoutUpdateTime(worker.id);
 
   expect(await deactivate(boss, worker.id)).toEqual({ ok: true });
 
-  expect(await stateOf(worker.id)).toMatchObject({ banned: true });
+  expect(before).toMatchObject({ banned: true }); // the row compared is the one of a Deaktivovaný používateľ
+  expect(await rowWithoutUpdateTime(worker.id)).toEqual(before);
 });
 
 test('the admin activates a Deaktivovaný používateľ again, who signs in with the password he had, and nothing of the deactivation is left', async () => {
@@ -236,7 +238,7 @@ test('the admin activates a Deaktivovaný používateľ again, who signs in with
   const worker = await newUser('mechanik');
   await deactivate(boss, worker.id);
 
-  expect(await activate(boss, worker.id)).toEqual({ ok: true });
+  await activate(boss, worker.id);
 
   expect(await stateOf(worker.id)).toEqual({ banned: false, banReason: null, banExpires: null });
   expect(await signIn(worker.email)).toEqual({ ok: true });

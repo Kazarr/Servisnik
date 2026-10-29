@@ -7,6 +7,7 @@ import * as vehicleActions from '../src/app/(app)/vozidla/actions.ts';
 import * as workOrderActions from '../src/app/(app)/zakazky/actions.ts';
 import * as customerActions from '../src/app/(app)/zakaznici/actions.ts';
 import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
+import { form } from './support/form-data.ts';
 
 // What a Server Action answers when the DAL refuses the user's Rola: the message, and nothing changed
 // (docs/adr/0001-stack.md, packages/domain/src/access). Fast tier; e2e/mechanik.spec.ts proves the
@@ -37,12 +38,6 @@ test('orForbidden lets any other failure through, a missing sign-in too', async 
   await expect(orForbidden(Promise.reject(new UnauthenticatedError()))).rejects.toBeInstanceOf(UnauthenticatedError);
   await expect(orForbidden(Promise.reject(new Error('connect ECONNREFUSED')))).rejects.toThrow('connect ECONNREFUSED');
 });
-
-function form(fields: Record<string, string>) {
-  const data = new FormData();
-  for (const [name, value] of Object.entries(fields)) data.set(name, value);
-  return data;
-}
 
 const id = '3f0c8c1e-6a52-4a39-9c52-0d4a4b6c1f10';
 /** The state of a form that was refused: the message on the form, next to the values that were sent. */
@@ -88,11 +83,11 @@ const actions = {
     answer: formRefused,
   },
   addItemToWorkOrder: {
-    call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', unitPrice: '10', vatRate: '23' })),
+    call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', salePrice: '10', vatRate: '23' })),
     answer: formRefused,
   },
   updateItemOfWorkOrder: {
-    call: () => workOrderActions.updateItemOfWorkOrder(null, form({ itemId: id, name: 'Brzdy', quantity: '2', unit: 'h', unitPrice: '12', vatRate: '23' })),
+    call: () => workOrderActions.updateItemOfWorkOrder(null, form({ itemId: id, name: 'Brzdy', quantity: '2', unit: 'h', salePrice: '12', vatRate: '23' })),
     answer: formRefused,
   },
   deleteItemOfWorkOrder: { call: () => workOrderActions.deleteItemOfWorkOrder(null, form({ itemId: id, workOrderId: id })), answer: { error: forbiddenMessage } },
@@ -101,11 +96,11 @@ const actions = {
     answer: { error: forbiddenMessage },
   },
   addToPriceList: {
-    call: () => priceListActions.addToPriceList(null, form({ kind: 'part', name: 'Brzdová doštička', unit: 'ks', unitPrice: '30', vatRate: '23' })),
+    call: () => priceListActions.addToPriceList(null, form({ kind: 'part', name: 'Brzdová doštička', unit: 'ks', salePrice: '30', vatRate: '23' })),
     answer: formRefused,
   },
   editPriceListItem: {
-    call: () => priceListActions.editPriceListItem(null, form({ itemId: id, name: 'Brzdová doštička', unit: 'ks', unitPrice: '30', vatRate: '23' })),
+    call: () => priceListActions.editPriceListItem(null, form({ itemId: id, name: 'Brzdová doštička', unit: 'ks', salePrice: '30', vatRate: '23' })),
     answer: formRefused,
   },
   deleteFromPriceList: { call: () => priceListActions.deleteFromPriceList(null, form({ itemId: id })), answer: { error: forbiddenMessage } },

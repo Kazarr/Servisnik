@@ -1,32 +1,13 @@
-import { amountsOf, totalsOf, type Amounts, type ItemKind } from '@servisnik/domain/work-order';
-import { asc, eq } from 'drizzle-orm';
-import type { SelectedFields } from 'drizzle-orm/pg-core';
+import { canPrintHandover, type Amounts, type ItemKind } from '@servisnik/domain/work-order';
+import { eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
-import { customer, vehicle, workOrder, workOrderItem } from '../db/schema.ts';
+import { workOrder, workOrderItem } from '../db/schema.ts';
+import { readFormHeader, type FormHeader } from './form-header.ts';
 import { assertCan, type User } from './user.ts';
-import { isUuid } from './uuid.ts';
+import { inOrderAdded, withAmounts } from './work-order-items.ts';
 
 // The data of the two forms the admin alone prints, next to the zákazkový list (job-sheet.ts). Each form reads
 // its own columns of the items and no others, so what a form must not show is never read.
-
-/** The number, the customer it was made for and the vehicle of a Zákazka, and the columns `more`; null when there is no such Zákazka. */
-async function readHeader<More extends SelectedFields>(workOrderId: string, db: Database, more: More) {
-  if (!isUuid(workOrderId)) return null;
-  const [found] = await db
-    .select({
-      number: workOrder.number,
-      customer: { name: customer.name },
-      vehicle: { vin: vehicle.vin, licensePlate: vehicle.licensePlate, make: vehicle.make, model: vehicle.model },
-      ...more,
-    })
-    .from(workOrder)
-    .innerJoin(customer, eq(workOrder.customerId, customer.id))
-    .innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id))
-    .where(eq(workOrder.id, workOrderId));
-  return found ?? null;
-}
-
-const inOrderAdded = [asc(workOrderItem.createdAt), asc(workOrderItem.id)];
 
 /**
  * What the Cenová ponuka (GLOSSARY) prints about a Zákazka: the customer it was made for, the vehicle, the items
@@ -34,32 +15,29 @@ const inOrderAdded = [asc(workOrderItem.createdAt), asc(workOrderItem.id)];
  * The amounts and the sums are the domain's (`amountsOf`, `totalsOf`), so the form adds nothing up itself.
  * It has no Nákupná cena and no Marža, which the customer does not get, and no internal note.
  */
-export type Quote = {
-  number: string;
-  customer: { name: string };
-  vehicle: { vin: string; licensePlate: string | null; make: string; model: string };
-  items: { code: string | null; name: string; quantityHundredths: number; unit: string; unitPriceCents: number; vatRate: number; amounts: Amounts }[];
+export type Quote = FormHeader & {
+  items: { code: string | null; name: string; quantityHundredths: number; unit: string; salePriceCents: number; vatRate: number; amounts: Amounts }[];
   totals: Amounts;
 };
 
 /** The data of the cenová ponuka of a Zákazka in any Stav, or null when there is no Zákazka with this id. The admin's alone. */
 export async function getQuote(user: User | null, workOrderId: string, db: Database = getDb()): Promise<Quote | null> {
   assertCan(user, 'work-orders.quote');
-  const header = await readHeader(workOrderId, db, {});
-  if (!header) return null;
+  const formHeader = await readFormHeader(workOrderId, db, {});
+  if (!formHeader) return null;
   const items = await db
     .select({
       code: workOrderItem.code,
       name: workOrderItem.name,
       quantityHundredths: workOrderItem.quantityHundredths,
       unit: workOrderItem.unit,
-      unitPriceCents: workOrderItem.unitPriceCents,
+      salePriceCents: workOrderItem.salePriceCents,
       vatRate: workOrderItem.vatRate,
     })
     .from(workOrderItem)
     .where(eq(workOrderItem.workOrderId, workOrderId))
     .orderBy(...inOrderAdded);
-  return { ...header, items: items.map((item) => ({ ...item, amounts: amountsOf(item) })), totals: totalsOf(items) };
+  return { ...formHeader, ...withAmounts(items) };
 }
 
 /**
@@ -68,19 +46,23 @@ export async function getQuote(user: User | null, workOrderId: string, db: Datab
  * discount, and no internal note: the test of this read fails on any price key in the whole answer, so a price
  * field cannot be added here by mistake.
  */
-export type HandoverProtocol = {
-  number: string;
-  customer: { name: string };
-  vehicle: { vin: string; licensePlate: string | null; make: string; model: string };
+export type HandoverProtocol = FormHeader & {
   mileageKm: number;
   items: { kind: ItemKind; code: string | null; name: string; quantityHundredths: number; unit: string }[];
 };
 
-/** The data of the odovzdávací protokol of a Zákazka in any Stav, or null when there is no Zákazka with this id. The admin's alone. */
-export async function getHandoverProtocol(user: User | null, workOrderId: string, db: Database = getDb()): Promise<HandoverProtocol | null> {
+/**
+ * The data of the odovzdávací protokol of a Zákazka that is Hotová or Vyfakturovaná (`canPrintHandover`: the customer takes
+ * the vehicle over), or null when there is no Zákazka with this id, or `'wrong-status'` when there is one in another Stav:
+ * its form header is read to tell, but nothing of it is returned and no item is read (nor, in the response, the workshop or
+ * the logo). The admin's alone.
+ */
+export async function getHandoverProtocol(user: User | null, workOrderId: string, db: Database = getDb()): Promise<HandoverProtocol | 'wrong-status' | null> {
   assertCan(user, 'work-orders.handover');
-  const header = await readHeader(workOrderId, db, { mileageKm: workOrder.mileageKm });
-  if (!header) return null;
+  const found = await readFormHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, status: workOrder.status });
+  if (!found) return null;
+  const { status, ...formHeader } = found;
+  if (!canPrintHandover(status)) return 'wrong-status';
   const items = await db
     .select({
       kind: workOrderItem.kind,
@@ -92,5 +74,5 @@ export async function getHandoverProtocol(user: User | null, workOrderId: string
     .from(workOrderItem)
     .where(eq(workOrderItem.workOrderId, workOrderId))
     .orderBy(...inOrderAdded);
-  return { ...header, items };
+  return { ...formHeader, items };
 }

@@ -42,7 +42,10 @@ test('a logo of exactly 1 MB is kept', async () => {
 
   expect(await saveLogo(admin, big, ctx.db)).toEqual({ ok: true });
 
-  expect(await getLogo(admin, ctx.db)).toEqual({ contentType: 'image/png', bytes: big });
+  const kept = await getLogo(admin, ctx.db);
+  expect(kept?.contentType).toBe('image/png');
+  expect(kept!.bytes.byteLength).toBe(big.byteLength); // first, so that a size that differs shows its numbers
+  expect(Buffer.compare(kept!.bytes, big)).toBe(0); // `toEqual` walks a million bytes one by one: seconds on an idle machine, over the limit on a busy one
 });
 
 test('a new logo replaces the one before, which leaves no second row', async () => {

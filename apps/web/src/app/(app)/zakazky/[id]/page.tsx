@@ -7,11 +7,12 @@ import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getRates } from '../../../../dal/settings.ts';
 import { getUnpricedWorkOrder } from '../../../../dal/unpriced-work-order.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
-import { formatDate, formatEuro, formatPartCount, formatPercent, formatQuantity, formatWhole } from '../../../../format.ts';
+import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
 import { first, pageOf } from '../../search-params.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { DeleteItemForm } from './delete-item-form.tsx';
 import { ItemForm } from './item-form.tsx';
+import { MarginSummary } from './margin-summary.tsx';
 import { PrintLinks } from './print-links.tsx';
 import { PriceListSearch } from './price-list-search.tsx';
 import { StatusForm } from './status-form.tsx';
@@ -39,15 +40,15 @@ export default async function WorkOrderPage({
   const { q, strana } = await searchParams;
   if (!order) notFound();
   const mayWrite = can(user.role, 'work-orders.write'); // a Rola that may not write sees no button, form or link that changes the Zákazka
-  const mayChange = mayWrite && canEdit(order.status);
+  const editable = mayWrite && canEdit(order.status); // the link to the header, the Akcie of the items and the forms that add an item are drawn only then
   const transitions = mayWrite ? userTransitions(order.status) : [];
-  const rates = mayChange ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
+  const rates = editable ? await getRates(user) : null; // the forms that add an item need them, so they are read only for an editable Zákazka
 
   return (
     <>
       <div className="page-header">
         <h1>{order.number}</h1>
-        {mayChange && (
+        {editable && (
           <Link href={`/zakazky/${order.id}/upravit`} className="button">
             Upraviť zákazku
           </Link>
@@ -100,7 +101,7 @@ export default async function WorkOrderPage({
           </div>
         )}
       </dl>
-      <PrintLinks workOrderId={order.id} role={user.role} />
+      <PrintLinks workOrderId={order.id} role={user.role} status={order.status} />
 
       <h2>Položky</h2>
       {order.items.length === 0 ? (
@@ -120,7 +121,7 @@ export default async function WorkOrderPage({
                   <th scope="col" className="amount">Bez DPH</th>
                   <th scope="col" className="amount">DPH</th>
                   <th scope="col" className="amount">S DPH</th>
-                  {rates && <th scope="col">Akcie</th>}
+                  {editable && <th scope="col">Akcie</th>}
                 </tr>
               </thead>
               <tbody>
@@ -132,12 +133,12 @@ export default async function WorkOrderPage({
                       {formatQuantity(item.quantityHundredths)} {item.unit}
                     </td>
                     <td className="amount">{item.purchasePriceCents === null ? '—' : formatEuro(item.purchasePriceCents)}</td>
-                    <td className="amount">{formatEuro(item.unitPriceCents)}</td>
+                    <td className="amount">{formatEuro(item.salePriceCents)}</td>
                     <td className="amount">{item.vatRate} %</td>
                     <td className="amount">{formatEuro(item.amounts.net)}</td>
                     <td className="amount">{formatEuro(item.amounts.vat)}</td>
                     <td className="amount">{formatEuro(item.amounts.gross)}</td>
-                    {rates && (
+                    {editable && (
                       <td>
                         <div className="row-actions">
                           <Link href={`/zakazky/${order.id}/polozky/${item.id}`} aria-label={`Upraviť ${item.name}`}>
@@ -162,24 +163,7 @@ export default async function WorkOrderPage({
               </tfoot>
             </table>
           </div>
-          <dl className="details">
-            <div>
-              <dt>Nákup dielov bez DPH</dt>
-              <dd>{formatEuro(order.margin.purchaseNet)}</dd>
-            </div>
-            <div>
-              <dt>Marža</dt>
-              <dd>
-                {formatEuro(order.margin.cents)}
-                {order.margin.percentTenths !== null && ` (${formatPercent(order.margin.percentTenths)})`}
-              </dd>
-            </div>
-          </dl>
-          {order.margin.partsWithoutPurchasePrice > 0 && (
-            <p role="status" className="notice">
-              Marža je neúplná: {formatPartCount(order.margin.partsWithoutPurchasePrice)} bez nákupnej ceny
-            </p>
-          )}
+          <MarginSummary margin={order.margin} />
         </>
       )}
 

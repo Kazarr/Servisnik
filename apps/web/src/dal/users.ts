@@ -38,11 +38,11 @@ export async function getUser(user: User | null, id: string, db: Database = getD
 
 /**
  * Better Auth refused an e-mail another Používateľ has: its own check says so when it sees him, and
- * when two writes race past that check, the unique index of the e-mail does. Every path that writes
- * an e-mail stores it in lower case, so the index is also what keeps two spellings of one e-mail out.
+ * when two writes race past that check, the unique index of the e-mail does. The index is on the
+ * e-mail in lower case (src/db/schema.ts), so it holds whatever the case a write brings.
  */
 const isEmailTaken = (error: unknown) =>
-  (error instanceof APIError && error.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') || violates(error, 'user_email_unique');
+  (error instanceof APIError && error.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') || violates(error, 'user_email_lower_idx');
 
 export type CreateUserErrors = Omit<NewUserErrors, 'email'> & { email?: 'format' | 'taken' };
 export type CreateUserResult = { ok: true; id: string } | { ok: false; errors: CreateUserErrors };
@@ -85,11 +85,10 @@ export async function deactivateUser(user: User | null, requestHeaders: Headers,
   return { ok: true };
 }
 
-/** Lets a Deaktivovaný používateľ sign in again, with the password he had. */
-export async function activateUser(user: User | null, requestHeaders: Headers, userId: string, auth?: Auth): Promise<{ ok: true }> {
+/** Lets a Deaktivovaný používateľ sign in again, with the password he had. It has no result: it is done, or it throws (a Rola that may not, Better Auth). */
+export async function activateUser(user: User | null, requestHeaders: Headers, userId: string, auth?: Auth): Promise<void> {
   assertCan(user, 'users.write');
   await (auth ?? getAuth()).api.unbanUser({ headers: requestHeaders, body: { userId } });
-  return { ok: true };
 }
 
 export type SetUserPasswordResult = { ok: true } | { ok: false; errors: { password: PasswordError } };

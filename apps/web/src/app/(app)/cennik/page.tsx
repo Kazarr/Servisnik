@@ -4,7 +4,7 @@ import { currentUserWith } from '../../../dal/current-user.ts';
 import { searchPriceList } from '../../../dal/price-list.ts';
 import { formatEuro } from '../../../format.ts';
 import { Field } from '../field.tsx';
-import { itemKindLabels } from '../item-kind-labels.ts';
+import { itemKindLabels } from '../../../item-kind-labels.ts';
 import { Pager } from '../pager.tsx';
 import { first, pageOf, searchHref } from '../search-params.ts';
 import { DeletePriceListItemForm } from './delete-price-list-item-form.tsx';
@@ -57,7 +57,7 @@ export default async function PriceListPage({ searchParams }: { searchParams: Pr
                   <td>{item.name}</td>
                   <td>{item.unit}</td>
                   <td className="amount">{item.purchasePriceCents === null ? '—' : formatEuro(item.purchasePriceCents)}</td>
-                  <td className="amount">{formatEuro(item.unitPriceCents)}</td>
+                  <td className="amount">{formatEuro(item.salePriceCents)}</td>
                   <td className="amount">{item.vatRate} %</td>
                   <td>
                     <div className="row-actions">

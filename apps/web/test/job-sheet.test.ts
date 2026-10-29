@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { getJobSheet } from '../src/dal/job-sheet.ts';
@@ -9,6 +8,7 @@ import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The data of the Zákazkový list (GLOSSARY): the customer, the vehicle, the kilometres and the request, and no price.
 
@@ -20,7 +20,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter');
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 });
@@ -58,8 +58,8 @@ test('the internal note of the Zákazka is on no sheet', async () => {
 
 test('the zákazkový list has no price key anywhere, even when the Zákazka has priced work and parts bought for it, for the mechanik and the admin', async () => {
   const id = await newWorkOrder();
-  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
-  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '1', purchasePrice: '5', unitPrice: '9', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '1', purchasePrice: '5', salePrice: '9', vatRate: '23' }, ctx.db));
 
   expect(findPriceKeys(await getJobSheet(mechanic, id, ctx.db))).toEqual([]);
   expect(findPriceKeys(await getJobSheet(admin, id, ctx.db))).toEqual([]);
