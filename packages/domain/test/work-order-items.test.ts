@@ -277,6 +277,13 @@ describe('a Položka zákazky as the admin types it', () => {
       expect(withMarkup('12,5', { purchasePrice: '3,33', salePrice: '3,75' })).toMatchObject({ ok: true, item: { purchasePriceCents: 333, salePriceCents: 375 } });
     });
 
+    // The other way round: the Predajná cena led, and the Prirážka the form shows is the one it makes (0,04 / 100,00 is 0,04 %, 0,0 % to one decimal),
+    // though that Prirážka would make another price (0 % on 100,00 € is 100,00 €, not 100,04 €).
+    test('one that the Predajná cena makes is accepted though it would make another price: 100,04 € on 100,00 € is 0,0 %', () => {
+      expect(withMarkup('0', { purchasePrice: '100', salePrice: '100,04' })).toMatchObject({ ok: true, item: { purchasePriceCents: 10000, salePriceCents: 10004 } });
+      expect(withMarkup('-33,3', { purchasePrice: '30', salePrice: '20' })).toMatchObject({ ok: true, item: { purchasePriceCents: 3000, salePriceCents: 2000 } });
+    });
+
     test('a sale below the Nákupná cena is saved as it was, with the negative Prirážka the form shows: 9,00 € on 10,00 € is -10 %', () => {
       expect(withMarkup('-10', { purchasePrice: '10', salePrice: '9' })).toMatchObject({ ok: true, item: { purchasePriceCents: 1000, salePriceCents: 900 } });
       expect(withMarkup('-100', { purchasePrice: '10', salePrice: '0' })).toMatchObject({ ok: true, item: { salePriceCents: 0 } });
