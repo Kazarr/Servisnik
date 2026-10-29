@@ -204,6 +204,7 @@ describe('the cenová ponuka', () => {
     const [page] = await pagesOf(quoteResponse, id);
 
     expect(linesOf(page!)).toEqual(expect.arrayContaining(['Spolu bez DPH0,20 €', 'DPH0,02 €', 'Spolu s DPH0,22 €'])); // 0,01 € of VAT on each, not 0,01 € on both
+    expect(page!.missingGlyphs).toBe(0); // the € sign is in the font: the zákazkový list has no amount to check it on
   });
 
   test('says so for a Zákazka without items, with sums of nothing', async () => {
