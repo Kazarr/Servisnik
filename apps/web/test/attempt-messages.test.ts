@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { changePassword } from '../src/app/(app)/heslo/actions.ts';
 import { signIn } from '../src/app/login/actions.ts';
+import { form } from './support/form-data.ts';
 
 // What the two Server Actions that check a password tell a client whose attempts the limit turned away
 // (test/attempt-limit.test.ts proves the limit itself): the message, and Better Auth never asked.
@@ -17,12 +18,6 @@ const { checksPassword, auth } = vi.hoisted(() => {
 vi.mock('../src/auth.ts', () => ({ getAuth: () => auth }));
 vi.mock('../src/dal/current-user.ts', async () => ({ currentUser: async () => (await import('./support/dal-users.ts')).mechanic }));
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
-
-function form(fields: Record<string, string>) {
-  const data = new FormData();
-  for (const [name, value] of Object.entries(fields)) data.set(name, value);
-  return data;
-}
 
 const message = 'Príliš veľa pokusov. Skúste to znova o chvíľu.';
 

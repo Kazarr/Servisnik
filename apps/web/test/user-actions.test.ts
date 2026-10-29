@@ -1,13 +1,12 @@
 import type { Role } from '@servisnik/domain/access';
-import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { updateUserAction } from '../src/app/(app)/nastavenia/user-actions.ts';
 import { createAuth, type Auth } from '../src/auth.ts';
-import { requireUser, type User } from '../src/dal/user.ts';
-import { user } from '../src/db/schema.ts';
+import type { User } from '../src/dal/user.ts';
 import { createTestDb } from './support/db.ts';
-import { signInHeaders } from './support/sessions.ts';
-import { seedUser } from './support/users.ts';
+import { form } from './support/form-data.ts';
+import { signedInUser } from './support/signed-in-user.ts';
+import { userRow } from './support/users.ts';
 
 // The Server Action of the form that edits a Používateľ, called as the admin's page calls it: the form of
 // another user's page has the field of the Rola, the form of the admin's own page has none. The DAL and
@@ -32,25 +31,12 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 
-let counter = 0;
-/** A Používateľ of its own with this Rola: his id and e-mail, and the request he signs in with. */
-async function newUser(role: Role) {
-  const email = `uzivatel${++counter}@autoservis.test`;
-  const id = await seedUser(ctx.db, { email, password, role, name: `Používateľ ${counter}` });
-  const headers = await signInHeaders(request.auth, email, password);
-  return { id, email, headers, user: await requireUser(headers, request.auth) };
-}
+const newUser = (role: Role) => signedInUser(ctx.db, request.auth, role, password);
 
 /** The admin sends the next form: the request is his. */
 const actingAs = (admin: Awaited<ReturnType<typeof newUser>>) => Object.assign(request, { user: admin.user, headers: admin.headers });
 
-function form(fields: Record<string, string>) {
-  const data = new FormData();
-  for (const [name, value] of Object.entries(fields)) data.set(name, value);
-  return data;
-}
-
-const rowOf = async (id: string) => (await ctx.db.select({ name: user.name, email: user.email, role: user.role }).from(user).where(eq(user.id, id)))[0];
+const rowOf = (id: string) => userRow(ctx.db, id);
 
 test('the admin saves his own page, which has no field of the Rola: the name and e-mail change, the Rola stays and the save is told', async () => {
   const boss = await newUser('admin');

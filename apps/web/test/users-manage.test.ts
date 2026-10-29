@@ -9,7 +9,8 @@ import { account, session, user } from '../src/db/schema.ts';
 import { createTestDb } from './support/db.ts';
 import { raceForUserWrites } from './support/race.ts';
 import { signInHeaders } from './support/sessions.ts';
-import { seedUser } from './support/users.ts';
+import { signedInUser } from './support/signed-in-user.ts';
+import { userRow } from './support/users.ts';
 
 // What an admin does to another Používateľ: edit him, deactivate and activate him, give him a new password.
 // On the real Better Auth (admin plugin) and PostgreSQL. Who may do it is the table in dal-access.test.ts.
@@ -29,18 +30,10 @@ beforeEach(async () => {
   await ctx.db.execute(sql`truncate "user" cascade`);
 });
 
-let counter = 0;
-/** A Používateľ of its own with this Rola, signed in: his id, e-mail, the headers of his session and the user the DAL gets from them. */
-async function newUser(role: Role) {
-  const email = `uzivatel${++counter}@autoservis.test`;
-  const name = `Používateľ ${counter}`;
-  const id = await seedUser(ctx.db, { email, password, role, name });
-  const headers = await signInHeaders(auth, email, password);
-  return { id, name, email, headers, user: await requireUser(headers, auth) };
-}
+const newUser = (role: Role) => signedInUser(ctx.db, auth, role, password);
 
 type Account = Awaited<ReturnType<typeof newUser>>;
-const rowOf = async (id: string) => (await ctx.db.select({ name: user.name, email: user.email, role: user.role }).from(user).where(eq(user.id, id)))[0];
+const rowOf = (id: string) => userRow(ctx.db, id);
 
 test("Better Auth's own routes give an admin session neither remove, impersonate nor create, and a mechanik session neither ban, set a password nor set a Rola", async () => {
   const boss = await newUser('admin');
