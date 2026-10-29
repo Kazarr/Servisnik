@@ -168,11 +168,14 @@ const dataAccess = {
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the limit of
  * the attempts to check a password, the refused constraint, the user of the pages (current-user),
- * the header every printed form starts with (form-header, which asks no capability: its callers do), the order
- * and the amounts of the items of a Zákazka (work-order-items, the same), the paging of the lists, the user
- * and the id check. An export added to one of them fails
+ * the order and the amounts of the items of a Zákazka (work-order-items, which reads nothing), the paging of the
+ * lists, the user and the id check. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
+ *
+ * One exception: `readHeader` of form-header.ts does read data, without asking a capability. Only job-sheet.ts
+ * and print-forms.ts call it, each after its own `assertCan`. It is pinned here, not in `calls`, because it takes no
+ * user; the functions that call it are in `calls`, so one that forgets its `assertCan` fails there.
  */
 const helpers = {
   'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
