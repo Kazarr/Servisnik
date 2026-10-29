@@ -76,7 +76,7 @@ test('the default rate is replaced in the same save that removes the old one', a
   expect(await getRates(admin, ctx.db)).toEqual({ ...startingRates, vatRates: [19, 5], defaultVatRate: 19 });
 });
 
-const labour = { kind: 'labour', name: 'Výmena oleja', quantity: '1', unitPrice: '40' } as const;
+const labour = { kind: 'labour', name: 'Výmena oleja', quantity: '1', salePrice: '40' } as const;
 async function workOrderWithLabour(vatRate?: string) {
   const ownerId = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
   const vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: '', make: 'Volkswagen', model: 'Golf' }, ctx.db));

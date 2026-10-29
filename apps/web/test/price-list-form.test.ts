@@ -23,7 +23,7 @@ const brake: EditedPriceListItem = {
   name: 'Brzdová doštička',
   unit: 'ks',
   purchasePriceCents: 2000,
-  unitPriceCents: 3000,
+  salePriceCents: 3000,
   vatRate: 19,
 };
 
@@ -37,14 +37,14 @@ test('a Práca starts in hours with the hourly rate of Nastavenia as its price, 
   const html = add('labour');
 
   expect(input(html, 'unit')).toContain('value="h"');
-  expect(input(html, 'unitPrice')).toContain('value="45,50"');
+  expect(input(html, 'salePrice')).toContain('value="45,50"');
   expect(input(html, 'purchasePrice')).toBeNull();
   expect(input(html, 'markup')).toBeNull();
 });
 
 test('without an hourly rate the price of a Práca starts empty, and an hourly rate of 0 € is a price, not none', () => {
-  expect(input(add('labour', { hourlyRateCents: null }), 'unitPrice')).toContain('value=""');
-  expect(input(add('labour', { hourlyRateCents: 0 }), 'unitPrice')).toContain('value="0,00"');
+  expect(input(add('labour', { hourlyRateCents: null }), 'salePrice')).toContain('value=""');
+  expect(input(add('labour', { hourlyRateCents: 0 }), 'salePrice')).toContain('value="0,00"');
 });
 
 test('a Diel starts in pieces, with the Prirážka of Nastavenia, and no price and no Nákupná cena', () => {
@@ -53,7 +53,7 @@ test('a Diel starts in pieces, with the Prirážka of Nastavenia, and no price a
   expect(input(html, 'unit')).toContain('value="ks"');
   expect(input(html, 'markup')).toContain('value="25"');
   expect(input(html, 'purchasePrice')).toContain('value=""');
-  expect(input(html, 'unitPrice')).toContain('value=""');
+  expect(input(html, 'salePrice')).toContain('value=""');
 });
 
 test.each([[7, '7'], [0, '0'], [150, '150']])('the Prirážka of a new Diel is the one of Nastavenia: %i %%', (markupPercent, typed) => {
@@ -84,7 +84,7 @@ test('the form of an item starts with what the item has, the Prirážka worked o
   expect(input(html, 'name')).toContain('value="Brzdová doštička"');
   expect(input(html, 'unit')).toContain('value="ks"');
   expect(input(html, 'purchasePrice')).toContain('value="20,00"');
-  expect(input(html, 'unitPrice')).toContain('value="30,00"');
+  expect(input(html, 'salePrice')).toContain('value="30,00"');
   expect(input(html, 'markup')).toContain('value="50"');
   expect(options(html, 'vatRate').selected).toEqual(['19']);
   expect(html).toContain(`name="itemId" value="${brake.id}"`);

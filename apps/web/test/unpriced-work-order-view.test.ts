@@ -85,7 +85,7 @@ test('a price that comes along with the Zákazka is not drawn', () => {
     ...order,
     totals: { net: 77777, vat: 17888, gross: 95665 },
     margin: { purchaseNet: 33333, cents: 44444, percentTenths: 570, partsWithoutPurchasePrice: 0 },
-    items: order.items.map((item) => ({ ...item, unitPriceCents: 77777, purchasePriceCents: 33333, vatRate: 23, amounts: { net: 77777, vat: 17888, gross: 95665 } })),
+    items: order.items.map((item) => ({ ...item, salePriceCents: 77777, purchasePriceCents: 33333, vatRate: 23, amounts: { net: 77777, vat: 17888, gross: 95665 } })),
   };
 
   const html = render(priced);

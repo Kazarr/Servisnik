@@ -158,11 +158,11 @@ export const itemForm = (page: Page, name: 'Pridať prácu' | 'Pridať diel') =>
  * On a work order's detail: fills the form of a Práca with its name and quantity, and with its price unless that is
  * left to the hourly rate of Nastavenia, which the form starts with. The form is not sent.
  */
-export async function fillLabour(page: Page, fields: { name: string; quantity: string; unitPrice?: string }) {
+export async function fillLabour(page: Page, fields: { name: string; quantity: string; salePrice?: string }) {
   const form = itemForm(page, 'Pridať prácu');
   await form.getByLabel('Názov', { exact: true }).fill(fields.name);
   await form.getByLabel('Množstvo', { exact: true }).fill(fields.quantity);
-  if (fields.unitPrice !== undefined) await form.getByLabel('Predajná cena za jednotku bez DPH (€)').fill(fields.unitPrice);
+  if (fields.salePrice !== undefined) await form.getByLabel('Predajná cena za jednotku bez DPH (€)').fill(fields.salePrice);
 }
 
 /** On a work order's detail: fills the form of a Práca (see fillLabour) and sends it. */

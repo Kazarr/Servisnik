@@ -31,8 +31,8 @@ const newWorkOrder = async (fields: { customerId?: string; deadline?: string; no
 /** A Zákazka with a work and a part, both priced: the work at 58,91, the part bought for 333,33 and sold for 777,77, so that the digits of a price are easy to look for. */
 async function pricedWorkOrder() {
   const id = await newWorkOrder({ deadline: '2026-12-01', note: 'Zákazník príde po štvrtej' });
-  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '58,91', vatRate: '23' }, ctx.db));
-  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '2', unit: 'ks', purchasePrice: '333,33', unitPrice: '777,77', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '58,91', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '2', unit: 'ks', purchasePrice: '333,33', salePrice: '777,77', vatRate: '23' }, ctx.db));
   return id;
 }
 

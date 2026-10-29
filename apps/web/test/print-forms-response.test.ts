@@ -59,15 +59,15 @@ const newWorkOrder = async () =>
 /** A Zákazka with the work and the part of the one-page tests: 60,00 € + 29,97 € without VAT. */
 async function orderWithItems() {
   const id = await newWorkOrder();
-  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db);
-  await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '3', unit: 'ks', purchasePrice: '5', unitPrice: '9,99', vatRate: '19' }, ctx.db);
+  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db);
+  await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '3', unit: 'ks', purchasePrice: '5', salePrice: '9,99', vatRate: '19' }, ctx.db);
   return id;
 }
 
 /** A Zákazka with sixty parts `K-1` to `K-60`, each 1 ks at `i,50` € without VAT 23 %: 1 860,00 € + 428,10 € = 2 288,10 €. */
 async function orderWithSixtyItems() {
   const id = await newWorkOrder();
-  for (let i = 1; i <= 60; i++) await addItem(admin, id, { kind: 'part', code: `K-${i}`, name: `Položka ${i}x`, quantity: '1', unitPrice: `${i},50`, vatRate: '23' }, ctx.db);
+  for (let i = 1; i <= 60; i++) await addItem(admin, id, { kind: 'part', code: `K-${i}`, name: `Položka ${i}x`, quantity: '1', salePrice: `${i},50`, vatRate: '23' }, ctx.db);
   return id;
 }
 
@@ -111,7 +111,7 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart, ready }) =>
 
   test('prints a name that is longer than its column on several lines, every character of it', async () => {
     const id = await newWorkOrder();
-    await addItem(admin, id, { kind: 'part', code: 'DLHY', name: 'Q'.repeat(150), quantity: '1', unitPrice: '1' }, ctx.db);
+    await addItem(admin, id, { kind: 'part', code: 'DLHY', name: 'Q'.repeat(150), quantity: '1', salePrice: '1' }, ctx.db);
 
     const [page] = await pagesOf(respond, await ready(id));
 
@@ -124,7 +124,7 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart, ready }) =>
   test('breaks its list of items between rows: no page starts with the rest of a row of the page before, and no character of a long name is lost', async () => {
     const id = await newWorkOrder();
     const lengths = Array.from({ length: 30 }, (_, i) => 60 + (i % 5) * 10); // a name of three to six lines each, so that a page cannot end exactly between two rows
-    for (const [i, length] of lengths.entries()) await addItem(admin, id, { kind: 'part', code: `K-${i + 1}`, name: 'Q'.repeat(length), quantity: '1', unitPrice: '1' }, ctx.db);
+    for (const [i, length] of lengths.entries()) await addItem(admin, id, { kind: 'part', code: `K-${i + 1}`, name: 'Q'.repeat(length), quantity: '1', salePrice: '1' }, ctx.db);
 
     const pages = await pagesOf(respond, await ready(id));
 
@@ -139,8 +139,8 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart, ready }) =>
   test('is the PDF of one Zákazka and of no other', async () => {
     const first = await newWorkOrder();
     const second = await newWorkOrder();
-    await addItem(admin, first, { kind: 'labour', name: 'Práca prvej', quantity: '1', unitPrice: '1' }, ctx.db);
-    await addItem(admin, second, { kind: 'labour', name: 'Práca druhej', quantity: '1', unitPrice: '1' }, ctx.db);
+    await addItem(admin, first, { kind: 'labour', name: 'Práca prvej', quantity: '1', salePrice: '1' }, ctx.db);
+    await addItem(admin, second, { kind: 'labour', name: 'Práca druhej', quantity: '1', salePrice: '1' }, ctx.db);
 
     const [page] = await pagesOf(respond, await ready(second));
 
@@ -199,7 +199,7 @@ describe('the cenová ponuka', () => {
 
   test('has the sums of the domain: each item rounded to cents once, and the sums of those', async () => {
     const id = await newWorkOrder();
-    for (const name of ['Podložka', 'Matica']) await addItem(admin, id, { kind: 'part', name, quantity: '1', unitPrice: '0,10', vatRate: '5' }, ctx.db);
+    for (const name of ['Podložka', 'Matica']) await addItem(admin, id, { kind: 'part', name, quantity: '1', salePrice: '0,10', vatRate: '5' }, ctx.db);
 
     const [page] = await pagesOf(quoteResponse, id);
 

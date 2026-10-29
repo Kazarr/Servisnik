@@ -25,7 +25,7 @@ const oilCan: EditedItem = {
   quantityHundredths: 150,
   unit: 'l',
   purchasePriceCents: 1000,
-  unitPriceCents: 1250,
+  salePriceCents: 1250,
   vatRate: 19,
 };
 
@@ -39,14 +39,14 @@ test('a Práca starts in hours, with the hourly rate of Nastavenia as its price,
   const html = addTo('labour');
 
   expect(input(html, 'unit')).toContain('value="h"');
-  expect(input(html, 'unitPrice')).toContain('value="45,50"');
+  expect(input(html, 'salePrice')).toContain('value="45,50"');
   expect(input(html, 'purchasePrice')).toBeNull();
   expect(input(html, 'markup')).toBeNull();
 });
 
 test('without an hourly rate the price of a Práca starts empty, and an hourly rate of 0 € is a price, not none', () => {
-  expect(input(addTo('labour', { hourlyRateCents: null }), 'unitPrice')).toContain('value=""');
-  expect(input(addTo('labour', { hourlyRateCents: 0 }), 'unitPrice')).toContain('value="0,00"');
+  expect(input(addTo('labour', { hourlyRateCents: null }), 'salePrice')).toContain('value=""');
+  expect(input(addTo('labour', { hourlyRateCents: 0 }), 'salePrice')).toContain('value="0,00"');
 });
 
 test('a Diel starts in pieces, with the Prirážka of Nastavenia, and no price and no Nákupná cena', () => {
@@ -55,7 +55,7 @@ test('a Diel starts in pieces, with the Prirážka of Nastavenia, and no price a
   expect(input(html, 'unit')).toContain('value="ks"');
   expect(input(html, 'markup')).toContain('value="25"');
   expect(input(html, 'purchasePrice')).toContain('value=""');
-  expect(input(html, 'unitPrice')).toContain('value=""');
+  expect(input(html, 'salePrice')).toContain('value=""');
 });
 
 test.each([[7, '7'], [0, '0'], [150, '150']])('the Prirážka of a new Diel is the one of Nastavenia: %i %%', (markupPercent, typed) => {
@@ -76,7 +76,7 @@ test('the form of an item starts with what the item has, the Prirážka worked o
   expect(input(html, 'quantity')).toContain('value="1,5"');
   expect(input(html, 'unit')).toContain('value="l"');
   expect(input(html, 'purchasePrice')).toContain('value="10,00"');
-  expect(input(html, 'unitPrice')).toContain('value="12,50"');
+  expect(input(html, 'salePrice')).toContain('value="12,50"');
   expect(input(html, 'markup')).toContain('value="25"');
   expect(options(html, 'vatRate').selected).toEqual(['19']);
   expect(html).toContain(`name="itemId" value="${oilCan.id}"`);
@@ -84,7 +84,7 @@ test('the form of an item starts with what the item has, the Prirážka worked o
 });
 
 test('the Prirážka of an item is shown with its one decimal, and a Diel without a Nákupná cena has none', () => {
-  expect(input(edit({ ...oilCan, purchasePriceCents: 300, unitPriceCents: 400 }), 'markup')).toContain('value="33,3"');
+  expect(input(edit({ ...oilCan, purchasePriceCents: 300, salePriceCents: 400 }), 'markup')).toContain('value="33,3"');
   const html = edit({ ...oilCan, purchasePriceCents: null });
   expect(input(html, 'purchasePrice')).toContain('value=""');
   expect(input(html, 'markup')).toContain('value=""');

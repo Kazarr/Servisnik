@@ -63,8 +63,8 @@ beforeAll(async () => {
   idleCustomerId = idOf(await customers.createCustomer(admin, { type: 'person', name: 'Bez väzieb' }, ctx.db)); // nothing links to these two, so an admin may delete them
   idleVehicleId = idOf(await vehicles.createVehicle(admin, { ownerId, vin: 'TMBZZZ5JZ3W000202', licensePlate: '', make: 'Škoda', model: 'Fabia' }, ctx.db));
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
-  itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
-  priceListItemId = idOf(await priceList.createPriceListItem(admin, { kind: 'part', code: 'FIL-1', name: 'Olejový filter', purchasePrice: '5', unitPrice: '9' }, ctx.db));
+  itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db));
+  priceListItemId = idOf(await priceList.createPriceListItem(admin, { kind: 'part', code: 'FIL-1', name: 'Olejový filter', purchasePrice: '5', salePrice: '9' }, ctx.db));
   await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
@@ -101,12 +101,12 @@ const calls: Record<string, Call> = {
   // Whether a mechanik may change the header or the states is ledger question 11 (#43): until it is answered the capability is the admin's alone.
   updateWorkOrderHeader: (user, db) =>
     workOrders.updateWorkOrderHeader(user, orderId, { mileageKm: '2', customerRequest: 'Nová požiadavka', deadline: '2026-12-01', note: 'Poznámka' }, db),
-  addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', unitPrice: '10', vatRate: '23' }, db),
-  updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', unitPrice: '12' }, db),
+  addItem: (user, db) => workOrders.addItem(user, orderId, { kind: 'labour', name: 'Brzdy', quantity: '1', salePrice: '10', vatRate: '23' }, db),
+  updateItem: (user, db) => workOrders.updateItem(user, itemId, { name: 'Brzdy', quantity: '2', salePrice: '12' }, db),
   deleteItem: (user, db) => workOrders.deleteItem(user, itemId, db),
   addItemFromPriceList: (user, db) => workOrders.addItemFromPriceList(user, orderId, priceListItemId, db),
-  createPriceListItem: (user, db) => priceList.createPriceListItem(user, { kind: 'part', code: 'FIL-2', name: 'Vzduchový filter', unitPrice: '12' }, db),
-  updatePriceListItem: (user, db) => priceList.updatePriceListItem(user, priceListItemId, { code: 'FIL-1', name: 'Olejový filter', unitPrice: '10' }, db),
+  createPriceListItem: (user, db) => priceList.createPriceListItem(user, { kind: 'part', code: 'FIL-2', name: 'Vzduchový filter', salePrice: '12' }, db),
+  updatePriceListItem: (user, db) => priceList.updatePriceListItem(user, priceListItemId, { code: 'FIL-1', name: 'Olejový filter', salePrice: '10' }, db),
   deletePriceListItem: (user, db) => priceList.deletePriceListItem(user, priceListItemId, db),
   searchPriceList: (user, db) => priceList.searchPriceList(user, { query: 'filter' }, db),
   getPriceListItem: (user, db) => priceList.getPriceListItem(user, priceListItemId, db),

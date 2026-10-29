@@ -34,7 +34,7 @@ test.each([
   [9_999_999, '99999,99'],
 ])('%i hundredths are "%s" in a field', (hundredths, typed) => {
   expect(formatQuantityInput(hundredths)).toBe(typed);
-  const item = parseItem({ kind: 'part', name: 'Diel', quantity: typed, unitPrice: '1' }, { defaultVatRate: 23, vatRates: [23] });
+  const item = parseItem({ kind: 'part', name: 'Diel', quantity: typed, salePrice: '1' }, { defaultVatRate: 23, vatRates: [23] });
   expect(item).toMatchObject({ ok: true, item: { quantityHundredths: hundredths } });
 });
 

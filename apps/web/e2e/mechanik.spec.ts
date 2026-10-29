@@ -69,7 +69,7 @@ test('the mechanik opens a Zákazka from the list, sees its items and no price a
   test.slow(); // the server starts its Chromium with the first print, and on a host that other runs share that takes long
   const tag = runTag();
   const order = await seedWorkOrder(db, tag);
-  await addItem(admin, order.orderId, { kind: 'part', code: `OF-${tag}`, name: `Olejový filter ${tag}`, quantity: '2', unit: 'ks', purchasePrice: '4321,09', unitPrice: '8765,43', vatRate: '23' }, db);
+  await addItem(admin, order.orderId, { kind: 'part', code: `OF-${tag}`, name: `Olejový filter ${tag}`, quantity: '2', unit: 'ks', purchasePrice: '4321,09', salePrice: '8765,43', vatRate: '23' }, db);
   await signInAs(page, await seedMechanik(db, tag));
   await page.goto(`/zakazky?od=${dayFromToday(0)}`);
 
@@ -118,10 +118,10 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const headerPage = await context.newPage();
   await headerPage.goto(`/zakazky/${order.orderId}/upravit`);
   await headerPage.getByLabel('Kilometre pri príjme').fill('777');
-  const itemId = idOf(await addItem(admin, order.orderId, { kind: 'part', name: 'Zostane', quantity: '1', unitPrice: '10' }, db));
+  const itemId = idOf(await addItem(admin, order.orderId, { kind: 'part', name: 'Zostane', quantity: '1', salePrice: '10' }, db));
   const detailPage = await context.newPage();
   await detailPage.goto(`/zakazky/${order.orderId}`);
-  await fillLabour(detailPage, { name: 'Nemala by sa pridať', quantity: '1', unitPrice: '10' });
+  await fillLabour(detailPage, { name: 'Nemala by sa pridať', quantity: '1', salePrice: '10' });
   const itemPage = await context.newPage();
   await itemPage.goto(`/zakazky/${order.orderId}/polozky/${itemId}`);
   await itemPage.getByLabel('Názov', { exact: true }).fill('Nemal by sa zmeniť');

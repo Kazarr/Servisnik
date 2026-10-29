@@ -68,7 +68,7 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   const labourForm = itemForm(page, 'Pridať prácu');
   await expect(labourForm.getByLabel('Sadzba DPH (%)')).toHaveValue('23');
   await expect(labourForm.getByLabel('Jednotka')).toHaveValue('h');
-  await addLabour(page, { name: 'Výmena oleja', quantity: '0', unitPrice: '40' });
+  await addLabour(page, { name: 'Výmena oleja', quantity: '0', salePrice: '40' });
   await expect(labourForm.getByLabel('Množstvo', { exact: true })).toHaveAccessibleDescription('Množstvo musí byť väčšie ako 0, najviac na 2 desatinné miesta');
   await expect(labourForm.getByLabel('Názov', { exact: true })).toHaveValue('Výmena oleja');
   await expect(main.getByRole('row', { name: /Výmena oleja/ })).toHaveCount(0);
@@ -81,7 +81,7 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(labourForm.getByLabel('Sadzba DPH (%)')).toHaveValue('23');
 
   // A fractional quantity: 0,25 h at 33,33 € is 8,33 € (rounded once per item), and the totals add the rounded items.
-  await addLabour(page, { name: 'Kontrola bŕzd', quantity: '0,25', unitPrice: '33,33' });
+  await addLabour(page, { name: 'Kontrola bŕzd', quantity: '0,25', salePrice: '33,33' });
   await expect(main.getByRole('row', { name: /Kontrola bŕzd/ }).getByRole('cell')).toHaveText([
     '', 'Kontrola bŕzd', '0,25 h', '—', '33,33 €', '23 %', '8,33 €', '1,92 €', '10,25 €', /Upraviť/,
   ]);
@@ -333,7 +333,7 @@ test('the work order forms and the buttons for an item and for done, used after 
   await fillIntake(page, '500', 'Uloží sa');
   await expect(page).toHaveURL(/\/zakazky\/[0-9a-f-]{36}$/);
   const orderUrl = page.url();
-  await fillLabour(page, { name: 'Nemala by sa pridať', quantity: '1', unitPrice: '10' });
+  await fillLabour(page, { name: 'Nemala by sa pridať', quantity: '1', salePrice: '10' });
   await endSessionBehindThePage(page, browser, baseURL);
   await itemForm(page, 'Pridať prácu').getByRole('button', { name: 'Pridať prácu' }).click();
   await expect(page).toHaveURL(/\/login$/);
@@ -342,7 +342,7 @@ test('the work order forms and the buttons for an item and for done, used after 
   await expect(main.getByRole('row', { name: /Nemala by sa pridať/ })).toHaveCount(0);
 
   // Deleting an item.
-  await addLabour(page, { name: 'Zostane', quantity: '1', unitPrice: '10' });
+  await addLabour(page, { name: 'Zostane', quantity: '1', salePrice: '10' });
   await expect(main.getByRole('row', { name: /Zostane/ })).toHaveCount(1);
   await endSessionBehindThePage(page, browser, baseURL);
   await main.getByRole('button', { name: 'Zmazať Zostane' }).click();
