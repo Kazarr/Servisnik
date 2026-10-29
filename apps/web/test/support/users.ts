@@ -7,9 +7,8 @@ import { account, user } from '../../src/db/schema.ts';
 
 /**
  * A Používateľ with this Rola, created straight in the database, with a password the test chose, without
- * an admin who creates him (that is test/users.test.ts) and without the seed, which adds an admin only
- * while there is none. `email` in lower case and not used yet. The name is "Admin" unless the test gives
- * one. Returns his id.
+ * an admin who creates him (that is test/users.test.ts). `email` in lower case and not used yet. The name
+ * is "Admin" unless the test gives one. Returns his id.
  */
 export async function seedUser(db: Database, input: { email: string; password: string; role: Role; name?: string }) {
   const id = randomUUID();

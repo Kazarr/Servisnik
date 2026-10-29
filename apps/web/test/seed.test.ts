@@ -5,6 +5,7 @@ import { createAuth } from '../src/auth.ts';
 import { user } from '../src/db/schema.ts';
 import { seedAdmin } from '../src/seed.ts';
 import { createTestDb } from './support/db.ts';
+import { signInHeaders } from './support/sessions.ts';
 
 const secret = 'test-secret-test-secret-test-secret-0123';
 const email = 'admin@autoservis.test';
@@ -37,8 +38,7 @@ test('seeding again with the same input leaves one admin who still signs in', as
 
 test('an admin who changed his password in the app keeps it when the seed runs with ADMIN_PASSWORD again', async () => {
   await seedAdmin(ctx.db, { email, password: 'prve-heslo-1234' });
-  const { headers } = await auth.api.signInEmail({ body: { email, password: 'prve-heslo-1234' }, returnHeaders: true });
-  const inApp = new Headers({ cookie: headers.getSetCookie().map((c) => c.split(';')[0]).join('; ') });
+  const inApp = await signInHeaders(auth, email, 'prve-heslo-1234');
   await auth.api.changePassword({ headers: inApp, body: { currentPassword: 'prve-heslo-1234', newPassword: 'zmenene-heslo-5678' } });
 
   await seedAdmin(ctx.db, { email, password: 'prve-heslo-1234' });
