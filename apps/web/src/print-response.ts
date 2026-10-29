@@ -18,11 +18,16 @@ export type PrintedInput<Data> = { data: Data; workshop: WorkshopDetails; logo: 
 /**
  * The PDF of a form of a Zákazka as a download, printed with the day `now` in Europe/Bratislava. `read` asks
  * the capability of the form before it reads anything, so nobody signed in gets a 401, a Rola that may not
- * print the form a 403, and an id that is no Zákazka a 404. The details of the autoservis and its logo are read
- * only after that, as the same user.
+ * print the form a 403, and an id that is no Zákazka a 404. A form that is printed only in some Stav answers
+ * with the Response that refuses it (a 409) instead of the data. The details of the autoservis and its logo
+ * are read only after that, as the same user.
  */
 export const printedFormResponse = <Data extends { number: string }>(
-  { form, read, document }: { form: PrintForm; read: (user: User | null, workOrderId: string, db: Database) => Promise<Data | null>; document: (input: PrintedInput<Data>) => string },
+  {
+    form,
+    read,
+    document,
+  }: { form: PrintForm; read: (user: User | null, workOrderId: string, db: Database) => Promise<Data | Response | null>; document: (input: PrintedInput<Data>) => string },
   user: User | null,
   workOrderId: string,
   db: Database,
@@ -31,6 +36,7 @@ export const printedFormResponse = <Data extends { number: string }>(
   guarded(async () => {
     const data = await read(user, workOrderId, db);
     if (!data) return failure('Zákazka neexistuje.', 404);
+    if (data instanceof Response) return data;
     const [workshop, logo] = await Promise.all([getWorkshopDetails(user, db), getLogo(user, db)]);
     const pdf = await printPdf(document({ data, workshop, logo, printedOn: localDate(now) }));
     return new Response(pdf as Uint8Array<ArrayBuffer>, {

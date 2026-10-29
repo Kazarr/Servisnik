@@ -26,6 +26,13 @@ export const isClosed = (status: WorkOrderStatus): boolean => status === 'invoic
  */
 export const canEdit = (status: WorkOrderStatus): boolean => isActive(status);
 
+/**
+ * Whether the Odovzdávací protokol (GLOSSARY) is printed for a Zákazka in this status: Hotová, when the customer takes
+ * the vehicle over, and Vyfakturovaná, so that it can still be printed after the invoice. Not in a Rozpracovaná status,
+ * where the work is not done, and not in Zrušená. The button and the Route Handler both ask this.
+ */
+export const canPrintHandover = (status: WorkOrderStatus): boolean => status === 'done' || status === 'invoiced';
+
 /** `user` is the admin's own button; `invoice` is the invoice being issued, the only way to Vyfakturovaná. */
 export type TransitionTrigger = 'user' | 'invoice';
 

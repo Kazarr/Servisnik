@@ -100,7 +100,7 @@ export default async function WorkOrderPage({
           </div>
         )}
       </dl>
-      <PrintLinks workOrderId={order.id} role={user.role} />
+      <PrintLinks workOrderId={order.id} role={user.role} status={order.status} />
 
       <h2>Položky</h2>
       {order.items.length === 0 ? (
