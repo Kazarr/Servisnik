@@ -14,6 +14,7 @@ import {
   transition,
   type ItemErrors,
   type ItemInput,
+  type ItemKind,
   type WorkOrderErrors,
   type WorkOrderInput,
   type WorkOrderItem,
@@ -261,6 +262,25 @@ export async function addItemFromPriceList(
   });
 }
 
+/**
+ * Finds the item that an update or a delete is about, then locks its Zákazka as when adding an item (lockForItems): `unknown`
+ * when there is no such item or its Zákazka is gone, `not-editable` when the Zákazka is no longer Rozpracovaná. The item is read
+ * before the lock and not again after it, so the caller must not take from it what another change of the item could have changed
+ * meanwhile: only its Zákazka and its kind are fixed; the VAT rate is the one it had when it was found.
+ */
+async function lockItem(
+  tx: Transaction,
+  itemId: string,
+): Promise<{ ok: true; item: { workOrderId: string; kind: ItemKind; vatRate: number } } | { ok: false; error: 'unknown' | 'not-editable' }> {
+  const [item] = await rowsIfUuid(
+    itemId,
+    tx.select({ workOrderId: workOrderItem.workOrderId, kind: workOrderItem.kind, vatRate: workOrderItem.vatRate }).from(workOrderItem).where(eq(workOrderItem.id, itemId)),
+  );
+  if (!item) return { ok: false, error: 'unknown' };
+  const locked = await lockForItems(tx, item.workOrderId);
+  return locked === 'ok' ? { ok: true, item } : { ok: false, error: locked };
+}
+
 export type UpdateItemResult =
   | { ok: true; workOrderId: string }
   | { ok: false; errors: ItemErrors & { item?: 'unknown'; workOrder?: 'not-editable' } };
@@ -275,10 +295,9 @@ export async function updateItem(user: User | null, itemId: string, input: Omit<
   const { vatRates } = await getRates(user, db);
 
   return db.transaction(async (tx) => {
-    const [item] = await rowsIfUuid(itemId, tx.select({ workOrderId: workOrderItem.workOrderId, kind: workOrderItem.kind, vatRate: workOrderItem.vatRate }).from(workOrderItem).where(eq(workOrderItem.id, itemId)));
-    if (!item) return { ok: false, errors: { item: 'unknown' } };
-    const locked = await lockForItems(tx, item.workOrderId);
-    if (locked !== 'ok') return { ok: false, errors: locked === 'unknown' ? { item: 'unknown' } : { workOrder: locked } };
+    const found = await lockItem(tx, itemId);
+    if (!found.ok) return { ok: false, errors: found.error === 'unknown' ? { item: 'unknown' } : { workOrder: found.error } };
+    const { item } = found;
     const parsed = parseItem({ ...input, kind: item.kind }, { defaultVatRate: item.vatRate, vatRates: vatRatesKeeping(vatRates, item.vatRate) });
     if (!parsed.ok) return parsed;
     const [saved] = await tx.update(workOrderItem).set(parsed.item).where(eq(workOrderItem.id, itemId)).returning({ id: workOrderItem.id });
@@ -292,12 +311,10 @@ export type DeleteItemResult = { ok: true; workOrderId: string } | { ok: false; 
 export async function deleteItem(user: User | null, itemId: string, db: Database = getDb()): Promise<DeleteItemResult> {
   assertCan(user, 'work-orders.write');
   return db.transaction(async (tx) => {
-    const [item] = await rowsIfUuid(itemId, tx.select({ workOrderId: workOrderItem.workOrderId }).from(workOrderItem).where(eq(workOrderItem.id, itemId)));
-    if (!item) return { ok: false, error: 'unknown' };
-    const locked = await lockForItems(tx, item.workOrderId);
-    if (locked !== 'ok') return { ok: false, error: locked };
+    const found = await lockItem(tx, itemId);
+    if (!found.ok) return found;
     const deleted = await tx.delete(workOrderItem).where(eq(workOrderItem.id, itemId)).returning({ id: workOrderItem.id });
-    return deleted.length > 0 ? { ok: true, workOrderId: item.workOrderId } : { ok: false, error: 'unknown' }; // none: deleted while this waited for the lock
+    return deleted.length > 0 ? { ok: true, workOrderId: found.item.workOrderId } : { ok: false, error: 'unknown' }; // none: deleted while this waited for the lock
   });
 }
 
