@@ -14,6 +14,23 @@ const cssFiles = (dir: string) => globSync('**/*.css', { cwd: dir }).map((file) 
 // per value type; this finds the raw ones outside :root and outside comments. The percentage rule is also
 // the one for the ratio of a color-mix(), and the multiplier rule for calc(var(--x) * n), which is a raw
 // value in disguise unless it defines a token in :root.
+// The 148 named colours of CSS Color 4, compared once with the keys of color-name 1.1.4. transparent and
+// currentcolor are keywords, and the system colours (Canvas, CanvasText, ButtonText, ...) are the colours of
+// the user; none of them is a design colour.
+const NAMED_COLORS = `aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown
+  burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod
+  darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen
+  darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue
+  firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew
+  hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan
+  lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray
+  lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid
+  mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream
+  mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen
+  paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue
+  saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen
+  steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen`.split(/\s+/);
+
 const RULES = {
   opacity: /opacity:\s*[\d.]+/,
   viewport: /(?<![\w.#-])-?\d*\.?\d+(?:[sld]?v(?:[whib]|min|max)|cq(?:[whib]|min|max))\b/,
@@ -31,6 +48,13 @@ const RULES = {
   multiplier: /(?<![\w.-])-?[\d.]+\s*\*|\*\s*-?[\d.]+(?![\w.%])/,
   // Only a number after the slash in a calc(): `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too.
   divisor: /(?<=calc\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\/\s*-?[\d.]+(?![\w.%])/,
+  duration: /(?<![\w.-])-?\d*\.?\d+m?s\b/,
+  angle: /(?<![\w.-])-?\d*\.?\d+(?:deg|grad|rad|turn)\b/,
+  // A grid track function (`minmax(0, 1fr)`) is a token like any other value: --track-fill.
+  minmax: /minmax\((?:[^()]|\([^()]*\))*\)/,
+  // A colour name is a value, not a part of a longer word (white-space, red-alert, tan( ), nor an ID (#red) or
+  // a selector (`.red {`, `[data-tone=red] {`).
+  namedColor: new RegExp(`(?<![\\w#-])(?:${NAMED_COLORS.join('|')})(?![\\w(-])(?![^;{}]*\\{)`),
   // A hex colour is a value: an ID selector that spells one (#add, #cafe) has a `{` after it before any `;` or `}`.
   hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;{}]*\{)/,
 };
@@ -68,7 +92,7 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
   length: {
     raw: '.x { padding: 0.5rem 8px -1em; margin: 0; height: 2lh 3rlh; width: 4Q 5cap; }',
     found: ['0.5rem', '8px', '-1em', '2lh', '3rlh', '4Q', '5cap'],
-    token: '.x { padding: var(--space-2) var(--space-3); margin: 0; grid-template-columns: minmax(0, 1fr); }',
+    token: '.x { padding: var(--space-2) var(--space-3); margin: 0; grid-template-columns: var(--track-fill); }',
     miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .y { background: url(icon.5px.png); } .x { margin: 2lhx; }',
   },
   percentage: {
@@ -124,6 +148,34 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     token: '.x { margin: var(--space-6); width: calc(var(--space-1) / var(--columns)); }',
     miss: '.a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); }',
   },
+  duration: {
+    raw: '.x { transition: opacity 200ms ease-in; animation-duration: 0.3s; transition-delay: -1s; }',
+    found: ['200ms', '0.3s', '-1s'],
+    token: '.x { transition: opacity var(--duration-fast) ease-in; }',
+    miss: '.w-2s-x { margin: 0; } .a2s { margin: 0; } .y { background: url(icon.5s.png); } .x { margin: 3ss 2msx; }',
+  },
+  angle: {
+    raw: '.x { transform: rotate(45deg) skew(-0.5turn); rotate: 1.5rad; background: conic-gradient(from 90grad, var(--a), var(--b)); }',
+    found: ['45deg', '-0.5turn', '1.5rad', '90grad'],
+    token: '.x { transform: rotate(var(--angle-open)); }',
+    miss: '.w-45deg-x { margin: 0; } .a90deg { margin: 0; } .y { background: url(icon.5turn.png); } .x { margin: 2radx 3degs; }',
+  },
+  minmax: {
+    raw: '.x { grid-template-columns: max-content minmax(0, 1fr); } .y { grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr)); }',
+    found: ['minmax(0, 1fr)', 'minmax(var(--card-width), 1fr)'],
+    token: '.x { grid-template-columns: max-content var(--track-fill); }',
+    miss: '.minmax-cell { margin: 0; } .x { grid-area: minmax; }',
+  },
+  namedColor: {
+    raw: '.x { color: red; .z { margin: 0; } background: RebeccaPurple; border: 1px solid black; box-shadow: 0 0 1px gray, 0 0 2px navy } .y { background: linear-gradient(white, var(--a)); }',
+    found: ['red', 'RebeccaPurple', 'black', 'gray', 'navy', 'white'],
+    token: '.x { color: var(--color-text); outline: var(--border-width-strong) solid CanvasText; background: Canvas; color: ButtonText; border-color: transparent; fill: currentcolor; }',
+    miss: [
+      '.red { margin: 0; } #tan { margin: 0; } .x-red, .gold-x { margin: 0; } [data-tone=red] { margin: 0; } [data-tone="gold"] > .x { margin: 0; }',
+      '.a { color: var(--color-red); animation-name: red-alert; margin: 0 redundant; animation-name: scarred; white-space: nowrap; } .b { width: calc(var(--a) * tan(var(--angle))); }',
+      '@keyframes gold { to { margin: 0; } } .c { background: url(#red); }',
+    ].join(' '),
+  },
   hex: {
     raw: '.x { color: #fff; .y { margin: 0; } background: #1D5FC4 } .z { margin: 0; }',
     found: ['#fff', '#1D5FC4'],
@@ -138,6 +190,13 @@ test.each(Object.entries(CASES))('the %s rule finds exactly the raw values, and 
   expect(rawValues(raw, only)).toEqual(found);
   expect(rawValues(miss, only)).toEqual([]);
   expect(rawValues(token)).toEqual([]);
+});
+
+test('the namedColor rule finds each of the 148 named colours of CSS Color 4', () => {
+  const only = { namedColor: RULES.namedColor };
+
+  expect(NAMED_COLORS).toHaveLength(148);
+  for (const name of NAMED_COLORS) expect(rawValues(`.x { color: ${name}; }`, only), name).toEqual([name]);
 });
 
 test('raw values are fine where tokens are defined, in :root and in comments, and nowhere else', () => {
