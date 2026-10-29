@@ -37,9 +37,13 @@ const handedOver = async (id: string) => {
   return id;
 };
 
-/** The Zákazka straight in `status`, as the invoice (Vyfakturovaná) would leave it. */
+/**
+ * The Zákazka in `status`, reached the way the app reaches it: Prijatá is where a Zákazka starts, the others the admin's
+ * buttons. Only Vyfakturovaná is written straight, as the invoice would leave it: nothing in the app makes it yet.
+ */
 async function setStatus(id: string, status: WorkOrderStatus) {
-  await ctx.db.execute(sql`update work_order set status = ${status}::work_order_status where id = ${id}`);
+  if (status === 'invoiced') await ctx.db.execute(sql`update work_order set status = ${status}::work_order_status where id = ${id}`);
+  else if (status !== 'received') expect(await changeWorkOrderStatus(admin, id, { to: status, confirmed: true }, ctx.db)).toEqual({ ok: true });
   return id;
 }
 
