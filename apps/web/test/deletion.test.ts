@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, deleteCustomer, getCustomer, searchCustomers } from '../src/dal/customers.ts';
 import { createVehicle, deleteVehicle, getVehicle } from '../src/dal/vehicles.ts';
 import { changeWorkOrderStatus, createWorkOrder, listWorkOrdersOfCustomer, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
@@ -7,6 +7,7 @@ import { customer, vehicle } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { untilLockWaits } from './support/lock-waits.ts';
 import { truncateTables } from './support/reset.ts';
 
 // Mazanie (spec #67): a Zákazník or a Vozidlo with any link is never deleted. PostgreSQL decides (the
@@ -139,22 +140,6 @@ test('every foreign key that points at a Zákazník or a Vozidlo is `restrict`, 
 // A link that is added while the delete is under way. Its foreign key holds a lock on the row the
 // delete wants, so the delete waits for it, and then PostgreSQL looks again and refuses.
 
-/**
- * Waits until a statement of this database is blocked behind another one's lock. The statement has to get a connection,
- * parse and plan before it reaches the lock: milliseconds on an idle machine, and the 1 s a `waitFor` gives by default ran
- * out under load (#134), so it has the 10 s of `whileHeld` in work-orders.test.ts.
- */
-const untilSomeoneWaits = () =>
-  vi.waitFor(
-    async () => {
-      const { rows } = await ctx.db.execute<{ waiting: number }>(
-        sql`select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
-      );
-      expect(rows[0]!.waiting).toBeGreaterThan(0);
-    },
-    { timeout: 10_000 },
-  );
-
 /** Runs `link` in a transaction that stays open, starts `deleting`, lets it wait on the lock of the link, and only then commits. */
 async function deleteWhileLinkIsAdded<Result>(link: string, parameters: unknown[], deleting: () => Promise<Result>) {
   const other = await ctx.db.$client.connect();
@@ -164,7 +149,7 @@ async function deleteWhileLinkIsAdded<Result>(link: string, parameters: unknown[
     await other.query('begin');
     await other.query(link, parameters);
     result = deleting();
-    await untilSomeoneWaits();
+    await untilLockWaits(ctx.db);
     await other.query('commit');
     const done = await result;
     failed = false;
