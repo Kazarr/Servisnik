@@ -1,8 +1,13 @@
-import { readFileSync } from 'node:fs';
+import { globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { documentCss, footerTemplate, printTokens } from '../src/print/styles.ts';
 
+const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
+const cssFiles = (dir: string) => globSync('**/*.css', { cwd: dir }).map((file) => file.split(sep).join('/')).sort();
 
 // Design values (frontend-design): the rules of globals.css take colours, lengths, percentages, font weights,
 // line heights and mix ratios from the custom properties of :root, so a value changes in one place. One rule
@@ -103,8 +108,27 @@ test('raw values are fine where tokens are defined, in :root and in comments, an
   expect(rawValues(css)).toEqual(['2px', '3px']);
 });
 
-test('globals.css keeps its design values in :root', () => {
-  expect(rawValues(read('globals.css'))).toEqual([]);
+test('cssFiles lists every .css file below a directory, at any depth, and no other file', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'css-files-'));
+  const files = ['a.css', 'deep/er/b.module.css', 'a.css.map', 'c.scss', 'd.csss', 'css', 'deep/notes.txt'];
+  try {
+    for (const file of files) {
+      mkdirSync(dirname(join(dir, file)), { recursive: true });
+      writeFileSync(join(dir, file), '');
+    }
+
+    expect(cssFiles(dir)).toEqual(['a.css', 'deep/er/b.module.css']);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+// Every CSS file below src/, not only globals.css: a *.module.css next to a component is checked the day it is added.
+test('every CSS file of the app keeps its design values in :root', () => {
+  const files = cssFiles(srcDir);
+
+  expect(files).toContain('app/globals.css');
+  for (const file of files) expect(rawValues(readFileSync(join(srcDir, file), 'utf8')), file).toEqual([]);
 });
 
 // icon.svg is loaded as an image, so it cannot read the custom properties of the page; its fills must
