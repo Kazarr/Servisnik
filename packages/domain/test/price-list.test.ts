@@ -64,6 +64,14 @@ describe('a Položka cenníka as the admin types it', () => {
     expect(parsePriceListItem({ ...brake, purchasePrice }, rates)).toEqual({ ok: false, errors: { purchasePrice: 'invalid' } });
   });
 
+  // The Prirážka of 50 % makes the Predajná cena of 30 € of the Nákupná cena of 20 €. The form shows it as a helper, as the form of a Zákazka does.
+  test('the Prirážka the form shows is asked as for a Položka zákazky: one that fits the prices is accepted and not stored, one that does not is refused', () => {
+    expect(parsePriceListItem({ ...brake, markup: '50' }, rates)).toEqual(parsePriceListItem(brake, rates));
+    expect(parsePriceListItem({ ...brake, markup: '-33,3', purchasePrice: '30', unitPrice: '20' }, rates)).toMatchObject({ ok: true });
+    expect(parsePriceListItem({ ...brake, markup: '25' }, rates)).toEqual({ ok: false, errors: { markup: 'disagrees' } });
+    expect(parsePriceListItem({ ...brake, markup: '50,55' }, rates)).toEqual({ ok: false, errors: { markup: 'invalid' } });
+  });
+
   test('a name is required and a unit sent blank is refused, where every reason comes back at once and none of them is a quantity', () => {
     expect(parsePriceListItem({ kind: 'part', name: '  ', unit: ' ', purchasePrice: 'x', unitPrice: 'x', vatRate: 'x' }, rates)).toEqual({
       ok: false,

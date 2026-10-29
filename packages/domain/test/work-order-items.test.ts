@@ -12,6 +12,8 @@ import {
 
 // Prirážka (GLOSSARY) is a percentage of the Nákupná cena. It is never stored: the form turns it into a
 // Predajná cena and back. It is counted in tenths of a percent (125 is 12,5 %), so no amount is a float.
+// A Predajná cena below the Nákupná cena makes a negative Prirážka, which the form shows and reads back; the
+// least it can be is -100 %, the Predajná cena of 0 €, since a price is not below 0.
 // Every expected value below is worked out by hand.
 
 describe('a Prirážka as the admin types it', () => {
@@ -23,11 +25,18 @@ describe('a Prirážka as the admin types it', () => {
     ['0,0', 0],
     [' 7 ', 70],
     ['1 000', 10000],
+    ['-10', -100],
+    ['-12,5', -125],
+    ['-0,3', -3],
+    ['-100', -1000],
+    ['-0', 0],
+    ['99999999', 999999990],
+    ['9999999999', 99_999_999_990],
   ])('"%s" is %i tenths of a percent', (typed, tenths) => {
     expect(parseMarkup(typed)).toBe(tenths);
   });
 
-  test.each(['', ' ', '-5', '12,55', '12,', ',5', '12 %', 'veľa', '1,2,3', '99999999'])('"%s" is not a Prirážka', (typed) => {
+  test.each(['', ' ', '12,55', '12,', ',5', '12 %', 'veľa', '1,2,3', '-', '--5', '+5', '−5', '-100,1', '-101', '99999999999'])('"%s" is not a Prirážka', (typed) => {
     expect(parseMarkup(typed)).toBeNull();
   });
 });
@@ -57,6 +66,32 @@ describe('the Predajná cena made from a Nákupná cena and a Prirážka', () =>
   test('a price above the largest a Položka may have is none: 1 000 000 € plus 0,1 %', () => {
     expect(salePriceFromMarkup(100_000_000, 1)).toBeNull();
     expect(salePriceFromMarkup(100_000_000, 0)).toBe(100_000_000);
+  });
+
+  test('a negative Prirážka sells below the purchase price: -10 % on 10,00 € is 9,00 €', () => {
+    expect(salePriceFromMarkup(1000, -100)).toBe(900);
+  });
+
+  test('-100 % sells for 0 €, and a Prirážka below it would be a price below 0, which is none', () => {
+    expect(salePriceFromMarkup(1000, -1000)).toBe(0);
+    expect(salePriceFromMarkup(1000, -1001)).toBeNull();
+    expect(salePriceFromMarkup(0, -1001)).toBeNull();
+  });
+
+  test('half a cent rounds up with a negative Prirážka as with a positive one: -25 % on 0,10 € is 0,075 €, so 0,08 €', () => {
+    expect(salePriceFromMarkup(10, -250)).toBe(8);
+  });
+
+  test('the largest Prirážka a field takes on the largest purchase price is none, not a wrong price', () => {
+    expect(salePriceFromMarkup(100_000_000, 99_999_999_990)).toBeNull();
+  });
+
+  test('the Prirážka that markupFromSalePrice makes of the cheapest purchase price and the dearest sale makes that price again', () => {
+    const markup = markupFromSalePrice(1, 100_000_000)!;
+
+    expect(markup).toBe(99_999_999_000);
+    expect(parseMarkup('9999999900')).toBe(markup);
+    expect(salePriceFromMarkup(1, markup)).toBe(100_000_000);
   });
 });
 
@@ -221,9 +256,75 @@ describe('a Položka zákazky as the admin types it', () => {
 
   test('a name is required, and every reason comes back at once', () => {
     expect(refused({ name: '  ' })).toEqual({ ok: false, errors: { name: 'required' } });
-    expect(parsed({ ...part, name: '', quantity: '0', unit: '', purchasePrice: 'x', unitPrice: '', vatRate: 'x' })).toEqual({
+    expect(parsed({ ...part, name: '', quantity: '0', unit: '', purchasePrice: 'x', markup: 'x', unitPrice: '', vatRate: 'x' })).toEqual({
       ok: false,
-      errors: { name: 'required', quantity: 'invalid', unit: 'required', purchasePrice: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
+      errors: { name: 'required', quantity: 'invalid', unit: 'required', purchasePrice: 'invalid', markup: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
+    });
+  });
+
+  // The form of a Diel shows a Prirážka that is not saved: either price may have made it, or the other way round. What it
+  // shows must be a Prirážka (parseMarkup) and must fit the two prices it is sent with; else the form tells the admin.
+  // The part above is bought for 12,50 € and sold for 15,60 €, which is a Prirážka of 24,8 % (3,10 / 12,50 = 24,8 %).
+  describe('the Prirážka a Diel is sent with', () => {
+    const withMarkup = (markup: string, overrides: Partial<ItemInput> = {}) => parsed({ ...part, markup, ...overrides });
+
+    test('one that the prices make is accepted, and is not part of what is stored', () => {
+      expect(withMarkup('24,8')).toEqual(parsed(part));
+      expect(withMarkup('24.8')).toEqual(parsed(part));
+    });
+
+    test('one that makes the Predajná cena is accepted though the price makes another: 12,5 % on 3,33 € is 3,75 €, which is 12,6 % of 3,33 €', () => {
+      expect(withMarkup('12,5', { purchasePrice: '3,33', unitPrice: '3,75' })).toMatchObject({ ok: true, item: { purchasePriceCents: 333, unitPriceCents: 375 } });
+    });
+
+    test('a sale below the Nákupná cena is saved as it was, with the negative Prirážka the form shows: 9,00 € on 10,00 € is -10 %', () => {
+      expect(withMarkup('-10', { purchasePrice: '10', unitPrice: '9' })).toMatchObject({ ok: true, item: { purchasePriceCents: 1000, unitPriceCents: 900 } });
+      expect(withMarkup('-100', { purchasePrice: '10', unitPrice: '0' })).toMatchObject({ ok: true, item: { unitPriceCents: 0 } });
+    });
+
+    test('a Prirážka of 0 is one that fits a Predajná cena equal to the Nákupná cena', () => {
+      expect(withMarkup('0', { purchasePrice: '10', unitPrice: '10' })).toMatchObject({ ok: true });
+    });
+
+    test('a field left blank, or not sent, says nothing the prices could contradict', () => {
+      expect(withMarkup('')).toEqual(parsed(part));
+      expect(withMarkup('  ')).toEqual(parsed(part));
+      expect(parsed(part)).toMatchObject({ ok: true });
+    });
+
+    test.each(['12,55', 'abc', '12 %', '-100,1', '-', '+5'])('"%s" is not a Prirážka, and the item is refused at the field whatever the prices are', (markup) => {
+      expect(withMarkup(markup)).toEqual({ ok: false, errors: { markup: 'invalid' } });
+    });
+
+    test('a Prirážka the prices do not make is refused as one that does not fit: 25 % when 15,60 € is sold for 12,50 €', () => {
+      expect(withMarkup('25')).toEqual({ ok: false, errors: { markup: 'disagrees' } });
+      expect(withMarkup('-10')).toEqual({ ok: false, errors: { markup: 'disagrees' } });
+    });
+
+    test('a tenth of a percent off is refused: 24,9 and 24,7 for 24,8 %', () => {
+      expect(withMarkup('24,9')).toEqual({ ok: false, errors: { markup: 'disagrees' } });
+      expect(withMarkup('24,7')).toEqual({ ok: false, errors: { markup: 'disagrees' } });
+    });
+
+    test('a Nákupná cena of 0 € has no Prirážka to show: a blank one fits any Predajná cena, and one that is typed fits only the Predajná cena of 0 € that it makes', () => {
+      expect(withMarkup('', { purchasePrice: '0', unitPrice: '5' })).toMatchObject({ ok: true });
+      expect(withMarkup('25', { purchasePrice: '0', unitPrice: '0' })).toMatchObject({ ok: true });
+      expect(withMarkup('25', { purchasePrice: '0', unitPrice: '5' })).toEqual({ ok: false, errors: { markup: 'disagrees' } });
+    });
+
+    test('there is nothing to fit without a Nákupná cena: the Prirážka of Nastavenia that starts the form stays, whatever the price', () => {
+      expect(withMarkup('25', { purchasePrice: '' })).toMatchObject({ ok: true, item: { purchasePriceCents: null, unitPriceCents: 1560 } });
+      expect(withMarkup('25', { purchasePrice: undefined })).toMatchObject({ ok: true });
+    });
+
+    test('it is not asked when the prices are not fit to ask it of, and only the reasons of the prices come back', () => {
+      expect(withMarkup('25', { unitPrice: 'x' })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
+      expect(withMarkup('25', { purchasePrice: 'x' })).toEqual({ ok: false, errors: { purchasePrice: 'invalid' } });
+    });
+
+    test('a Práca has no Prirážka, whatever is sent for it', () => {
+      expect(refused({ markup: '25' })).toMatchObject({ ok: true });
+      expect(refused({ markup: 'abc' })).toMatchObject({ ok: true });
     });
   });
 });
