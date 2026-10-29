@@ -121,6 +121,7 @@ test('a file of exactly 1 MB is kept and one byte more is refused with 413, the 
   expect(await response.json()).toEqual({ error: 'Súbor je väčší ako 1 MB. Vyberte menšie logo.' });
   const kept = await stored();
   expect(kept).not.toBeNull();
+  expect(kept!.byteLength).toBe(maxLogoBytes); // first, so that a size that differs shows its numbers
   expect(Buffer.compare(kept!, padded(png, maxLogoBytes))).toBe(0); // `toEqual` walks a million bytes one by one: seconds on an idle machine, over the limit on a busy one
 });
 
