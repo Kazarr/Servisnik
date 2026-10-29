@@ -5,14 +5,16 @@ import { defaultUnits, markupFromSalePrice, type ItemKind } from '@servisnik/dom
 import { useRef, type ChangeEvent, type ReactNode } from 'react';
 import { formatEuroInput, formatMarkupInput } from '../../format.ts';
 import { Field, SelectField } from './field.tsx';
+import type { ItemMessages } from './item-messages.ts';
 import { syncPriceFields, type PriceFields } from './price-fields.ts';
 
 // The fields a Práca or a Diel has wherever it is entered: on a Zákazka and in the Cenník. The Prirážka is only a
-// helper in the form (price-fields.ts); what is saved are the two prices.
+// helper in the form (price-fields.ts); what is saved are the two prices. The form still sends the Prirážka, and the
+// domain refuses an item whose Prirážka is none or does not fit its prices, at this field (parseItem).
 
 /** The fields of an item but its quantity, which only the form of a Zákazka has. */
 export type ItemFieldName = 'code' | 'name' | 'unit' | 'purchasePrice' | 'markup' | 'unitPrice' | 'vatRate';
-export type ItemFieldErrors = Partial<Record<Exclude<ItemFieldName, 'markup'>, string>>;
+export type ItemFieldErrors = ItemMessages & { code?: string };
 
 /** What a new item starts with: the unit of its kind, the Prirážka of Nastavenia, the hourly rate as the price of a Práca and the default VAT rate. */
 export function startingValues(kind: ItemKind, rates: Rates) {
@@ -99,7 +101,16 @@ export function ItemFields({
             onChange={syncPrices('purchasePrice')}
             autoComplete="off"
           />
-          <Field label="Prirážka (%)" id={`${prefix}-markup`} name="markup" inputMode="decimal" defaultValue={value('markup')} onChange={syncPrices('markup')} autoComplete="off" />
+          <Field
+            label="Prirážka (%)"
+            id={`${prefix}-markup`}
+            name="markup"
+            inputMode="decimal"
+            defaultValue={value('markup')}
+            error={errors?.markup}
+            onChange={syncPrices('markup')}
+            autoComplete="off"
+          />
         </>
       )}
       <Field

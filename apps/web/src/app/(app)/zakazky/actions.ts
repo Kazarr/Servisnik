@@ -17,7 +17,7 @@ import {
   updateWorkOrderHeader,
 } from '../../../dal/work-orders.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
-import { itemMessages } from '../item-messages.ts';
+import { itemMessages, type ItemMessages } from '../item-messages.ts';
 import { customerMessages, intakeCustomerPrefix, readCustomer, type CustomerFormErrors, type CustomerFormValues } from '../zakaznici/customer-input.ts';
 import { intakeVehiclePrefix, readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from '../vozidla/vehicle-input.ts';
 import { orderMessages, readOrder, type OrderFormErrors, type OrderFormValues } from './order-input.ts';
@@ -119,25 +119,15 @@ const itemFields = ['code', 'name', 'quantity', 'unit', 'purchasePrice', 'markup
 
 export type ItemFormState = {
   values: Record<(typeof itemFields)[number], string>;
-  errors: Partial<Record<'name' | 'quantity' | 'unit' | 'purchasePrice' | 'unitPrice' | 'vatRate' | 'form', string>>;
+  errors: ItemMessages & { form?: string };
 } | null;
 
 /**
- * What the form of an item sent. The Prirážka is read only to be shown again with a refused form: the item
- * keeps its two prices, and the Prirážka is worked out from them (item-form.tsx).
+ * What the form of an item sent, which is the input of the domain. The item keeps its two prices and not the Prirážka,
+ * which is worked out from them when the item is shown (item-form.tsx); the domain only checks that the one the form
+ * sent fits them.
  */
 const itemValues = (formData: FormData) => Object.fromEntries(itemFields.map((name) => [name, field(formData, name)])) as NonNullable<ItemFormState>['values'];
-
-/** The domain's input from the values of the form: everything but the Prirážka. */
-const itemInput = ({ code, name, quantity, unit, purchasePrice, unitPrice, vatRate }: NonNullable<ItemFormState>['values']) => ({
-  code,
-  name,
-  quantity,
-  unit,
-  purchasePrice,
-  unitPrice,
-  vatRate,
-});
 
 const notEditableMessage = 'Položky sa dajú meniť len na rozpracovanej zákazke';
 
@@ -154,7 +144,7 @@ export async function addItemToWorkOrder(_state: ItemFormState, formData: FormDa
   if (!kind) notFound();
   const values = itemValues(formData);
 
-  const result = await orForbidden(addItem(user, workOrderId, { kind, ...itemInput(values) }));
+  const result = await orForbidden(addItem(user, workOrderId, { kind, ...values }));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.workOrder === 'unknown') notFound();
@@ -169,7 +159,7 @@ export async function updateItemOfWorkOrder(_state: ItemFormState, formData: For
   const user = await currentUser();
   const values = itemValues(formData);
 
-  const result = await orForbidden(updateItem(user, field(formData, 'itemId'), itemInput(values)));
+  const result = await orForbidden(updateItem(user, field(formData, 'itemId'), values));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.item === 'unknown') notFound();

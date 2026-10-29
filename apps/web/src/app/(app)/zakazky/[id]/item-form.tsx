@@ -26,8 +26,8 @@ export type EditedItem = {
  * The form of a Položka zákazky: adds a Práca or a Diel to the Zákazka in `target`, or edits `target.item`. A new
  * item starts with the unit of its kind, the default VAT rate of Nastavenia chosen from their rates, the hourly
  * rate as the price of a Práca and the Prirážka of Nastavenia on a Diel. The Prirážka is only a helper: with a
- * Nákupná cena, typing it makes the Predajná cena and typing the Predajná cena makes it (price-fields.ts), and
- * it is not sent as anything the server saves.
+ * Nákupná cena, typing it makes the Predajná cena and typing the Predajná cena makes it (price-fields.ts). The server
+ * does not save it, only checks that it fits the two prices, and says so at its field when it does not.
  */
 export function ItemForm({ rates, target }: { rates: Rates; target: { workOrderId: string; kind: ItemKind } | { item: EditedItem } }) {
   const item = 'item' in target ? target.item : null;
