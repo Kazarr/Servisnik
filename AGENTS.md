@@ -38,7 +38,7 @@ Business logic is unit-tested without framework, database or network. External s
 
 ## Code layout
 
-Stack and architecture: `docs/adr/0001-stack.md`. `packages/domain` holds Servisník's rules, one folder per glossary area; areas call each other only through the area's `index.ts`, and the package has no runtime dependencies. Code that needs no `GLOSSARY.md` term goes into its own package, like `packages/kros`.
+Stack and architecture: `docs/adr/0001-stack.md`. `packages/domain` holds Servisník's rules, one folder per glossary area; areas call each other only through the area's `index.ts`, and the package has no runtime dependencies. Code that needs no `GLOSSARY.md` term goes into its own package, like `packages/kros`; small helpers only `packages/domain` uses (dates, number parsers) stay in the domain, so it keeps no dependencies.
 
 ## Agent skills
 
