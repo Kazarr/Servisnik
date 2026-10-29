@@ -16,7 +16,7 @@ import { inOrderAdded, withAmounts } from './work-order-items.ts';
  * It has no Nákupná cena and no Marža, which the customer does not get, and no internal note.
  */
 export type Quote = FormHeader & {
-  items: { code: string | null; name: string; quantityHundredths: number; unit: string; unitPriceCents: number; vatRate: number; amounts: Amounts }[];
+  items: { code: string | null; name: string; quantityHundredths: number; unit: string; salePriceCents: number; vatRate: number; amounts: Amounts }[];
   totals: Amounts;
 };
 
@@ -31,7 +31,7 @@ export async function getQuote(user: User | null, workOrderId: string, db: Datab
       name: workOrderItem.name,
       quantityHundredths: workOrderItem.quantityHundredths,
       unit: workOrderItem.unit,
-      unitPriceCents: workOrderItem.unitPriceCents,
+      salePriceCents: workOrderItem.salePriceCents,
       vatRate: workOrderItem.vatRate,
     })
     .from(workOrderItem)

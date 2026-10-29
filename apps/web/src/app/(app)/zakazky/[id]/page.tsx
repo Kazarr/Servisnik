@@ -133,7 +133,7 @@ export default async function WorkOrderPage({
                       {formatQuantity(item.quantityHundredths)} {item.unit}
                     </td>
                     <td className="amount">{item.purchasePriceCents === null ? '—' : formatEuro(item.purchasePriceCents)}</td>
-                    <td className="amount">{formatEuro(item.unitPriceCents)}</td>
+                    <td className="amount">{formatEuro(item.salePriceCents)}</td>
                     <td className="amount">{item.vatRate} %</td>
                     <td className="amount">{formatEuro(item.amounts.net)}</td>
                     <td className="amount">{formatEuro(item.amounts.vat)}</td>

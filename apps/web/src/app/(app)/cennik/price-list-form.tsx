@@ -22,7 +22,7 @@ export function PriceListForm({ rates, target }: { rates: Rates; target: { kind:
   const item = 'item' in target ? target.item : null;
   const kind = 'item' in target ? target.item.kind : target.kind;
   const [state, formAction, pending] = useActionState(item ? editPriceListItem : addToPriceList, null);
-  const { syncPrices, resetLeading } = usePriceSync(item ? 'unitPrice' : 'markup');
+  const { syncPrices, resetLeading } = usePriceSync(item ? 'salePrice' : 'markup');
 
   const value = valueIn(state, item ? valuesOfItem(item) : startingValues(kind, rates));
   // An item keeps a VAT rate that Nastavenia no longer offer, so that editing its name does not change it.

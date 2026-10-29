@@ -115,7 +115,7 @@ export async function editWorkOrder(_state: WorkOrderFormState, formData: FormDa
   redirect(`/zakazky/${id}`);
 }
 
-const itemFields = ['code', 'name', 'quantity', 'unit', 'purchasePrice', 'markup', 'unitPrice', 'vatRate'] as const;
+const itemFields = ['code', 'name', 'quantity', 'unit', 'purchasePrice', 'markup', 'salePrice', 'vatRate'] as const;
 
 export type ItemFormState = {
   values: Record<(typeof itemFields)[number], string>;

@@ -49,7 +49,7 @@ export async function PriceListSearch({ user, workOrderId, query, page }: { user
                       <td>{item.code}</td>
                       <td>{item.name}</td>
                       <td>{item.unit}</td>
-                      <td className="amount">{formatEuro(item.unitPriceCents)}</td>
+                      <td className="amount">{formatEuro(item.salePriceCents)}</td>
                       <td className="amount">{item.vatRate} %</td>
                       <td>
                         <AddFromPriceListForm priceListItemId={item.id} workOrderId={workOrderId} name={item.name} />

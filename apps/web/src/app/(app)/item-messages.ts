@@ -16,7 +16,7 @@ export const itemMessages = (errors: ItemErrors) => ({
   unit: errors.unit && 'Vyplňte jednotku',
   purchasePrice: errors.purchasePrice && 'Nákupná cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
   markup: errors.markup && markupMessages[errors.markup],
-  unitPrice: errors.unitPrice && 'Cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
+  salePrice: errors.salePrice && 'Cena musí byť 0 alebo viac, najviac na 2 desatinné miesta',
   vatRate: errors.vatRate && 'Vyberte sadzbu DPH zo sadzieb v Nastaveniach',
 });
 

@@ -10,7 +10,7 @@ import { itemMessages, type ItemMessages } from '../item-messages.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
-const priceListFields = ['code', 'name', 'unit', 'purchasePrice', 'markup', 'unitPrice', 'vatRate'] as const;
+const priceListFields = ['code', 'name', 'unit', 'purchasePrice', 'markup', 'salePrice', 'vatRate'] as const;
 
 export type PriceListFormState = {
   values: Record<(typeof priceListFields)[number], string>;

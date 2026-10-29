@@ -23,7 +23,7 @@ export function ItemForm({ rates, target }: { rates: Rates; target: { workOrderI
   const item = 'item' in target ? target.item : null;
   const kind = 'item' in target ? target.item.kind : target.kind;
   const [state, formAction, pending] = useActionState(item ? updateItemOfWorkOrder : addItemToWorkOrder, null);
-  const { syncPrices, resetLeading } = usePriceSync(item ? 'unitPrice' : 'markup');
+  const { syncPrices, resetLeading } = usePriceSync(item ? 'salePrice' : 'markup');
 
   const initial = item ? { ...valuesOfItem(item), quantity: formatQuantityInput(item.quantityHundredths) } : startingValues(kind, rates);
   const value = valueIn(state, initial);

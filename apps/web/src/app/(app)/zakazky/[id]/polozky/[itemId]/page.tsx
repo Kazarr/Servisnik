@@ -36,7 +36,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
             quantityHundredths: item.quantityHundredths,
             unit: item.unit,
             purchasePriceCents: item.purchasePriceCents,
-            unitPriceCents: item.unitPriceCents,
+            salePriceCents: item.salePriceCents,
             vatRate: item.vatRate,
           },
         }}
