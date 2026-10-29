@@ -2,7 +2,7 @@ import { searchPriceList } from '../../../../dal/price-list.ts';
 import type { User } from '../../../../dal/user.ts';
 import { formatEuro } from '../../../../format.ts';
 import { Field } from '../../field.tsx';
-import { itemKindLabels } from '../../item-kind-labels.ts';
+import { itemKindLabels } from '../../../../item-kind-labels.ts';
 import { Pager } from '../../pager.tsx';
 import { searchHref } from '../../search-params.ts';
 import { AddFromPriceListForm } from './add-from-price-list-form.tsx';

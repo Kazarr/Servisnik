@@ -1,7 +1,7 @@
 import type { Role } from '@servisnik/domain/access';
 import type { UnpricedWorkOrder } from '../../../../dal/unpriced-work-order.ts';
 import { formatDate, formatQuantity, formatWhole } from '../../../../format.ts';
-import { itemKindLabels } from '../../item-kind-labels.ts';
+import { itemKindLabels } from '../../../../item-kind-labels.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { PrintLinks } from './print-links.tsx';
 
