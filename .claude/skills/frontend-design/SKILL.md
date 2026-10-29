@@ -15,6 +15,7 @@ description: Lessons for building customer-facing frontend design. Use when star
 - All design values (colours, lengths, percentages, font weights, line heights, mix ratios) come from named tokens, enforced by a check that covers every value type. Why: the prose rule leaked raw values six times, each time in a type the check did not cover yet. Source: pesitro#33, #68, #96, #101, #131.
 - A multiplier on a token (`calc(var(--x) * 1.5)`) is a raw value in disguise. Name it as a token unless it is a one-off mobile reduction. Source: pesitro#131.
 - Keep ticket numbers out of CSS comments when a token check scans for `#` values. Source: pesitro#219.
+- A token check skips the places where `var()` cannot stand (`@media` and `@container` conditions, `@keyframes` selectors) and every `:root` variant (`:root[data-theme=…]`, `:root:not(…)`), and tells ID selectors from hex colours. Why: a check that flags these turns red on the first dark theme or breakpoint, and someone then loosens it. Source: Servisnik#92.
 
 ## Layout and responsiveness
 
