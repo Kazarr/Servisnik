@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
-/** The rows of a page of a list with a search: Zákazníci and Vozidlá alike. */
+/** The rows of a page of a list: Zákazníci, Vozidlá, the Cenník and Zákazky alike. */
 export const pageSize = 25;
 
 /** Whether `column` holds `part`. `strpos` takes it as plain text, so a `%` or an `_` in it is no wildcard; a column that is null holds nothing. */

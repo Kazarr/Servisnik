@@ -14,8 +14,8 @@ export type FormHeader = {
   vehicle: Pick<typeof vehicle.$inferSelect, 'vin' | 'licensePlate' | 'make' | 'model'>;
 };
 
-/** The header of a Zákazka and the columns `more`; null when there is no such Zákazka. */
-export async function readHeader<More extends SelectedFields>(workOrderId: string, db: Database, more: More) {
+/** The `FormHeader` of a Zákazka and the columns `more`; null when there is no such Zákazka. */
+export async function readFormHeader<More extends SelectedFields>(workOrderId: string, db: Database, more: More) {
   if (!isUuid(workOrderId)) return null;
   const [found] = await db
     .select({

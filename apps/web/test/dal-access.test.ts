@@ -173,7 +173,7 @@ const dataAccess = {
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  *
- * One exception: `readHeader` of form-header.ts does read data, without asking a capability. Only job-sheet.ts
+ * One exception: `readFormHeader` of form-header.ts does read data, without asking a capability. Only job-sheet.ts
  * and print-forms.ts call it, each after its own `assertCan`. It is pinned here, not in `calls`, because it takes no
  * user; the functions that call it are in `calls`, so one that forgets its `assertCan` fails there.
  */
@@ -181,7 +181,7 @@ const helpers = {
   'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
-  'form-header.ts': { module: formHeader, exports: ['readHeader'] },
+  'form-header.ts': { module: formHeader, exports: ['readFormHeader'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
