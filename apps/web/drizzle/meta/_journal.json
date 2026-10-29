@@ -99,6 +99,13 @@
       "when": 1793217118381,
       "tag": "0013_price_list_item",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793253660039,
+      "tag": "0014_user_email_lower",
+      "breakpoints": true
     }
   ]
 }
