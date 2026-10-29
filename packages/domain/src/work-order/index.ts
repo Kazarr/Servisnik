@@ -220,14 +220,29 @@ export function marginOf(items: readonly Costed[]): Margin {
 // Prirážka (GLOSSARY) is never stored: a form turns it into a Predajná cena and back. It is counted in
 // tenths of a percent (125 is 12,5 %), the precision it is shown with, so no amount here is a float.
 
-/** A Prirážka typed in a field: from 0 percent, at most one decimal after a comma or a point; as tenths of a percent, or null. */
+// A Predajná cena below the Nákupná cena makes a negative Prirážka, which the form shows and reads back. It goes down to
+// -100 %, the Predajná cena of 0 €: a price is not below 0. It has up to ten digits, since the Prirážka of the cheapest
+// Nákupná cena (0,01 €) and the dearest Predajná cena (1 000 000 €) has ten, so that every Prirážka the form shows is
+// one it reads.
+const minMarkupTenths = -1000;
+
+/**
+ * A Prirážka typed in a field: an optional minus sign, up to ten digits and at most one decimal after a comma or a
+ * point, not below -100 %; as tenths of a percent, or null.
+ */
 export function parseMarkup(typed: string): number | null {
-  const match = /^(\d{1,7})(?:[.,](\d))?$/.exec(typed.replace(/\s/g, ''));
-  return match ? Number(match[1]) * 10 + Number(match[2] ?? 0) : null;
+  const match = /^(-)?(\d{1,10})(?:[.,](\d))?$/.exec(typed.replace(/\s/g, ''));
+  if (!match) return null;
+  const tenths = (match[1] ? -1 : 1) * (Number(match[2]) * 10 + Number(match[3] ?? 0));
+  return tenths < minMarkupTenths ? null : tenths + 0; // + 0: "-0" is 0, not -0
 }
 
-/** The Predajná cena in cents that a Prirážka makes of a Nákupná cena, rounded half up to the cent; null above the largest price a Položka may have. */
+/**
+ * The Predajná cena in cents that a Prirážka makes of a Nákupná cena, rounded half up to the cent; null above the
+ * largest price a Položka may have and for a Prirážka below -100 %, which is a price below 0.
+ */
 export function salePriceFromMarkup(purchasePriceCents: number, markupTenths: number): number | null {
+  if (markupTenths < minMarkupTenths) return null;
   const salePriceCents = roundedDivide(purchasePriceCents * (1000 + markupTenths), 1000);
   return salePriceCents > maxUnitPriceCents ? null : salePriceCents;
 }
@@ -301,6 +316,8 @@ export function parseListFilter(typed: { status?: string; from?: string; to?: st
 /**
  * What the form sends for a Položka. Left out, `unit` is the default of its kind and `vatRate` the default
  * rate of Nastavenia; sent blank, either is a mistake. `purchasePrice` is only read for a Diel, blank is none.
+ * `markup` is the Prirážka the form of a Diel showed, which is not stored: it is only checked (`markupError`);
+ * left out or blank it says nothing.
  */
 export type ItemInput = {
   kind: ItemKind;
@@ -309,17 +326,36 @@ export type ItemInput = {
   quantity: string;
   unit?: string;
   purchasePrice?: string;
+  markup?: string;
   unitPrice: string;
   vatRate?: string;
 };
+/** `markup`: `invalid` is no Prirážka, `disagrees` is one that the two prices do not fit. */
 export type ItemErrors = {
   name?: 'required';
   quantity?: 'invalid';
   unit?: 'required';
   purchasePrice?: 'invalid';
+  markup?: 'invalid' | 'disagrees';
   unitPrice?: 'invalid';
   vatRate?: 'invalid';
 };
+
+/**
+ * What is wrong with the Prirážka a Diel was sent with, if anything. The form works out each of the Nákupná cena, the
+ * Prirážka and the Predajná cena from the others, so the Prirážka it shows is either the one the Predajná cena makes of
+ * the Nákupná cena (`markupFromSalePrice`) or the one that makes the Predajná cena (`salePriceFromMarkup`); which
+ * one depends on what the admin typed last, so either fits. A Predajná cena below the Nákupná cena is not wrong: its
+ * Prirážka is negative. Without both prices there is nothing to fit, and a Prirážka left blank says nothing.
+ */
+function markupError(typed: string, purchasePriceCents: number | null, unitPriceCents: number | null): ItemErrors['markup'] {
+  if (typed === '') return undefined;
+  const tenths = parseMarkup(typed);
+  if (tenths === null) return 'invalid';
+  if (purchasePriceCents === null || unitPriceCents === null) return undefined;
+  const fits = markupFromSalePrice(purchasePriceCents, unitPriceCents) === tenths || salePriceFromMarkup(purchasePriceCents, tenths) === unitPriceCents;
+  return fits ? undefined : 'disagrees';
+}
 
 /**
  * A Položka ready to store: a quantity of more than 0, prices without VAT (0 or more) and one of the
@@ -336,11 +372,13 @@ export function parseItem(
   const purchasePriceCents = typedPurchasePrice === '' ? null : parseUnitPrice(typedPurchasePrice);
   const unitPriceCents = parseUnitPrice(input.unitPrice);
   const vatRate = input.vatRate === undefined ? rates.defaultVatRate : parseVatRate(input.vatRate);
+  const markup = markupError(input.kind === 'part' ? (input.markup ?? '').trim() : '', purchasePriceCents, unitPriceCents);
   const errors: ItemErrors = {};
   if (!name) errors.name = 'required';
   if (quantityHundredths === null || quantityHundredths < 1 || quantityHundredths > maxQuantityHundredths) errors.quantity = 'invalid';
   if (!unit) errors.unit = 'required';
   if (typedPurchasePrice !== '' && purchasePriceCents === null) errors.purchasePrice = 'invalid';
+  if (markup) errors.markup = markup;
   if (unitPriceCents === null) errors.unitPrice = 'invalid';
   if (vatRate === null || !rates.vatRates.includes(vatRate)) errors.vatRate = 'invalid';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
