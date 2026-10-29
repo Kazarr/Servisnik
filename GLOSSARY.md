@@ -152,7 +152,7 @@ Založenie zákazky, keď zákazník privezie vozidlo, prípadne aj s novým zá
 _Avoid_: check-in, prevzatie
 
 **Hlavička zákazky** (`header`):
-Kilometre pri príjme, požiadavka zákazníka, Termín a interná poznámka zákazky. Zákazník a vozidlo k nej nepatria. Dá sa upraviť, len kým je zákazka Rozpracovaná.
+Kilometre pri príjme, požiadavka zákazníka, Termín a interná poznámka zákazky, bez zákazníka a vozidla. Dá sa upraviť, len kým je zákazka Rozpracovaná.
 
 ### Ceny
 
