@@ -5,6 +5,7 @@ import * as attemptLimit from '../src/dal/attempt-limit.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
+import * as formHeader from '../src/dal/form-header.ts';
 import * as jobSheet from '../src/dal/job-sheet.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
@@ -166,6 +167,7 @@ const dataAccess = {
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the limit of
  * the attempts to check a password, the refused constraint, the user of the pages (current-user),
+ * the header every printed form starts with (form-header, which asks no capability: its callers do),
  * the paging of the lists, the user and the id check. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
@@ -174,6 +176,7 @@ const helpers = {
   'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
+  'form-header.ts': { module: formHeader, exports: ['readHeader'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
