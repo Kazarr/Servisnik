@@ -139,14 +139,21 @@ test('every foreign key that points at a Zákazník or a Vozidlo is `restrict`, 
 // A link that is added while the delete is under way. Its foreign key holds a lock on the row the
 // delete wants, so the delete waits for it, and then PostgreSQL looks again and refuses.
 
-/** Waits until a statement of this database is blocked behind another one's lock. */
+/**
+ * Waits until a statement of this database is blocked behind another one's lock. The statement has to get a connection,
+ * parse and plan before it reaches the lock: milliseconds on an idle machine, and the 1 s a `waitFor` gives by default ran
+ * out under load (#134), so it has the 10 s of `whileHeld` in work-orders.test.ts.
+ */
 const untilSomeoneWaits = () =>
-  vi.waitFor(async () => {
-    const { rows } = await ctx.db.execute<{ waiting: number }>(
-      sql`select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
-    );
-    expect(rows[0]!.waiting).toBeGreaterThan(0);
-  });
+  vi.waitFor(
+    async () => {
+      const { rows } = await ctx.db.execute<{ waiting: number }>(
+        sql`select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+      );
+      expect(rows[0]!.waiting).toBeGreaterThan(0);
+    },
+    { timeout: 10_000 },
+  );
 
 /** Runs `link` in a transaction that stays open, starts `deleting`, lets it wait on the lock of the link, and only then commits. */
 async function deleteWhileLinkIsAdded<Result>(link: string, parameters: unknown[], deleting: () => Promise<Result>) {

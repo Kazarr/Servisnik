@@ -32,12 +32,15 @@ test('a reset that PostgreSQL ends as the victim of a deadlock with a transactio
 
     const resetting = truncateTables(ctx.db, 'customer'); // takes customer, then waits for vehicle
     const settled = resetting.then(() => 'done', (error: unknown) => error);
-    await vi.waitFor(async () => {
-      const { rows } = await ctx.db.execute<{ waiting: number }>(
-        sql`select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
-      );
-      expect(rows[0]!.waiting).toBe(1);
-    });
+    await vi.waitFor(
+      async () => {
+        const { rows } = await ctx.db.execute<{ waiting: number }>(
+          sql`select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+        );
+        expect(rows[0]!.waiting).toBe(1);
+      },
+      { timeout: 10_000 }, // as in deletion.test.ts: the reset needs a connection and a plan before it waits, which the 1 s default does not allow under load
+    );
     await left.query('select 1 from customer'); // waits for customer: the cycle; the reset is ended and lets go of customer
     await left.query('commit');
 
