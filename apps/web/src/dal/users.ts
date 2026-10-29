@@ -85,11 +85,10 @@ export async function deactivateUser(user: User | null, requestHeaders: Headers,
   return { ok: true };
 }
 
-/** Lets a Deaktivovaný používateľ sign in again, with the password he had. */
-export async function activateUser(user: User | null, requestHeaders: Headers, userId: string, auth?: Auth): Promise<{ ok: true }> {
+/** Lets a Deaktivovaný používateľ sign in again, with the password he had. It has no result: it is done, or it throws (a Rola that may not, Better Auth). */
+export async function activateUser(user: User | null, requestHeaders: Headers, userId: string, auth?: Auth): Promise<void> {
   assertCan(user, 'users.write');
   await (auth ?? getAuth()).api.unbanUser({ headers: requestHeaders, body: { userId } });
-  return { ok: true };
 }
 
 export type SetUserPasswordResult = { ok: true } | { ok: false; errors: { password: PasswordError } };
