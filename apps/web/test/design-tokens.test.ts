@@ -22,7 +22,15 @@ const RULES = {
   fontWeight: /font-weight:\s*(?:\d+|normal|bold|bolder|lighter)\b/,
   lineHeight: /line-height:\s*[\d.]+(?![\w.%])/,
   colorFunction: /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^)]*\)/,
-  multiplier: /(?<![\w.-])[\d.]+\s*\*|\*\s*[\d.]+(?![\w.%])/,
+  // The weight and the line height in the shorthand `font: 700 1rem/1.5 serif`: the weight is a bare number or
+  // bold, bolder, lighter before the family, the line height a number after the slash. Only a `font:` counts,
+  // not font-variation-settings, and only up to the `;`.
+  fontShorthandWeight: /(?<=(?<![\w-])font:[^;}]*?)(?<![\w.#-])(?<!\/\s*)(?:\d+|bold|bolder|lighter)(?![\w.%-])/,
+  fontShorthandLineHeight: /(?<=(?<![\w-])font:[^;}]*?\/\s*)\d*\.?\d+(?![\w.%])/,
+  // A sign is part of the number: calc(-1 * var(--x)). An identifier that ends in a number (.col-2 *) is not.
+  multiplier: /(?<![\w.-])-?[\d.]+\s*\*|\*\s*-?[\d.]+(?![\w.%])/,
+  // Only a number after the slash in a calc(): `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too.
+  divisor: /(?<=calc\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\/\s*-?[\d.]+(?![\w.%])/,
   // A hex colour is a value: an ID selector that spells one (#add, #cafe) has a `{` after it before any `;` or `}`.
   hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;{}]*\{)/,
 };
@@ -85,11 +93,36 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     token: '.x { color: var(--color-text); }',
     miss: '.x { color: var(--color-text); background: color-mix(in srgb, var(--a), var(--b)); }',
   },
+  fontShorthandWeight: {
+    raw: '.x { font: 700 var(--font-size-base)/1.5 var(--font-family); } .y { font: italic bold 1rem serif; } .z { font: lighter 1rem serif; font: bolder 1rem serif; }',
+    found: ['700', 'bold', 'lighter', 'bolder'],
+    token: '.x { font: var(--font-weight-bold) var(--font-size-base)/var(--line-height-base) var(--font-family); } .y { font: inherit; }',
+    miss: [
+      '.a { font: var(--font-size-2) var(--family-700); } .b { font: 1rem/2 serif; } .c { font: 1rem / 2 serif; } .d { font: 120% serif; }',
+      '.e { font-variation-settings: "wght" 700; } .f { --font: 700 1rem serif; } .g { font: normal var(--font-size-base) serif; }',
+      '.h { font: inherit; z-index: 700; } .i { font: inherit } .j { z-index: 700 }',
+    ].join(' '),
+  },
+  fontShorthandLineHeight: {
+    raw: '.x { font: 700 var(--font-size-base)/1.5 var(--font-family); } .y { font: 1rem / 2 serif; }',
+    found: ['1.5', '2'],
+    token: '.x { font: var(--font-weight-bold) var(--font-size-base)/var(--line-height-base) var(--font-family); } .y { font: inherit; }',
+    miss: [
+      '.a { font: 1rem/1.5rem serif; } .b { font: 1rem/150% serif; } .c { aspect-ratio: 16 / 9; grid-row: 1 / 3; }',
+      '.d { font: inherit; grid-area: 1 / 2; } .e { font: inherit } .f { grid-row: 1 / 3 } .g { --font: 1rem/2 serif; }',
+    ].join(' '),
+  },
   multiplier: {
-    raw: '.x { margin: calc(var(--space-1) * 1.5); padding: calc(2 * var(--space-1)); }',
-    found: ['* 1.5', '2 *'],
+    raw: '.x { margin: calc(var(--space-1) * 1.5); padding: calc(2 * var(--space-1)); } .y { margin: calc(var(--space-1) * -1); padding: calc(-0.5 * var(--space-1)); }',
+    found: ['* 1.5', '2 *', '* -1', '-0.5 *'],
     token: '.x { margin: var(--space-6); } *, *::before { box-sizing: border-box; }',
     miss: 'h1 * { margin: 0; } .col-2 * { margin: 0; } *.x { margin: 0; }',
+  },
+  divisor: {
+    raw: '.x { width: calc(var(--space-1) / 2); height: calc((100% - var(--gap)) / 3); margin: calc(var(--a)/4) calc(var(--a) / -2); }',
+    found: ['/ 2', '/ 3', '/4', '/ -2'],
+    token: '.x { margin: var(--space-6); width: calc(var(--space-1) / var(--columns)); }',
+    miss: '.a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); }',
   },
   hex: {
     raw: '.x { color: #fff; .y { margin: 0; } background: #1D5FC4 } .z { margin: 0; }',
