@@ -23,12 +23,21 @@ const RULES = {
   lineHeight: /line-height:\s*[\d.]+(?![\w.%])/,
   colorFunction: /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\([^)]*\)/,
   multiplier: /(?<![\w.-])[\d.]+\s*\*|\*\s*[\d.]+(?![\w.%])/,
-  hex: /#[0-9a-f]{3,8}\b/,
+  // A hex colour is a value: an ID selector that spells one (#add, #cafe) has a `{` after it before any `;` or `}`.
+  hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;{}]*\{)/,
 };
 type Rule = keyof typeof RULES;
 
+// What is not a value to turn into a token: comments, the :root blocks that define the tokens (also with an
+// attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`), the condition of a @media or
+// @container and the step of a @keyframes, none of which can hold a var().
+const COMMENT = /\/\*[\s\S]*?\*\//g;
+const ROOT_BLOCK = /:root(?:\[[^\]]*\]|:[\w-]+(?:\([^)]*\))?)*\s*\{[^}]*\}/g;
+const AT_RULE_CONDITION = /@(?:media|container)\b[^{]*(?=\{)/g;
+const KEYFRAMES_STEP = /\d*\.?\d+%(?:\s*,\s*\d*\.?\d+%)*(?=\s*\{)/g;
+
 const rawValues = (css: string, rules: Record<string, RegExp> = RULES) => {
-  const outside = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/:root\s*\{[^}]*\}/g, '');
+  const outside = css.replace(COMMENT, '').replace(ROOT_BLOCK, '').replace(AT_RULE_CONDITION, '').replace(KEYFRAMES_STEP, '');
   const raw = new RegExp(Object.values(rules).map((rule) => rule.source).join('|'), 'gi');
   return outside.match(raw) ?? [];
 };
@@ -82,10 +91,10 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: 'h1 * { margin: 0; } .col-2 * { margin: 0; } *.x { margin: 0; }',
   },
   hex: {
-    raw: '.x { color: #fff; background: #1D5FC4; }',
+    raw: '.x { color: #fff; .y { margin: 0; } background: #1D5FC4 } .z { margin: 0; }',
     found: ['#fff', '#1D5FC4'],
     token: '.x { color: var(--color-text); }',
-    miss: '#main { margin: 0; } #feedbag { margin: 0; }',
+    miss: '#main { margin: 0; } #feedbag { margin: 0; } #add { margin: 0; } a:hover #cafe > .x, #fade { margin: 0; } .y { background: url(#add-btn); }',
   },
 };
 
@@ -106,6 +115,40 @@ test('raw values are fine where tokens are defined, in :root and in comments, an
     .y { margin: 3px; }`;
 
   expect(rawValues(css)).toEqual(['2px', '3px']);
+});
+
+// A block of tokens is any rule whose selector is :root with attributes or pseudo-classes: a dark theme is
+// `:root[data-theme='dark']` or `:root:not([data-theme='light'])`. A rule that merely starts with :root is not.
+test('every :root block defines tokens, whatever attribute or pseudo-class it carries, and a rule below :root does not', () => {
+  const css = `
+    :root[data-theme='dark'] { --c: #000; --w: 2px; }
+    :root:not([data-theme='light']) { --c: #000; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --d: 2px; } }
+    :root .x { margin: 4px; }
+    :root > .y { margin: 5px; }
+    :rooted { margin: 6px; }`;
+
+  expect(rawValues(css)).toEqual(['4px', '5px', '6px']);
+});
+
+// var() does not work in the condition of an at-rule, so a width there cannot be a token.
+test('the width in the condition of a @media or @container is no raw value, a declaration inside it is', () => {
+  const css = `
+    @media (min-width: 40rem) and (max-width: 60em) { .x { margin: var(--space-2); } }
+    @container sidebar (width >= 30em) { .x { margin: var(--space-2); } }
+    @media (min-width: 40rem) { .y { margin: 2px; } }
+    @container (min-width: 30em) { .y { margin: 3px; } }`;
+
+  expect(rawValues(css)).toEqual(['2px', '3px']);
+});
+
+// Nor can the step of a @keyframes be a token; the declarations in it can.
+test('the step of a @keyframes is no raw value, a declaration inside it is, and so is a percentage elsewhere', () => {
+  const css = `
+    @keyframes pulse { 0%, 50.5% { opacity: var(--opacity-disabled); } 100% { width: 80%; } to { margin: 0; } }
+    .x { background: color-mix(in srgb, var(--a) 40%, var(--b)); }`;
+
+  expect(rawValues(css)).toEqual(['80%', '40%']);
 });
 
 test('cssFiles lists every .css file below a directory, at any depth, and no other file', () => {
