@@ -7,6 +7,7 @@ import { customer, vehicle } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { truncateTables } from './support/reset.ts';
 
 // Mazanie (spec #67): a Zákazník or a Vozidlo with any link is never deleted. PostgreSQL decides (the
 // foreign keys are `restrict`), so no check can go stale between the look and the delete; the Rola
@@ -19,7 +20,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer cascade`);
+  await truncateTables(ctx.db, 'customer');
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
 });
 
@@ -150,15 +151,23 @@ const untilSomeoneWaits = () =>
 /** Runs `link` in a transaction that stays open, starts `deleting`, lets it wait on the lock of the link, and only then commits. */
 async function deleteWhileLinkIsAdded<Result>(link: string, parameters: unknown[], deleting: () => Promise<Result>) {
   const other = await ctx.db.$client.connect();
+  let result: Promise<Result> | undefined;
+  let failed = true;
   try {
     await other.query('begin');
     await other.query(link, parameters);
-    const result = deleting();
+    result = deleting();
     await untilSomeoneWaits();
     await other.query('commit');
-    return await result;
+    const done = await result;
+    failed = false;
+    return done;
   } finally {
-    other.release();
+    // After a failure the connection still has its transaction open and holds the locks, so the delete would wait for them and
+    // the next test's reset after it. Destroying the connection ends the transaction (#134), and waiting for the delete leaves
+    // nothing running when the next test starts; the failure that got us here is the one the test reports.
+    other.release(failed);
+    await result?.catch(() => {});
   }
 }
 

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { removeLogo, saveLogo } from '../src/dal/logo.ts';
@@ -14,6 +13,7 @@ import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { png } from './support/logo-files.ts';
 import { fontsOf, readPdf } from './support/pdf.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The Route Handler of the zákazkový list (spec #95, Tlačivá; ticket #100): a signed-in user gets the PDF of a
 // Zákazka as a download. The route file only finds the user in the session; the answers are here, printed by the
@@ -48,7 +48,7 @@ afterAll(async () => {
   await ctx.close();
 });
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter');
   await removeLogo(admin, ctx.db);
   const ownerId = idOf(await createCustomer(admin, { type: 'person', name: 'Ľubomír Škrabák' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Škoda', model: 'Octavia' }, ctx.db));

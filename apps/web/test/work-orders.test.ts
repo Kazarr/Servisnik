@@ -26,6 +26,7 @@ import { createTestDb } from './support/db.ts';
 import { failInsertsInto } from './support/failing-insert.ts';
 import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
+import { truncateTables } from './support/reset.ts';
 
 const summer = new Date('2026-07-15T10:00:00Z');
 
@@ -37,7 +38,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter, price_list_item cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter', 'price_list_item');
   await ctx.db.execute(sql`update workshop set vat_rates = '{23,19,5}', default_vat_rate = 23`); // the rates the migration starts with; some tests change them
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
@@ -101,6 +102,7 @@ async function whileHeld(hold: (tx: Parameters<Parameters<typeof ctx.db.transact
   } finally {
     committed.resolve();
     await other;
+    await acting.catch(() => {}); // when waiting failed, `act` still finishes before the next test resets the tables (#134); the failure is the one reported
   }
   return acting;
 }

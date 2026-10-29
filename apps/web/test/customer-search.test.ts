@@ -6,13 +6,14 @@ import { createCustomer, searchCustomers, updateCustomer } from '../src/dal/cust
 import { ForbiddenError, UnauthenticatedError } from '../src/dal/user.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { truncateTables } from './support/reset.ts';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => {
   ctx = await createTestDb();
 });
 afterAll(() => ctx.close());
-beforeEach(() => ctx.db.execute(sql`truncate customer cascade`));
+beforeEach(() => truncateTables(ctx.db, 'customer'));
 
 type Input = Parameters<typeof createCustomer>[1];
 

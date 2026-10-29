@@ -1,5 +1,5 @@
 import type { Role } from '@servisnik/domain/access';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { signInWithPassword } from '../src/app/login/sign-in.ts';
 import { createAuth } from '../src/auth.ts';
@@ -11,6 +11,7 @@ import { raceForUserWrites } from './support/race.ts';
 import { signInHeaders } from './support/sessions.ts';
 import { signedInUser } from './support/signed-in-user.ts';
 import { userRow } from './support/users.ts';
+import { truncateTables } from './support/reset.ts';
 
 // What an admin does to another Používateľ: edit him, deactivate and activate him, give him a new password.
 // On the real Better Auth (admin plugin) and PostgreSQL. Who may do it is the table in dal-access.test.ts.
@@ -27,7 +28,7 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 // Every test starts without a user.
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate "user" cascade`);
+  await truncateTables(ctx.db, '"user"');
 });
 
 const newUser = (role: Role) => signedInUser(ctx.db, auth, role, password);
