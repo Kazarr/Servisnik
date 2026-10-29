@@ -211,12 +211,12 @@ test('the admin deactivates a user: every sign-in of his ends at once, and the s
   expect(await stateOf(worker.id)).toMatchObject({ banned: true, banExpires: null });
 });
 
-test('a Deaktivovaný používateľ cannot sign in: the right password is told his account is deactivated, a wrong one gets the ordinary message', async () => {
+test('a Deaktivovaný používateľ cannot sign in: the right password is told he is deactivated, a wrong one gets the ordinary message', async () => {
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
   await deactivate(boss, worker.id);
 
-  expect(await signIn(worker.email)).toEqual({ ok: false, message: 'Účet je deaktivovaný. Obráťte sa na admina.' });
+  expect(await signIn(worker.email)).toEqual({ ok: false, message: 'Používateľ je deaktivovaný. Obráťte sa na admina.' });
   expect(await signIn(worker.email, 'nespravne-heslo-1')).toEqual({ ok: false, message: 'Nesprávny e-mail alebo heslo.' });
   expect(await sessionsOf(worker.id)).toBe(0);
 });
