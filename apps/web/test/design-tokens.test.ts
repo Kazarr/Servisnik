@@ -16,12 +16,12 @@ const cssFiles = (dir: string) => globSync('**/*.css', { cwd: dir }).map((file) 
 // value in disguise unless it defines a token in :root.
 const RULES = {
   opacity: /opacity:\s*[\d.]+/,
-  viewport: /(?<![\w.#-])-?\d*\.?\d+(?:vh|vw|dvh|svh|vmin|vmax)\b/,
-  length: /(?<![\w.#-])-?\d*\.?\d+(?:px|rem|em|ch|ex|pt|cm|mm|in|pc)\b/,
+  viewport: /(?<![\w.#-])-?\d*\.?\d+(?:[sld]?v(?:[whib]|min|max)|cq(?:[whib]|min|max))\b/,
+  length: /(?<![\w.#-])-?\d*\.?\d+(?:px|r?em|r?ex|r?ch|r?cap|r?ic|r?lh|pt|cm|mm|Q|in|pc)\b/,
   percentage: /\d*\.?\d+%/,
   fontWeight: /font-weight:\s*(?:\d+|normal|bold|bolder|lighter)\b/,
   lineHeight: /line-height:\s*[\d.]+(?![\w.%])/,
-  colorFunction: /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\([^)]*\)/,
+  colorFunction: /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^)]*\)/,
   multiplier: /(?<![\w.-])[\d.]+\s*\*|\*\s*[\d.]+(?![\w.%])/,
   // A hex colour is a value: an ID selector that spells one (#add, #cafe) has a `{` after it before any `;` or `}`.
   hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;{}]*\{)/,
@@ -52,16 +52,16 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     token: '.x { opacity: var(--opacity-disabled); }',
   },
   viewport: {
-    raw: '.x { min-height: 100vh; width: .5vw; }',
-    found: ['100vh', '.5vw'],
+    raw: '.x { min-height: 100vh; width: .5vw; height: 50dvh 20svw 10lvh; margin: 1vi 2vb 3vmin; padding: 4cqi 5cqh 6cqmax; }',
+    found: ['100vh', '.5vw', '50dvh', '20svw', '10lvh', '1vi', '2vb', '3vmin', '4cqi', '5cqh', '6cqmax'],
     token: '.x { min-height: var(--viewport-height); }',
-    miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; }',
+    miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; } .x { width: 4vww; height: 2cqiz; }',
   },
   length: {
-    raw: '.x { padding: 0.5rem 8px -1em; margin: 0; }',
-    found: ['0.5rem', '8px', '-1em'],
+    raw: '.x { padding: 0.5rem 8px -1em; margin: 0; height: 2lh 3rlh; width: 4Q 5cap; }',
+    found: ['0.5rem', '8px', '-1em', '2lh', '3rlh', '4Q', '5cap'],
     token: '.x { padding: var(--space-2) var(--space-3); margin: 0; grid-template-columns: minmax(0, 1fr); }',
-    miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .y { background: url(icon.5px.png); }',
+    miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .y { background: url(icon.5px.png); } .x { margin: 2lhx; }',
   },
   percentage: {
     raw: '.x { width: 100%; background: color-mix(in srgb, var(--a) 40%, var(--b)); }',
@@ -80,9 +80,10 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: '.x { line-height: 1.5rem; } .y { line-height: 150%; }',
   },
   colorFunction: {
-    raw: '.x { color: rgb(0 0 0 / 50%); border-color: hsl(210, 20%, 50%); }',
-    found: ['rgb(0 0 0 / 50%)', 'hsl(210, 20%, 50%)'],
+    raw: '.x { color: rgb(0 0 0 / 50%); border-color: hsl(210, 20%, 50%); fill: color(display-p3 1 0 0); }',
+    found: ['rgb(0 0 0 / 50%)', 'hsl(210, 20%, 50%)', 'color(display-p3 1 0 0)'],
     token: '.x { color: var(--color-text); }',
+    miss: '.x { color: var(--color-text); background: color-mix(in srgb, var(--a), var(--b)); }',
   },
   multiplier: {
     raw: '.x { margin: calc(var(--space-1) * 1.5); padding: calc(2 * var(--space-1)); }',
