@@ -38,11 +38,11 @@ export async function getUser(user: User | null, id: string, db: Database = getD
 
 /**
  * Better Auth refused an e-mail another Používateľ has: its own check says so when it sees him, and
- * when two writes race past that check, the unique index of the e-mail does. Every path that writes
- * an e-mail stores it in lower case, so the index is also what keeps two spellings of one e-mail out.
+ * when two writes race past that check, the unique index of the e-mail does. The index is on the
+ * e-mail in lower case (src/db/schema.ts), so it holds whatever the case a write brings.
  */
 const isEmailTaken = (error: unknown) =>
-  (error instanceof APIError && error.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') || violates(error, 'user_email_unique');
+  (error instanceof APIError && error.body?.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') || violates(error, 'user_email_lower_idx');
 
 export type CreateUserErrors = Omit<NewUserErrors, 'email'> & { email?: 'format' | 'taken' };
 export type CreateUserResult = { ok: true; id: string } | { ok: false; errors: CreateUserErrors };
