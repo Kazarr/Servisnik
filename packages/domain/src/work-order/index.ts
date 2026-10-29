@@ -278,18 +278,24 @@ export type StatusFilter = (typeof statusFilters)[number];
 export const statusesOf = (filter: StatusFilter): readonly WorkOrderStatus[] =>
   filter === 'all' ? workOrderStatuses : filter === 'unclosed' ? workOrderStatuses.filter((status) => !isClosed(status)) : [filter];
 
+/** The filter of the list of Zákazky: a status, and the days of intake the Zákazky are from and to (both included). */
+export type ListFilter = { status: StatusFilter; from: string | null; to: string | null };
+
 /**
  * The filter of the list as the address carries it: the status, and the days of intake the Zákazky are
  * from and to (both included). Whatever is not a status or a day is left out, so a mangled address
  * shows the default list, not an error.
  */
-export function parseListFilter(typed: { status?: string; from?: string; to?: string }): { status: StatusFilter; from: string | null; to: string | null } {
+export function parseListFilter(typed: { status?: string; from?: string; to?: string }): ListFilter {
   return {
     status: statusFilters.find((filter) => filter === typed.status) ?? 'unclosed',
     from: parseDay(typed.from ?? ''),
     to: parseDay(typed.to ?? ''),
   };
 }
+
+/** Whether this is the filter the list starts with: Neuzavreté, from any day, to any day. */
+export const isDefaultListFilter = (filter: ListFilter): boolean => filter.status === 'unclosed' && !filter.from && !filter.to;
 
 /**
  * What the form sends for a Položka. Left out, `unit` is the default of its kind and `vatRate` the default
