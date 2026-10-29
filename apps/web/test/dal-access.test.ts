@@ -19,6 +19,7 @@ import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user
 import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
+import * as workOrderItems from '../src/dal/work-order-items.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
 import * as workshopDetails from '../src/dal/workshop.ts';
 import type { Database } from '../src/db/index.ts';
@@ -167,8 +168,9 @@ const dataAccess = {
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the limit of
  * the attempts to check a password, the refused constraint, the user of the pages (current-user),
- * the header every printed form starts with (form-header, which asks no capability: its callers do),
- * the paging of the lists, the user and the id check. An export added to one of them fails
+ * the header every printed form starts with (form-header, which asks no capability: its callers do), the order
+ * and the amounts of the items of a Zákazka (work-order-items, the same), the paging of the lists, the user
+ * and the id check. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  */
@@ -180,6 +182,7 @@ const helpers = {
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
+  'work-order-items.ts': { module: workOrderItems, exports: ['inOrderAdded', 'withAmounts'] },
 };
 
 test('every file of src/dal is either a data access file or a helper with its exports pinned', () => {
