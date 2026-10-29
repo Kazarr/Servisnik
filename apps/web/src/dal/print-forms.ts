@@ -1,14 +1,13 @@
-import { amountsOf, totalsOf, type Amounts, type ItemKind } from '@servisnik/domain/work-order';
-import { asc, eq } from 'drizzle-orm';
+import type { Amounts, ItemKind } from '@servisnik/domain/work-order';
+import { eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { workOrder, workOrderItem } from '../db/schema.ts';
 import { readHeader, type FormHeader } from './form-header.ts';
 import { assertCan, type User } from './user.ts';
+import { inOrderAdded, withAmounts } from './work-order-items.ts';
 
 // The data of the two forms the admin alone prints, next to the zákazkový list (job-sheet.ts). Each form reads
 // its own columns of the items and no others, so what a form must not show is never read.
-
-const inOrderAdded = [asc(workOrderItem.createdAt), asc(workOrderItem.id)];
 
 /**
  * What the Cenová ponuka (GLOSSARY) prints about a Zákazka: the customer it was made for, the vehicle, the items
@@ -38,7 +37,7 @@ export async function getQuote(user: User | null, workOrderId: string, db: Datab
     .from(workOrderItem)
     .where(eq(workOrderItem.workOrderId, workOrderId))
     .orderBy(...inOrderAdded);
-  return { ...header, items: items.map((item) => ({ ...item, amounts: amountsOf(item) })), totals: totalsOf(items) };
+  return { ...header, ...withAmounts(items) };
 }
 
 /**

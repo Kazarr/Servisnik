@@ -1,9 +1,10 @@
 import type { ItemKind, WorkOrderStatus } from '@servisnik/domain/work-order';
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderItem } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
+import { inOrderAdded } from './work-order-items.ts';
 
 /**
  * What the mechanik reads of a Zákazka (spec #95, Mechanik): the list of the fields he may have, and no other. A field
@@ -59,6 +60,6 @@ export async function getUnpricedWorkOrder(user: User | null, id: string, db: Da
     })
     .from(workOrderItem)
     .where(eq(workOrderItem.workOrderId, id))
-    .orderBy(asc(workOrderItem.createdAt), asc(workOrderItem.id));
+    .orderBy(...inOrderAdded);
   return { ...found, items };
 }

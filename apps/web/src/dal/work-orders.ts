@@ -2,7 +2,6 @@ import { parseCustomer, type CustomerInput } from '@servisnik/domain/customer';
 import { workOrderItemFromPriceListItem } from '@servisnik/domain/price-list';
 import { parseVehicle, type VehicleInput } from '@servisnik/domain/vehicle';
 import {
-  amountsOf,
   canEdit,
   formatWorkOrderNumber,
   localYear,
@@ -12,7 +11,6 @@ import {
   parseItem,
   parseWorkOrder,
   statusesOf,
-  totalsOf,
   transition,
   type ItemErrors,
   type ItemInput,
@@ -22,7 +20,7 @@ import {
   type WorkOrderStatus,
   vatRatesKeeping,
 } from '@servisnik/domain/work-order';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, priceListItem, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
@@ -32,6 +30,7 @@ import { getRates } from './settings.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 import { createVehicle, type ExistingVehicle, type VehicleSaveErrors } from './vehicles.ts';
+import { inOrderAdded, withAmounts } from './work-order-items.ts';
 
 /** The rows of `query`, or none when `id` is not a UUID: PostgreSQL would answer that with an error, not with no row. */
 const rowsIfUuid = async <Row>(id: string, query: PromiseLike<Row[]>): Promise<Row[]> => (isUuid(id) ? await query : []);
@@ -406,6 +405,6 @@ export async function getWorkOrder(user: User | null, id: string, db: Database =
     note: workOrder.note,
   }).where(eq(workOrder.id, id));
   if (!found) return null;
-  const items = await db.select().from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(asc(workOrderItem.createdAt), asc(workOrderItem.id));
-  return { ...found, items: items.map((item) => ({ ...item, amounts: amountsOf(item) })), totals: totalsOf(items), margin: marginOf(items) };
+  const items = await db.select().from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(...inOrderAdded);
+  return { ...found, ...withAmounts(items), margin: marginOf(items) };
 }
