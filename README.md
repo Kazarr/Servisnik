@@ -30,7 +30,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 pnpm install
 pnpm services:up   # PostgreSQL z Compose
 pnpm db:migrate    # aplikuje SQL migrácie z apps/web/drizzle
-pnpm db:seed       # založí admina z ADMIN_EMAIL a ADMIN_PASSWORD, keď ešte žiadny admin nie je; existujúcemu nič nemení, takže sa dá spustiť opakovane
+pnpm db:seed       # keď žiadny admin nie je, založí ho z ADMIN_EMAIL a ADMIN_PASSWORD (používateľa s týmto e-mailom spraví adminom s týmto heslom); existujúcemu adminovi nič nemení, takže sa dá spustiť opakovane
 pnpm dev           # http://localhost:3000 presmeruje na prihlásenie
 ```
 
@@ -61,7 +61,7 @@ Treba Docker Desktop a PostgreSQL z Compose (`pnpm services:up`, port z `POSTGRE
 docker build -t servisnik .
 $db = 'postgres://servisnik:servisnik@host.docker.internal:5432/servisnik'   # Compose PostgreSQL zvnútra kontajnera
 docker run --rm -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/migrate.ts   # príkaz pre-deploy jobu
-docker run --rm --env-file .env -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/seed.ts   # príkaz post-deploy jobu: založí admina z ADMIN_EMAIL a ADMIN_PASSWORD, keď žiadny nie je
+docker run --rm --env-file .env -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/seed.ts   # príkaz post-deploy jobu: keď žiadny admin nie je, založí ho z ADMIN_EMAIL a ADMIN_PASSWORD (používateľa s týmto e-mailom spraví adminom s týmto heslom)
 docker run -d --name servisnik-app -p 3000:3000 --env-file .env -e DATABASE_URL=$db servisnik
 pnpm smoke http://localhost:3000
 docker rm -f servisnik-app
@@ -115,5 +115,6 @@ DigitalOcean podpisuje databázy vlastnou CA, ktorú Node nepozná. Spec preto v
 
 ### Známe obmedzenia
 
-- Seed beží po každom nasadení, ale admina založí len vtedy, keď v databáze žiadny nie je; existujúcemu admina nezmení ani heslo, ani e-mail. `ADMIN_PASSWORD` preto platí len pre prvého admina: zmena tohto tajomstva heslo existujúceho admina neprepíše, to zmení admin v appke.
+- Seed beží po každom nasadení. Existujúcemu adminovi nezmení ani heslo, ani e-mail; keď žiadny admin nie je, založí ho z `ADMIN_EMAIL` a `ADMIN_PASSWORD`, alebo z používateľa s týmto e-mailom spraví admina s týmto heslom. `ADMIN_PASSWORD` preto platí len pre prvého admina: zmena tohto tajomstva heslo existujúceho admina neprepíše, to zmení admin v appke.
+- Jediný admin zabudol heslo: zmena `ADMIN_PASSWORD` mu nepomôže, kým je adminom. Nastav tajomstvo `ADMIN_PASSWORD` na nové heslo a v databáze (napr. cez `psql`) vytvor stav „žiadny admin nie je“ s e-mailom `ADMIN_EMAIL` malými písmenami: `UPDATE "user" SET role = 'mechanik', email = '<ADMIN_EMAIL malými písmenami>' WHERE email = '<jeho terajší e-mail>';`. Ďalšie nasadenie (alebo `pnpm db:seed`) ho vráti ako admina s heslom z `ADMIN_PASSWORD`.
 - Prvý skutočný beh workflow ešte nebežal: `deploy` je overený lokálne (image, migrácia, seed, `pnpm smoke`) a testmi konfigurácie, nie proti DigitalOcean. Kroky s logom a registrom bežia v testoch proti `doctl`, ktorý len zapisuje volania, takže ich príkazy a formát výstupu (tagy ako JSON, log appky) sú podľa zdrojov `doctl`, nie podľa skutočného behu; chyby v logu hľadá [`tools/log-diff.ts`](tools/log-diff.ts) podľa slov, lebo formát logu ešte nikto nezaznamenal. Neoverené zostáva, či DigitalOcean prijme `KROS_*` bez hodnoty; ak nie, nastav ich pri prvom behu na skutočné hodnoty z #61 a #62.
