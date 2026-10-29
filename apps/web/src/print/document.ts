@@ -1,5 +1,6 @@
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import type { Logo } from '../dal/logo.ts';
+import type { FormHeader } from '../dal/form-header.ts';
 import { formatDate } from '../format.ts';
 import { html, Html } from './html.ts';
 import { documentCss } from './styles.ts';
@@ -8,17 +9,13 @@ import { documentCss } from './styles.ts';
 // number of the Zákazka and the day of the print, then the customer and the vehicle. A form puts what is its
 // own under that (job-sheet.ts).
 
-export type DocumentFrame = {
+export type DocumentFrame = FormHeader & {
   /** The name of the form, e.g. "Zákazkový list". */
   title: string;
-  /** The number of the Zákazka, which every form carries. */
-  number: string;
   /** The day of the print, `YYYY-MM-DD`. */
   printedOn: string;
   workshop: WorkshopDetails;
   logo: Logo | null;
-  customer: { name: string };
-  vehicle: { vin: string; licensePlate: string | null; make: string; model: string };
 };
 
 const joined = (parts: (string | null)[], separator: string) => parts.filter(Boolean).join(separator);

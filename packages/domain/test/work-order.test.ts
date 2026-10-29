@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   amountsOf,
   canEdit,
+  canPrintHandover,
   formatWorkOrderNumber,
   isActive,
   isClosed,
@@ -172,6 +173,11 @@ describe('what a status allows', () => {
     ['cancelled', false],
   ] as const)('items and the header can be edited in %s: %s', (status, allowed) => {
     expect(canEdit(status)).toBe(allowed);
+  });
+
+  // The customer takes the vehicle over when the work is done (decision of Kazarr, #139); Vyfakturovaná stays so that the protocol can be printed after the invoice.
+  test('the odovzdávací protokol is printed in Hotová and Vyfakturovaná, and in no other status', () => {
+    expect(workOrderStatuses.filter(canPrintHandover)).toEqual(['done', 'invoiced']);
   });
 });
 

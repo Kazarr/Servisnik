@@ -203,7 +203,7 @@ Tlačivo s položkami zákazky a ich cenami, ktoré zákazník dostane pred opra
 _Avoid_: kalkulácia, rozpočet
 
 **Odovzdávací protokol** (`HandoverProtocol`):
-Tlačivo pri odovzdaní vozidla so zoznamom vykonaných prác a dielov, ktoré podpíše zákazník aj autoservis.
+Tlačivo pri odovzdaní vozidla so zoznamom vykonaných prác a dielov, ktoré podpíše zákazník aj autoservis. Tlačí sa len v stave Hotová alebo Vyfakturovaná.
 _Avoid_: preberací protokol, dodací list
 
 **Import šablóna** (`ImportTemplate`):
