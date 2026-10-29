@@ -17,7 +17,9 @@ Place each lesson on the first rung that holds:
 Format, one line each:
 
 ```markdown
-- <Rule, stated as what to do>. Why: <what broke or would break>. Source: <ticket link>.
+- <Rule, stated as what to do>. Check: <what a reviewer runs or counts to see it held>. Why: <what broke or would break>. Source: <ticket link>.
 ```
+
+`Check:` is optional. Add it whenever the rule has a runnable or countable proof that is not yet worth building into the verify tier.
 
 Files listed in `vendor.txt` change only through their upstream; edit the upstream instead.

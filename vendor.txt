@@ -2,21 +2,21 @@
 # `tools/vendor.sh` re-copies at the pinned commits; `tools/vendor.sh update` moves to upstream tips.
 
 # dev-lessons core
-tools/vendor.sh https://github.com/Kazarr/dev-lessons core/vendor.sh eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/charter https://github.com/Kazarr/dev-lessons core/skills/charter eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/run https://github.com/Kazarr/dev-lessons core/skills/run eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/lesson https://github.com/Kazarr/dev-lessons core/skills/lesson eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/agents/implementer.md https://github.com/Kazarr/dev-lessons core/agents/implementer.md eb0614ab43baf7cbefd5233e2a9c305262edc542
+tools/vendor.sh https://github.com/Kazarr/dev-lessons core/vendor.sh 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/charter https://github.com/Kazarr/dev-lessons core/skills/charter 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/run https://github.com/Kazarr/dev-lessons core/skills/run 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/lesson https://github.com/Kazarr/dev-lessons core/skills/lesson 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/agents/implementer.md https://github.com/Kazarr/dev-lessons core/agents/implementer.md 5e8e8127c8ca7748270001eb0f865068a842623b
 
 # dev-lessons packs: one line per pack picked from packs/catalog.md, e.g.
 # .claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy HEAD
-.claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/review-standards https://github.com/Kazarr/dev-lessons packs/review-standards eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/devops https://github.com/Kazarr/dev-lessons packs/devops eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/integration https://github.com/Kazarr/dev-lessons packs/integration eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/frontend-design https://github.com/Kazarr/dev-lessons packs/frontend-design eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/windows-wsl https://github.com/Kazarr/dev-lessons packs/windows-wsl eb0614ab43baf7cbefd5233e2a9c305262edc542
-.claude/skills/playwright https://github.com/Kazarr/dev-lessons packs/playwright eb0614ab43baf7cbefd5233e2a9c305262edc542
+.claude/skills/testing-strategy https://github.com/Kazarr/dev-lessons packs/testing-strategy 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/review-standards https://github.com/Kazarr/dev-lessons packs/review-standards 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/devops https://github.com/Kazarr/dev-lessons packs/devops 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/integration https://github.com/Kazarr/dev-lessons packs/integration 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/frontend-design https://github.com/Kazarr/dev-lessons packs/frontend-design 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/windows-wsl https://github.com/Kazarr/dev-lessons packs/windows-wsl 5e8e8127c8ca7748270001eb0f865068a842623b
+.claude/skills/playwright https://github.com/Kazarr/dev-lessons packs/playwright 5e8e8127c8ca7748270001eb0f865068a842623b
 
 # mattpocock/skills (MIT)
 .claude/skills/setup-matt-pocock-skills https://github.com/mattpocock/skills skills/engineering/setup-matt-pocock-skills 59db609eb1e18aaf59b63284d0e52255aff0c63c

@@ -18,6 +18,7 @@ The human has cleared the fog they can and walked away. You turn every **ready**
 Read `.claude/skills/implement-spec/SKILL.md` and follow it over the ready tickets, with these rules on top:
 
 - Implementer subagents are the `implementer` agent. Each reports in ten lines or fewer.
+- Start an implementer only while the host carries it: CPU under about 80 % (a project hook may enforce it). Max concurrency is what the machine runs without timeouts, not the size of the frontier.
 - **Per-ticket review**: before merging a ticket, run `code-review` on its branch against the integration branch. Blockers get one fix round. Every other finding becomes a ticket or a lesson. This replaces implement-spec's single final review.
 - After each review, call the `lesson` skill once for the findings worth keeping.
 - **Park, don't guess**: a ticket that hits a business question, or overruns its budget (two fix rounds, or about 90 minutes), is parked. Comment the question or reason on the ticket, label it `needs-info`, write a ledger line, take the next ticket.
