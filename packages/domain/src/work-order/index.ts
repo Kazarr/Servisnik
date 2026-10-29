@@ -102,7 +102,7 @@ export function mileageAtIntake(vehicleMileageKm: number | null, intakeKm: numbe
 
 /** Money is whole cents and a quantity is in hundredths, so no amount here is ever a float. */
 export type Amounts = { net: number; vat: number; gross: number };
-export type Priced = { quantityHundredths: number; unitPriceCents: number; vatRate: number };
+export type Priced = { quantityHundredths: number; salePriceCents: number; vatRate: number };
 
 /** `numerator / denominator` rounded half up; both are non-negative. */
 const roundedDivide = (numerator: number, denominator: number) => Math.floor((2 * numerator + denominator) / (2 * denominator));
@@ -121,8 +121,8 @@ function percentTenths(part: number, whole: number): number | null {
  * What one item costs, rounded to cents once per item: first the amount without VAT, then the VAT
  * taken from that rounded amount. `vatRate` is a whole percentage.
  */
-export function amountsOf({ quantityHundredths, unitPriceCents, vatRate }: Priced): Amounts {
-  const net = roundedDivide(quantityHundredths * unitPriceCents, 100);
+export function amountsOf({ quantityHundredths, salePriceCents, vatRate }: Priced): Amounts {
+  const net = roundedDivide(quantityHundredths * salePriceCents, 100);
   const vat = roundedDivide(net * vatRate, 100);
   return { net, vat, gross: net + vat };
 }
@@ -143,7 +143,7 @@ export type ItemKind = (typeof itemKinds)[number];
 export const defaultUnits: Record<ItemKind, string> = { labour: 'h', part: 'ks' };
 
 /**
- * Položka zákazky. Its prices are per unit and without VAT (ledger question 8 is open): `unitPriceCents`
+ * Položka zákazky. Its prices are per unit and without VAT (ledger question 8 is open): `salePriceCents`
  * is the Predajná cena, `purchasePriceCents` the Nákupná cena of a Diel, which is none when it is not known
  * and always none for a Práca.
  */
@@ -327,7 +327,7 @@ export type ItemInput = {
   unit?: string;
   purchasePrice?: string;
   markup?: string;
-  unitPrice: string;
+  salePrice: string;
   vatRate?: string;
 };
 /** `markup`: `invalid` is no Prirážka, `disagrees` is one that the two prices do not fit. */
@@ -337,7 +337,7 @@ export type ItemErrors = {
   unit?: 'required';
   purchasePrice?: 'invalid';
   markup?: 'invalid' | 'disagrees';
-  unitPrice?: 'invalid';
+  salePrice?: 'invalid';
   vatRate?: 'invalid';
 };
 
@@ -348,12 +348,12 @@ export type ItemErrors = {
  * one depends on what the admin typed last, so either fits. A Predajná cena below the Nákupná cena is not wrong: its
  * Prirážka is negative. Without both prices there is nothing to fit, and a Prirážka left blank says nothing.
  */
-function markupError(typed: string, purchasePriceCents: number | null, unitPriceCents: number | null): ItemErrors['markup'] {
+function markupError(typed: string, purchasePriceCents: number | null, salePriceCents: number | null): ItemErrors['markup'] {
   if (typed === '') return undefined;
   const tenths = parseMarkup(typed);
   if (tenths === null) return 'invalid';
-  if (purchasePriceCents === null || unitPriceCents === null) return undefined;
-  const fits = markupFromSalePrice(purchasePriceCents, unitPriceCents) === tenths || salePriceFromMarkup(purchasePriceCents, tenths) === unitPriceCents;
+  if (purchasePriceCents === null || salePriceCents === null) return undefined;
+  const fits = markupFromSalePrice(purchasePriceCents, salePriceCents) === tenths || salePriceFromMarkup(purchasePriceCents, tenths) === salePriceCents;
   return fits ? undefined : 'disagrees';
 }
 
@@ -370,16 +370,16 @@ export function parseItem(
   const unit = input.unit === undefined ? defaultUnits[input.kind] : input.unit.trim();
   const typedPurchasePrice = input.kind === 'part' ? (input.purchasePrice ?? '').trim() : '';
   const purchasePriceCents = typedPurchasePrice === '' ? null : parseUnitPrice(typedPurchasePrice);
-  const unitPriceCents = parseUnitPrice(input.unitPrice);
+  const salePriceCents = parseUnitPrice(input.salePrice);
   const vatRate = input.vatRate === undefined ? rates.defaultVatRate : parseVatRate(input.vatRate);
-  const markup = markupError(input.kind === 'part' ? (input.markup ?? '').trim() : '', purchasePriceCents, unitPriceCents);
+  const markup = markupError(input.kind === 'part' ? (input.markup ?? '').trim() : '', purchasePriceCents, salePriceCents);
   const errors: ItemErrors = {};
   if (!name) errors.name = 'required';
   if (quantityHundredths === null || quantityHundredths < 1 || quantityHundredths > maxQuantityHundredths) errors.quantity = 'invalid';
   if (!unit) errors.unit = 'required';
   if (typedPurchasePrice !== '' && purchasePriceCents === null) errors.purchasePrice = 'invalid';
   if (markup) errors.markup = markup;
-  if (unitPriceCents === null) errors.unitPrice = 'invalid';
+  if (salePriceCents === null) errors.salePrice = 'invalid';
   if (vatRate === null || !rates.vatRates.includes(vatRate)) errors.vatRate = 'invalid';
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return {
@@ -391,7 +391,7 @@ export function parseItem(
       quantityHundredths: quantityHundredths!,
       unit,
       purchasePriceCents,
-      unitPriceCents: unitPriceCents!,
+      salePriceCents: salePriceCents!,
       vatRate: vatRate!,
     },
   };
