@@ -2,6 +2,7 @@ import type { Rates } from '@servisnik/domain/settings';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test } from 'vitest';
+import { ItemFields } from '../src/app/(app)/item-fields.tsx';
 import { ItemForm, type EditedItem } from '../src/app/(app)/zakazky/[id]/item-form.tsx';
 import { input, options } from './support/form-markup.ts';
 
@@ -100,4 +101,23 @@ test('an item keeps a VAT rate that Nastavenia no longer offer, as a choice besi
   const html = edit({ ...oilCan, vatRate: 7 }, { vatRates: [23, 19, 5] });
 
   expect(options(html, 'vatRate')).toEqual({ values: ['23', '19', '5', '7'], selected: ['7'] });
+});
+
+// A refused form shows the reason at the field with useActionState, which renderToStaticMarkup does not run, so the fields are rendered over the errors they are handed.
+test('a Prirážka the form refused is shown with its reason at its field, tied to it for a screen reader', () => {
+  const html = renderToStaticMarkup(
+    createElement(ItemFields, {
+      kind: 'part',
+      prefix: 'part',
+      value: () => '',
+      errors: { markup: 'Prirážka nesedí s cenami' },
+      vatRates: [23],
+      syncPrices: () => () => undefined,
+    }),
+  );
+
+  expect(input(html, 'markup')).toContain('aria-invalid="true"');
+  expect(input(html, 'markup')).toContain('aria-describedby="part-markup-error"');
+  expect(html).toContain('<p id="part-markup-error" role="alert" class="error">Prirážka nesedí s cenami</p>');
+  expect(input(html, 'purchasePrice')).not.toContain('aria-invalid');
 });

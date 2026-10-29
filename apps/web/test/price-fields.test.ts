@@ -22,8 +22,19 @@ describe('the Prirážka is changed', () => {
     expect(syncPriceFields('markup', fields({ purchasePrice: '10', markup: '0', unitPrice: '99' }), 'markup').fields.unitPrice).toBe('10,00');
   });
 
-  test.each(['', 'abc', '-5', '1,25', '12 %'])('a Prirážka of "%s" is not one, and the Predajná cena stays', (markup) => {
+  test.each(['', 'abc', '1,25', '12 %', '-100,1'])('a Prirážka of "%s" is not one, and the Predajná cena stays', (markup) => {
     expect(syncPriceFields('markup', fields({ purchasePrice: '10', markup, unitPrice: '99' }), 'markup').fields.unitPrice).toBe('99');
+  });
+
+  test('a negative Prirážka sells below the Nákupná cena, as the one the form shows for it is read back: -10 % on 10 € is 9,00 €', () => {
+    expect(syncPriceFields('markup', fields({ purchasePrice: '10', markup: '-10', unitPrice: '99' }), 'unitPrice')).toEqual({
+      fields: fields({ purchasePrice: '10', markup: '-10', unitPrice: '9,00' }),
+      leading: 'markup',
+    });
+  });
+
+  test('-100 % sells for nothing, which is a price', () => {
+    expect(syncPriceFields('markup', fields({ purchasePrice: '10', markup: '-100', unitPrice: '99' }), 'markup').fields.unitPrice).toBe('0,00');
   });
 
   test.each(['', 'abc', '-5'])('without a usable Nákupná cena ("%s") the Predajná cena stays', (purchasePrice) => {

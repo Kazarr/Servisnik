@@ -1,4 +1,4 @@
-import { parseItem, parseMarkup, parseUnitPrice } from '@servisnik/domain/work-order';
+import { markupFromSalePrice, parseItem, parseMarkup, parseUnitPrice } from '@servisnik/domain/work-order';
 import { expect, test } from 'vitest';
 import { formatEuroInput, formatMarkupInput, formatPartCount, formatPercent, formatQuantityInput } from '../src/format.ts';
 
@@ -50,9 +50,23 @@ test.each([
   expect(formatMarkupInput(tenths)).toBe(typed);
 });
 
-test('no Prirážka is an empty field, and a Prirážka from 0 typed in a field is read as the same tenths again', () => {
+test('no Prirážka is an empty field, and a Prirážka typed in a field is read as the same tenths again, a negative one too', () => {
   expect(formatMarkupInput(null)).toBe('');
-  for (const tenths of [0, 5, 125, 250, 10_000, 9_999_999]) expect(parseMarkup(formatMarkupInput(tenths))).toBe(tenths);
+  for (const tenths of [0, 5, 125, 250, 10_000, 9_999_999, -3, -100, -1000]) expect(parseMarkup(formatMarkupInput(tenths))).toBe(tenths);
+});
+
+// The form shows the Prirážka that two prices make; what it shows must be a Prirážka it reads, or the field refuses its own value.
+test.each([
+  ['the cheapest Nákupná cena and the dearest Predajná cena', 1, 100_000_000],
+  ['the dearest Nákupná cena sold for nothing', 100_000_000, 0],
+  ['a sale a cent below the purchase price', 100_000_000, 99_999_999],
+  ['a sale below the purchase price', 1000, 900],
+  ['a sale at the purchase price', 1000, 1000],
+  ['a sale a third above', 300, 400],
+])('the Prirážka of %s is read back as it is shown', (_what, purchasePriceCents, salePriceCents) => {
+  const tenths = markupFromSalePrice(purchasePriceCents, salePriceCents)!;
+
+  expect(parseMarkup(formatMarkupInput(tenths))).toBe(tenths);
 });
 
 test.each([
