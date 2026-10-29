@@ -7,11 +7,12 @@ import { currentUserWith } from '../../../../dal/current-user.ts';
 import { getRates } from '../../../../dal/settings.ts';
 import { getUnpricedWorkOrder } from '../../../../dal/unpriced-work-order.ts';
 import { getWorkOrder } from '../../../../dal/work-orders.ts';
-import { formatDate, formatEuro, formatPartCount, formatPercent, formatQuantity, formatWhole } from '../../../../format.ts';
+import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../../format.ts';
 import { first, pageOf } from '../../search-params.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { DeleteItemForm } from './delete-item-form.tsx';
 import { ItemForm } from './item-form.tsx';
+import { MarginSummary } from './margin-summary.tsx';
 import { PrintLinks } from './print-links.tsx';
 import { PriceListSearch } from './price-list-search.tsx';
 import { StatusForm } from './status-form.tsx';
@@ -162,24 +163,7 @@ export default async function WorkOrderPage({
               </tfoot>
             </table>
           </div>
-          <dl className="details">
-            <div>
-              <dt>Nákup dielov bez DPH</dt>
-              <dd>{formatEuro(order.margin.purchaseNet)}</dd>
-            </div>
-            <div>
-              <dt>Marža</dt>
-              <dd>
-                {formatEuro(order.margin.cents)}
-                {order.margin.percentTenths !== null && ` (${formatPercent(order.margin.percentTenths)})`}
-              </dd>
-            </div>
-          </dl>
-          {order.margin.partsWithoutPurchasePrice > 0 && (
-            <p role="status" className="notice">
-              Marža je neúplná: {formatPartCount(order.margin.partsWithoutPurchasePrice)} bez nákupnej ceny
-            </p>
-          )}
+          <MarginSummary margin={order.margin} />
         </>
       )}
 
