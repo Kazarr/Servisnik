@@ -9,11 +9,6 @@ const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
 const cssFiles = (dir: string) => globSync('**/*.css', { cwd: dir }).map((file) => file.split(sep).join('/')).sort();
 
-// Design values (frontend-design): the rules of globals.css take colours, lengths, percentages, font weights,
-// line heights and mix ratios from the custom properties of :root, so a value changes in one place. One rule
-// per value type; this finds the raw ones outside :root and outside comments. The percentage rule is also
-// the one for the ratio of a color-mix(), and the multiplier rule for calc(var(--x) * n), which is a raw
-// value in disguise unless it defines a token in :root.
 // The 148 named colours of CSS Color 4, compared once with the keys of color-name 1.1.4. transparent and
 // currentcolor are keywords, and the system colours (Canvas, CanvasText, ButtonText, ...) are the colours of
 // the user; none of them is a design colour.
@@ -31,6 +26,12 @@ const NAMED_COLORS = `aliceblue antiquewhite aqua aquamarine azure beige bisque 
   saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen
   steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen`.split(/\s+/);
 
+// Design values (frontend-design): every CSS file of the app and the CSS of the printed forms take colours,
+// lengths, percentages, font weights, line heights, mix ratios, durations, angles and grid tracks from the custom
+// properties of :root, so a value changes in one place. One rule per value type; this finds the raw ones
+// outside :root and outside comments. The percentage rule is also the one for the ratio of a color-mix(), and
+// the multiplier and divisor rules for calc(var(--x) * n) and calc(var(--x) / n), which are raw values in
+// disguise unless they define a token in :root.
 const RULES = {
   opacity: /opacity:\s*[\d.]+/,
   viewport: /(?<![\w.#-])-?\d*\.?\d+(?:[sld]?v(?:[whib]|min|max)|cq(?:[whib]|min|max))\b/,
@@ -41,7 +42,7 @@ const RULES = {
   colorFunction: /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^)]*\)/,
   // The weight and the line height in the shorthand `font: 700 1rem/1.5 serif`: the weight is a bare number or
   // bold, bolder, lighter before the family, the line height a number after the slash. Only a `font:` counts,
-  // not font-variation-settings, and only up to the `;`.
+  // not font-variation-settings, and only up to its `;` or `}`.
   fontShorthandWeight: /(?<=(?<![\w-])font:[^;}]*?)(?<![\w.#-])(?<!\/\s*)(?:\d+|bold|bolder|lighter)(?![\w.%-])/,
   fontShorthandLineHeight: /(?<=(?<![\w-])font:[^;}]*?\/\s*)\d*\.?\d+(?![\w.%])/,
   // A sign is part of the number: calc(-1 * var(--x)). An identifier that ends in a number (.col-2 *) is not.
