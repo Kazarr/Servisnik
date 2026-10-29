@@ -80,7 +80,7 @@ test('the items come in the order they were added', async () => {
   for (const name of ['Prvá', 'Druhá', 'Tretia', 'Štvrtá']) await addItem(admin, id, { kind: 'labour', name, quantity: '1', unitPrice: '1' }, ctx.db);
   await handedOver(id);
 
-  expect((await getHandoverProtocol(admin, id, ctx.db))?.items.map((item) => item.name)).toEqual(['Prvá', 'Druhá', 'Tretia', 'Štvrtá']);
+  expect(await getHandoverProtocol(admin, id, ctx.db)).toMatchObject({ items: [{ name: 'Prvá' }, { name: 'Druhá' }, { name: 'Tretia' }, { name: 'Štvrtá' }] });
 });
 
 test('a Zákazka without items has an empty list', async () => {
