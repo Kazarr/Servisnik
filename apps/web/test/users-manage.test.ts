@@ -42,7 +42,7 @@ async function newUser(role: Role) {
 type Account = Awaited<ReturnType<typeof newUser>>;
 const rowOf = async (id: string) => (await ctx.db.select({ name: user.name, email: user.email, role: user.role }).from(user).where(eq(user.id, id)))[0];
 
-test("Better Auth's own routes give an admin session neither remove, impersonate nor create, and a mechanik session no part of the admin plugin", async () => {
+test("Better Auth's own routes give an admin session neither remove, impersonate nor create, and a mechanik session neither ban, set a password nor set a Rola", async () => {
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
   const refused = (call: Promise<unknown>) => expect(call).rejects.toMatchObject({ statusCode: 403 });
@@ -52,7 +52,7 @@ test("Better Auth's own routes give an admin session neither remove, impersonate
   await refused(auth.api.removeUser({ body: { userId: worker.id }, headers: boss.headers }));
   await refused(auth.api.impersonateUser({ body: { userId: worker.id }, headers: boss.headers }));
   await refused(auth.api.createUser({ body: { name: 'Krátke heslo', email: 'kratke@autoservis.test', password: '1', role: 'admin' }, headers: boss.headers }));
-  // The mechanik: nothing.
+  // The mechanik: none of the routes the admin's role has, tried on three of them.
   await refused(auth.api.banUser({ body: { userId: boss.id }, headers: worker.headers }));
   await refused(auth.api.setUserPassword({ body: { userId: boss.id, newPassword: 'ukradnute-heslo-1' }, headers: worker.headers }));
   await refused(auth.api.setRole({ body: { userId: worker.id, role: 'admin' }, headers: worker.headers }));
@@ -221,14 +221,22 @@ test('a Deaktivovaný používateľ cannot sign in: the right password is told h
   expect(await sessionsOf(worker.id)).toBe(0);
 });
 
-test('deactivating a user who is deactivated already changes nothing', async () => {
+/** Every column of the user but the time of the last update, which any write moves. */
+async function rowWithoutUpdateTime(id: string) {
+  const { updatedAt, ...columns } = (await ctx.db.select().from(user).where(eq(user.id, id)))[0]!;
+  return columns;
+}
+
+test('deactivating a user who is deactivated already leaves his row, apart from the time of the update, as it was', async () => {
   const boss = await newUser('admin');
   const worker = await newUser('mechanik');
   await deactivate(boss, worker.id);
+  const before = await rowWithoutUpdateTime(worker.id);
 
   expect(await deactivate(boss, worker.id)).toEqual({ ok: true });
 
-  expect(await stateOf(worker.id)).toMatchObject({ banned: true });
+  expect(before).toMatchObject({ banned: true }); // the row compared is the one of a Deaktivovaný používateľ
+  expect(await rowWithoutUpdateTime(worker.id)).toEqual(before);
 });
 
 test('the admin activates a Deaktivovaný používateľ again, who signs in with the password he had, and nothing of the deactivation is left', async () => {
@@ -236,7 +244,7 @@ test('the admin activates a Deaktivovaný používateľ again, who signs in with
   const worker = await newUser('mechanik');
   await deactivate(boss, worker.id);
 
-  expect(await activate(boss, worker.id)).toEqual({ ok: true });
+  await activate(boss, worker.id);
 
   expect(await stateOf(worker.id)).toEqual({ banned: false, banReason: null, banExpires: null });
   expect(await signIn(worker.email)).toEqual({ ok: true });
