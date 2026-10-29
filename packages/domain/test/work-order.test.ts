@@ -383,7 +383,7 @@ describe('the filter of the list of Zákazky', () => {
     expect(isDefaultListFilter({ status: 'unclosed', ...period })).toBe(false);
   });
 
-  test('an address with nothing valid in it is the default filter, so it offers nothing to cancel', () => {
+  test('an address with nothing valid in it is the default filter', () => {
     expect(isDefaultListFilter(parseListFilter({ status: 'open', from: 'dnes', to: '2026-02-30' }))).toBe(true);
   });
 
