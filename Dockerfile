@@ -34,8 +34,9 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
 # letters of Latin Extended-A), which is what Arial, the font of the forms, is answered with. This layer sits above
 # the code, so that a new commit does not download the browser again, and its version is the one pnpm-lock.yaml
 # locks for playwright-core (the test compares them). PLAYWRIGHT_BROWSERS_PATH stays set: it is where the app
-# looks for the browser, and every user may read it. The layer ends by removing the apt lists and the whole of
-# /root/.npm (the npm cache, its logs and the npx copy of playwright-core), so that none of them stays in the image.
+# looks for the browser, and every user may read it. The layer ends by removing the apt lists, the whole of /root/.npm
+# (the npm cache, its logs and the npx copy of playwright-core) and the compile cache that npx leaves in /tmp (2,6 MB
+# in the image built from this file before this line), so that none of them stays in the image.
 ARG PLAYWRIGHT_VERSION=1.64.1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN apt-get update \
@@ -46,7 +47,7 @@ RUN apt-get update \
     libxfixes3 libxkbcommon0 libxrandr2 \
  && npx --yes playwright-core@${PLAYWRIGHT_VERSION} install --only-shell chromium \
  && apt-get clean \
- && rm -r /root/.npm /var/lib/apt/lists/*
+ && rm -r /root/.npm /tmp/node-compile-cache /var/lib/apt/lists/*
 # The code belongs to root: the user that runs it cannot change it. Only .next/cache is writable.
 COPY --from=build /repo/apps/web/.next/standalone /app
 # The standalone server does not serve .next/static itself.
