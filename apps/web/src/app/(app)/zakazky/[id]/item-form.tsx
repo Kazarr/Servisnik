@@ -1,7 +1,7 @@
 'use client';
 
 import type { Rates } from '@servisnik/domain/settings';
-import { vatRatesKeeping, type ItemKind } from '@servisnik/domain/work-order';
+import { vatRatesKeeping, type ItemKind, type WorkOrderItem } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
 import { formatQuantityInput } from '../../../../format.ts';
 import { Field, FormError } from '../../field.tsx';
@@ -9,31 +9,21 @@ import { valueIn } from '../../form-value.ts';
 import { ItemFields, startingValues, usePriceSync, valuesOfItem } from '../../item-fields.tsx';
 import { addItemToWorkOrder, updateItemOfWorkOrder } from '../actions.ts';
 
-/** What the form needs to start from an item that is being edited. */
-export type EditedItem = {
-  id: string;
-  kind: ItemKind;
-  code: string | null;
-  name: string;
-  quantityHundredths: number;
-  unit: string;
-  purchasePriceCents: number | null;
-  unitPriceCents: number;
-  vatRate: number;
-};
+/** What the form needs to start from an item that is being edited: the item and its id. */
+export type EditedItem = WorkOrderItem & { id: string };
 
 /**
  * The form of a Položka zákazky: adds a Práca or a Diel to the Zákazka in `target`, or edits `target.item`. A new
  * item starts with the unit of its kind, the default VAT rate of Nastavenia chosen from their rates, the hourly
  * rate as the price of a Práca and the Prirážka of Nastavenia on a Diel. The Prirážka is only a helper: with a
- * Nákupná cena, typing it makes the Predajná cena and typing the Predajná cena makes it (price-fields.ts), and
- * it is not sent as anything the server saves.
+ * Nákupná cena, typing it makes the Predajná cena and typing the Predajná cena makes it (price-fields.ts). The server
+ * does not save it, only checks that it fits the two prices, and says so at its field when it does not.
  */
 export function ItemForm({ rates, target }: { rates: Rates; target: { workOrderId: string; kind: ItemKind } | { item: EditedItem } }) {
   const item = 'item' in target ? target.item : null;
   const kind = 'item' in target ? target.item.kind : target.kind;
   const [state, formAction, pending] = useActionState(item ? updateItemOfWorkOrder : addItemToWorkOrder, null);
-  const { syncPrices, resetLeading } = usePriceSync(item ? 'unitPrice' : 'markup');
+  const { syncPrices, resetLeading } = usePriceSync(item ? 'salePrice' : 'markup');
 
   const initial = item ? { ...valuesOfItem(item), quantity: formatQuantityInput(item.quantityHundredths) } : startingValues(kind, rates);
   const value = valueIn(state, initial);

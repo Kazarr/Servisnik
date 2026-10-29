@@ -46,13 +46,13 @@ export const parsePriceListSearch = (typed: string) => normalizeText(typed);
  * The Položka zákazky that adding a Položka cenníka to a Zákazka makes: the values of the item in a quantity of 1.
  * Only these values are taken, so the copy points back to nothing (no id) and a later change of the Cenník does not reach it.
  */
-export const workOrderItemFromPriceListItem = ({ kind, code, name, unit, purchasePriceCents, unitPriceCents, vatRate }: PriceListItem): WorkOrderItem => ({
+export const workOrderItemFromPriceListItem = ({ kind, code, name, unit, purchasePriceCents, salePriceCents, vatRate }: PriceListItem): WorkOrderItem => ({
   kind,
   code,
   name,
   unit,
   purchasePriceCents,
-  unitPriceCents,
+  salePriceCents,
   vatRate,
   quantityHundredths: 100,
 });

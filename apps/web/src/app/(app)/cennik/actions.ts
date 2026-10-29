@@ -6,32 +6,23 @@ import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
 import { createPriceListItem, deletePriceListItem, updatePriceListItem, type PriceListItemSaveErrors } from '../../../dal/price-list.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
-import { itemMessages } from '../item-messages.ts';
+import { itemMessages, type ItemMessages } from '../item-messages.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
-const priceListFields = ['code', 'name', 'unit', 'purchasePrice', 'markup', 'unitPrice', 'vatRate'] as const;
+const priceListFields = ['code', 'name', 'unit', 'purchasePrice', 'markup', 'salePrice', 'vatRate'] as const;
 
 export type PriceListFormState = {
   values: Record<(typeof priceListFields)[number], string>;
-  errors: Partial<Record<'code' | 'name' | 'unit' | 'purchasePrice' | 'unitPrice' | 'vatRate' | 'form', string>>;
+  errors: ItemMessages & { code?: string; form?: string };
 } | null;
 
 /**
- * What the form of an item sent. The Prirážka is read only to be shown again with a refused form: the item keeps
- * its two prices, and the Prirážka is worked out from them (item-fields.tsx).
+ * What the form of an item sent, which is the input of the domain. The item keeps its two prices and not the Prirážka,
+ * which is worked out from them when the item is shown (item-fields.tsx); the domain only checks that the one the form
+ * sent fits them.
  */
 const formValues = (formData: FormData) => Object.fromEntries(priceListFields.map((name) => [name, field(formData, name)])) as NonNullable<PriceListFormState>['values'];
-
-/** The domain's input from the values of the form: everything but the Prirážka. */
-const itemInput = ({ code, name, unit, purchasePrice, unitPrice, vatRate }: NonNullable<PriceListFormState>['values']) => ({
-  code,
-  name,
-  unit,
-  purchasePrice,
-  unitPrice,
-  vatRate,
-});
 
 /** The messages for the reasons an item was refused, at the fields; `existing` is the item that has the code another one wants. */
 function errorMessages(errors: PriceListItemSaveErrors, existing?: { name: string }): NonNullable<PriceListFormState>['errors'] {
@@ -48,7 +39,7 @@ export async function addToPriceList(_state: PriceListFormState, formData: FormD
   if (!kind) notFound();
   const values = formValues(formData);
 
-  const result = await orForbidden(createPriceListItem(user, { kind, ...itemInput(values) }));
+  const result = await orForbidden(createPriceListItem(user, { kind, ...values }));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) return { values, errors: errorMessages(result.errors, result.existing) };
   revalidatePath('/cennik');
@@ -60,7 +51,7 @@ export async function editPriceListItem(_state: PriceListFormState, formData: Fo
   const user = await currentUser();
   const values = formValues(formData);
 
-  const result = await orForbidden(updatePriceListItem(user, field(formData, 'itemId'), itemInput(values)));
+  const result = await orForbidden(updatePriceListItem(user, field(formData, 'itemId'), values));
   if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
   if (!result.ok) {
     if (result.errors.item === 'unknown') notFound();

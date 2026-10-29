@@ -49,8 +49,8 @@ async function setStatus(id: string, status: WorkOrderStatus) {
 
 test('the admin reads the number, the customer, the vehicle, the kilometres and the work and parts with their quantities and units', async () => {
   const id = await newWorkOrder();
-  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40' }, ctx.db);
-  await addItem(admin, id, { kind: 'part', code: 'OL-5W30', name: 'Olej 5W-30', quantity: '4,25', unit: 'l', purchasePrice: '8', unitPrice: '12,50' }, ctx.db);
+  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40' }, ctx.db);
+  await addItem(admin, id, { kind: 'part', code: 'OL-5W30', name: 'Olej 5W-30', quantity: '4,25', unit: 'l', purchasePrice: '8', salePrice: '12,50' }, ctx.db);
   await handedOver(id);
 
   const protocol = await getHandoverProtocol(admin, id, ctx.db);
@@ -69,8 +69,8 @@ test('the admin reads the number, the customer, the vehicle, the kilometres and 
 
 test('the protocol has no price key anywhere, though the Zákazka has priced work and parts bought for it, and no internal note', async () => {
   const id = await newWorkOrder();
-  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db);
-  await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '1', purchasePrice: '5', unitPrice: '9', vatRate: '23' }, ctx.db);
+  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db);
+  await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '1', purchasePrice: '5', salePrice: '9', vatRate: '23' }, ctx.db);
   await handedOver(id);
 
   const protocol = await getHandoverProtocol(admin, id, ctx.db);
@@ -81,7 +81,7 @@ test('the protocol has no price key anywhere, though the Zákazka has priced wor
 
 test('the items come in the order they were added', async () => {
   const id = await newWorkOrder();
-  for (const name of ['Prvá', 'Druhá', 'Tretia', 'Štvrtá']) await addItem(admin, id, { kind: 'labour', name, quantity: '1', unitPrice: '1' }, ctx.db);
+  for (const name of ['Prvá', 'Druhá', 'Tretia', 'Štvrtá']) await addItem(admin, id, { kind: 'labour', name, quantity: '1', salePrice: '1' }, ctx.db);
   await handedOver(id);
 
   expect(await getHandoverProtocol(admin, id, ctx.db)).toMatchObject({ items: [{ name: 'Prvá' }, { name: 'Druhá' }, { name: 'Tretia' }, { name: 'Štvrtá' }] });
@@ -104,7 +104,7 @@ test('a vehicle without a ŠPZ has none on the protocol, and the customer is the
 // The customer takes the vehicle over when the work is done (Kazarr, #139): Hotová, and Vyfakturovaná so that it prints after the invoice.
 test.each(['done', 'invoiced'] as const)('a Zákazka that is %s has its protocol', async (status) => {
   const id = await newWorkOrder();
-  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1', unitPrice: '40' }, ctx.db);
+  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1', salePrice: '40' }, ctx.db);
   await setStatus(id, status);
 
   expect(await getHandoverProtocol(admin, id, ctx.db)).toMatchObject({ number: expect.stringMatching(/^Z\d{4}-0001$/), items: [{ name: 'Výmena oleja' }] });
@@ -112,7 +112,7 @@ test.each(['done', 'invoiced'] as const)('a Zákazka that is %s has its protocol
 
 test.each(['received', 'inProgress', 'waitingForParts', 'cancelled'] as const)('a Zákazka that is %s has no protocol: it is refused, and nothing of the Zákazka comes back', async (status) => {
   const id = await newWorkOrder();
-  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1', unitPrice: '40' }, ctx.db);
+  await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1', salePrice: '40' }, ctx.db);
   await setStatus(id, status);
 
   expect(await getHandoverProtocol(admin, id, ctx.db)).toBe('wrong-status');

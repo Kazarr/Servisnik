@@ -58,8 +58,8 @@ test('the internal note of the Zákazka is on no sheet', async () => {
 
 test('the zákazkový list has no price key anywhere, even when the Zákazka has priced work and parts bought for it, for the mechanik and the admin', async () => {
   const id = await newWorkOrder();
-  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', unitPrice: '40', vatRate: '23' }, ctx.db));
-  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '1', purchasePrice: '5', unitPrice: '9', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db));
+  idOf(await addItem(admin, id, { kind: 'part', code: 'OF-1', name: 'Olejový filter', quantity: '1', purchasePrice: '5', salePrice: '9', vatRate: '23' }, ctx.db));
 
   expect(findPriceKeys(await getJobSheet(mechanic, id, ctx.db))).toEqual([]);
   expect(findPriceKeys(await getJobSheet(admin, id, ctx.db))).toEqual([]);

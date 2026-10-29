@@ -83,11 +83,11 @@ const actions = {
     answer: formRefused,
   },
   addItemToWorkOrder: {
-    call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', unitPrice: '10', vatRate: '23' })),
+    call: () => workOrderActions.addItemToWorkOrder(null, form({ workOrderId: id, kind: 'labour', name: 'Brzdy', quantity: '1', unit: 'h', salePrice: '10', vatRate: '23' })),
     answer: formRefused,
   },
   updateItemOfWorkOrder: {
-    call: () => workOrderActions.updateItemOfWorkOrder(null, form({ itemId: id, name: 'Brzdy', quantity: '2', unit: 'h', unitPrice: '12', vatRate: '23' })),
+    call: () => workOrderActions.updateItemOfWorkOrder(null, form({ itemId: id, name: 'Brzdy', quantity: '2', unit: 'h', salePrice: '12', vatRate: '23' })),
     answer: formRefused,
   },
   deleteItemOfWorkOrder: { call: () => workOrderActions.deleteItemOfWorkOrder(null, form({ itemId: id, workOrderId: id })), answer: { error: forbiddenMessage } },
@@ -96,11 +96,11 @@ const actions = {
     answer: { error: forbiddenMessage },
   },
   addToPriceList: {
-    call: () => priceListActions.addToPriceList(null, form({ kind: 'part', name: 'Brzdová doštička', unit: 'ks', unitPrice: '30', vatRate: '23' })),
+    call: () => priceListActions.addToPriceList(null, form({ kind: 'part', name: 'Brzdová doštička', unit: 'ks', salePrice: '30', vatRate: '23' })),
     answer: formRefused,
   },
   editPriceListItem: {
-    call: () => priceListActions.editPriceListItem(null, form({ itemId: id, name: 'Brzdová doštička', unit: 'ks', unitPrice: '30', vatRate: '23' })),
+    call: () => priceListActions.editPriceListItem(null, form({ itemId: id, name: 'Brzdová doštička', unit: 'ks', salePrice: '30', vatRate: '23' })),
     answer: formRefused,
   },
   deleteFromPriceList: { call: () => priceListActions.deleteFromPriceList(null, form({ itemId: id })), answer: { error: forbiddenMessage } },

@@ -7,11 +7,11 @@ import { html } from './html.ts';
 
 const amount = (cents: number) => html`<td class="amount">${formatEuro(cents)}</td>`;
 
-const itemRow = ({ code, name, quantityHundredths, unit, unitPriceCents, vatRate, amounts }: Quote['items'][number]) => html`
+const itemRow = ({ code, name, quantityHundredths, unit, salePriceCents, vatRate, amounts }: Quote['items'][number]) => html`
 <tr>
   <td>${code && html`<span class="code">${code}</span> `}${name}</td>
   <td class="amount">${formatQuantity(quantityHundredths)} ${unit}</td>
-  ${amount(unitPriceCents)}
+  ${amount(salePriceCents)}
   <td class="amount">${vatRate} %</td>
   ${amount(amounts.net)}
   ${amount(amounts.gross)}

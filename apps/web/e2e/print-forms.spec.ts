@@ -16,7 +16,7 @@ test('the admin downloads the cenová ponuka and the odovzdávací protokol from
   test.slow(); // the server starts its Chromium with the first print, and on a host that other runs share that takes long
   const tag = runTag();
   const order = await seedWorkOrder(db, tag);
-  await addItem(admin, order.orderId, { kind: 'labour', name: `Výmena oleja ${tag}`, quantity: '1', unitPrice: '40', vatRate: '23' }, db);
+  await addItem(admin, order.orderId, { kind: 'labour', name: `Výmena oleja ${tag}`, quantity: '1', salePrice: '40', vatRate: '23' }, db);
   await changeWorkOrderStatus(admin, order.orderId, { to: 'done' }, db);
 
   await signIn(page);

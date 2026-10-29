@@ -278,7 +278,8 @@ export const workOrderItemKind = pgEnum('work_order_item_kind', itemKinds);
 
 /**
  * Položka zákazky. The quantity is in hundredths and the prices in cents without VAT, so there are no
- * floats. `unitPriceCents` is the Predajná cena. `purchasePriceCents` is the Nákupná cena of a Diel, null
+ * floats. `salePriceCents` is the Predajná cena; its column and its check are still named `unit_price`, which only a
+ * migration would change. `purchasePriceCents` is the Nákupná cena of a Diel, null
  * while it is not known and always null for a Práca. The Prirážka is not stored: the form derives it.
  */
 export const workOrderItem = pgTable(
@@ -294,7 +295,7 @@ export const workOrderItem = pgTable(
     quantityHundredths: integer('quantity_hundredths').notNull(),
     unit: text('unit').notNull(),
     purchasePriceCents: integer('purchase_price_cents'),
-    unitPriceCents: integer('unit_price_cents').notNull(),
+    salePriceCents: integer('unit_price_cents').notNull(),
     vatRate: integer('vat_rate').notNull(),
     ...timestamps,
   },
@@ -303,14 +304,15 @@ export const workOrderItem = pgTable(
     check('work_order_item_quantity_check', sql`${table.quantityHundredths} > 0`),
     check('work_order_item_purchase_price_check', sql`${table.purchasePriceCents} >= 0`),
     check('work_order_item_purchase_price_kind_check', sql`${table.purchasePriceCents} is null or ${table.kind} = 'part'`),
-    check('work_order_item_unit_price_check', sql`${table.unitPriceCents} >= 0`),
+    check('work_order_item_unit_price_check', sql`${table.salePriceCents} >= 0`),
     check('work_order_item_vat_rate_check', sql`${table.vatRate} between 0 and 100`),
   ],
 );
 
 /**
  * Položka cenníka: a Práca or a Diel with the prices in cents without VAT and the VAT rate it was given, as a
- * Položka zákazky has them, but no quantity. Adding one to a Zákazka copies its values: `work_order_item` has no
+ * Položka zákazky has them, but no quantity; its `salePriceCents` and the check on it are still named `unit_price` in
+ * the database, which only a migration would change. Adding one to a Zákazka copies its values: `work_order_item` has no
  * column that points here, so changing or deleting an item never reaches a Zákazka. The code is unique whatever its
  * case; PostgreSQL lets any number of rows have none. `search*` are the code and the name as the domain normalizes
  * them to be searched (`priceListSearchKeys`): the DAL writes them with every save, so the search needs no `unaccent`.
@@ -324,7 +326,7 @@ export const priceListItem = pgTable(
     name: text('name').notNull(),
     unit: text('unit').notNull(),
     purchasePriceCents: integer('purchase_price_cents'),
-    unitPriceCents: integer('unit_price_cents').notNull(),
+    salePriceCents: integer('unit_price_cents').notNull(),
     vatRate: integer('vat_rate').notNull(),
     searchCode: text('search_code').notNull(),
     searchName: text('search_name').notNull(),
@@ -334,7 +336,7 @@ export const priceListItem = pgTable(
     uniqueIndex('price_list_item_code_idx').on(sql`lower(${table.code})`),
     check('price_list_item_purchase_price_check', sql`${table.purchasePriceCents} >= 0`),
     check('price_list_item_purchase_price_kind_check', sql`${table.purchasePriceCents} is null or ${table.kind} = 'part'`),
-    check('price_list_item_unit_price_check', sql`${table.unitPriceCents} >= 0`),
+    check('price_list_item_unit_price_check', sql`${table.salePriceCents} >= 0`),
     check('price_list_item_vat_rate_check', sql`${table.vatRate} between 0 and 100`),
   ],
 );

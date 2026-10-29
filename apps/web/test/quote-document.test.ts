@@ -12,8 +12,8 @@ const quote: Quote = {
   customer: { name: 'Ján Novák' },
   vehicle: { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
   items: [
-    { code: null, name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', unitPriceCents: 4000, vatRate: 23, amounts: { net: 6000, vat: 1380, gross: 7380 } },
-    { code: 'OF-1', name: 'Olejový filter', quantityHundredths: 300, unit: 'ks', unitPriceCents: 999, vatRate: 19, amounts: { net: 2997, vat: 569, gross: 3566 } },
+    { code: null, name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', salePriceCents: 4000, vatRate: 23, amounts: { net: 6000, vat: 1380, gross: 7380 } },
+    { code: 'OF-1', name: 'Olejový filter', quantityHundredths: 300, unit: 'ks', salePriceCents: 999, vatRate: 19, amounts: { net: 2997, vat: 569, gross: 3566 } },
   ],
   totals: { net: 8997, vat: 1949, gross: 10946 },
 };

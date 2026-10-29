@@ -151,6 +151,26 @@ export async function fillIntake(page: Page, mileage: string, request: string) {
   await page.getByRole('button', { name: 'Uložiť zákazku' }).click();
 }
 
+/** On a work order's detail: the form with this name; the Práca and the Diel each have one. */
+export const itemForm = (page: Page, name: 'Pridať prácu' | 'Pridať diel') => page.locator('main').getByRole('form', { name });
+
+/**
+ * On a work order's detail: fills the form of a Práca with its name and quantity, and with its price unless that is
+ * left to the hourly rate of Nastavenia, which the form starts with. The form is not sent.
+ */
+export async function fillLabour(page: Page, fields: { name: string; quantity: string; salePrice?: string }) {
+  const form = itemForm(page, 'Pridať prácu');
+  await form.getByLabel('Názov', { exact: true }).fill(fields.name);
+  await form.getByLabel('Množstvo', { exact: true }).fill(fields.quantity);
+  if (fields.salePrice !== undefined) await form.getByLabel('Predajná cena za jednotku bez DPH (€)').fill(fields.salePrice);
+}
+
+/** On a work order's detail: fills the form of a Práca (see fillLabour) and sends it. */
+export async function addLabour(page: Page, fields: Parameters<typeof fillLabour>[1]) {
+  await fillLabour(page, fields);
+  await itemForm(page, 'Pridať prácu').getByRole('button', { name: 'Pridať prácu' }).click();
+}
+
 /** On a work order's detail: its number, read once the heading shows one (a plain read right after the navigation would see the page before). */
 export async function numberOnTheDetail(page: Page) {
   const heading = page.locator('main h1');

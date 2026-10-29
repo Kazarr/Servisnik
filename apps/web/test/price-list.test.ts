@@ -18,8 +18,8 @@ beforeEach(async () => {
   await ctx.db.execute(sql`update workshop set vat_rates = '{23,19,5}', default_vat_rate = 23`); // the rates the migration starts with; some tests change them
 });
 
-const brake: PriceListItemInput = { kind: 'part', code: 'BR-123', name: 'Brzdová doštička', unit: 'ks', purchasePrice: '20', unitPrice: '30', vatRate: '19' };
-const oilChange: PriceListItemInput = { kind: 'labour', name: 'Výmena oleja', unit: 'h', unitPrice: '45,50', vatRate: '23' };
+const brake: PriceListItemInput = { kind: 'part', code: 'BR-123', name: 'Brzdová doštička', unit: 'ks', purchasePrice: '20', salePrice: '30', vatRate: '19' };
+const oilChange: PriceListItemInput = { kind: 'labour', name: 'Výmena oleja', unit: 'h', salePrice: '45,50', vatRate: '23' };
 
 const add = async (input: PriceListItemInput) => idOf(await createPriceListItem(admin, input, ctx.db));
 /** Names of the items a search finds, in the order it lists them. */
@@ -52,7 +52,7 @@ test('a Diel is saved with its code, name, unit, Nákupná cena, Predajná cena 
     name: 'Brzdová doštička',
     unit: 'ks',
     purchasePriceCents: 2000,
-    unitPriceCents: 3000,
+    salePriceCents: 3000,
     vatRate: 19,
   });
 });
@@ -60,7 +60,7 @@ test('a Diel is saved with its code, name, unit, Nákupná cena, Predajná cena 
 test('a Práca is saved in hours with no code and no Nákupná cena, and the default VAT rate of Nastavenia when none is typed', async () => {
   await ctx.db.execute(sql`update workshop set vat_rates = '{23,19,5}', default_vat_rate = 19`);
 
-  const id = await add({ kind: 'labour', name: 'Výmena oleja', unitPrice: '45,50', purchasePrice: '10' });
+  const id = await add({ kind: 'labour', name: 'Výmena oleja', salePrice: '45,50', purchasePrice: '10' });
 
   expect(await getPriceListItem(admin, id, ctx.db)).toEqual({
     id,
@@ -69,15 +69,15 @@ test('a Práca is saved in hours with no code and no Nákupná cena, and the def
     name: 'Výmena oleja',
     unit: 'h',
     purchasePriceCents: null,
-    unitPriceCents: 4550,
+    salePriceCents: 4550,
     vatRate: 19,
   });
 });
 
 test('an item that breaks a rule is not saved, and every reason comes back', async () => {
-  const result = await createPriceListItem(admin, { kind: 'part', name: ' ', unit: ' ', purchasePrice: 'x', unitPrice: '-1', vatRate: '20' }, ctx.db);
+  const result = await createPriceListItem(admin, { kind: 'part', name: ' ', unit: ' ', purchasePrice: 'x', salePrice: '-1', vatRate: '20' }, ctx.db);
 
-  expect(result).toEqual({ ok: false, errors: { name: 'required', unit: 'required', purchasePrice: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' } });
+  expect(result).toEqual({ ok: false, errors: { name: 'required', unit: 'required', purchasePrice: 'invalid', salePrice: 'invalid', vatRate: 'invalid' } });
   expect(await rowCount()).toBe(0);
 });
 
@@ -149,7 +149,7 @@ test('an item is changed: its code, name, unit, prices and VAT rate, where its k
   const changed = await updatePriceListItem(
     admin,
     id,
-    { code: 'BR-456', name: 'Brzdový kotúč', unit: 'sada', purchasePrice: '50', unitPrice: '80,50', vatRate: '5' },
+    { code: 'BR-456', name: 'Brzdový kotúč', unit: 'sada', purchasePrice: '50', salePrice: '80,50', vatRate: '5' },
     ctx.db,
   );
 
@@ -161,7 +161,7 @@ test('an item is changed: its code, name, unit, prices and VAT rate, where its k
     name: 'Brzdový kotúč',
     unit: 'sada',
     purchasePriceCents: 5000,
-    unitPriceCents: 8050,
+    salePriceCents: 8050,
     vatRate: 5,
   });
 });
@@ -169,7 +169,7 @@ test('an item is changed: its code, name, unit, prices and VAT rate, where its k
 test('an item changed loses the code and the Nákupná cena that are left out, and is in the unit of its kind when none is typed', async () => {
   const id = await add(brake);
 
-  await updatePriceListItem(admin, id, { name: 'Brzdová doštička', unitPrice: '30' }, ctx.db);
+  await updatePriceListItem(admin, id, { name: 'Brzdová doštička', salePrice: '30' }, ctx.db);
 
   expect(await getPriceListItem(admin, id, ctx.db)).toMatchObject({ code: null, purchasePriceCents: null, unit: 'ks' });
 });
@@ -177,9 +177,9 @@ test('an item changed loses the code and the Nákupná cena that are left out, a
 test('a Práca changed never gets a Nákupná cena, and a form that sends another kind does not change the kind', async () => {
   const id = await add(oilChange);
 
-  await updatePriceListItem(admin, id, { ...brake, name: 'Výmena oleja', unitPrice: '40', purchasePrice: '10', vatRate: '23' }, ctx.db);
+  await updatePriceListItem(admin, id, { ...brake, name: 'Výmena oleja', salePrice: '40', purchasePrice: '10', vatRate: '23' }, ctx.db);
 
-  expect(await getPriceListItem(admin, id, ctx.db)).toMatchObject({ kind: 'labour', purchasePriceCents: null, unitPriceCents: 4000 });
+  expect(await getPriceListItem(admin, id, ctx.db)).toMatchObject({ kind: 'labour', purchasePriceCents: null, salePriceCents: 4000 });
 });
 
 test('an item keeps its own code when it is changed, whatever the case, and takes no code another item has', async () => {
@@ -208,9 +208,9 @@ test('an item changed to something that breaks a rule is not changed, and every 
   const id = await add(brake);
   const before = await getPriceListItem(admin, id, ctx.db);
 
-  const result = await updatePriceListItem(admin, id, { name: '', unit: '', purchasePrice: 'x', unitPrice: 'x', vatRate: '20' }, ctx.db);
+  const result = await updatePriceListItem(admin, id, { name: '', unit: '', purchasePrice: 'x', salePrice: 'x', vatRate: '20' }, ctx.db);
 
-  expect(result).toEqual({ ok: false, errors: { name: 'required', unit: 'required', purchasePrice: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' } });
+  expect(result).toEqual({ ok: false, errors: { name: 'required', unit: 'required', purchasePrice: 'invalid', salePrice: 'invalid', vatRate: 'invalid' } });
   expect(await getPriceListItem(admin, id, ctx.db)).toEqual(before);
 });
 
@@ -257,7 +257,7 @@ test('"brzdova" finds "Brzdová doštička", in any case and with or without dia
 test('a part of the code finds the item, in any case, and the diacritics of a code do not matter', async () => {
   await add({ ...brake, code: 'OL-5W30', name: 'Olej' });
   await add({ ...brake, code: 'Ž-1', name: 'Žiarovka' });
-  await add({ kind: 'part', name: 'Tesnenie', unitPrice: '4' });
+  await add({ kind: 'part', name: 'Tesnenie', salePrice: '4' });
 
   for (const query of ['ol-5w', 'OL-5W30', '5w30']) expect(await found(query), query).toEqual(['Olej']);
   for (const query of ['z-1', 'Ž-1']) expect(await found(query), query).toEqual(['Žiarovka']);
@@ -272,7 +272,7 @@ test('the code and the name are searched apart: a text spanning the end of one a
 });
 
 test('a % or an _ typed is the character itself, not a wildcard', async () => {
-  for (const name of ['Olej 100% syntetický', 'Filter_A', 'Filter B']) await add({ kind: 'part', name, unitPrice: '1' });
+  for (const name of ['Olej 100% syntetický', 'Filter_A', 'Filter B']) await add({ kind: 'part', name, salePrice: '1' });
 
   expect(await found('%')).toEqual(['Olej 100% syntetický']);
   expect(await found('_')).toEqual(['Filter_A']);
@@ -289,7 +289,7 @@ test('a search lists each item with its id, kind, code, name, unit, prices and V
   const id = await add(brake);
 
   expect((await searchPriceList(admin, { query: 'brzd' }, ctx.db)).items).toEqual([
-    { id, kind: 'part', code: 'BR-123', name: 'Brzdová doštička', unit: 'ks', purchasePriceCents: 2000, unitPriceCents: 3000, vatRate: 19 },
+    { id, kind: 'part', code: 'BR-123', name: 'Brzdová doštička', unit: 'ks', purchasePriceCents: 2000, salePriceCents: 3000, vatRate: 19 },
   ]);
 });
 
@@ -303,13 +303,13 @@ test('blank text lists every item, and so does no query', async () => {
 });
 
 test('items are listed by name in the Slovak alphabet: č after c, ch after h, and the diacritics only after the letters', async () => {
-  for (const name of ['Zvon', 'Ihla', 'Čerpadlo', 'Chladič', 'Brzda', 'Žiarovka', 'Cívka', 'Hadica']) await add({ kind: 'part', name, unitPrice: '1' });
+  for (const name of ['Zvon', 'Ihla', 'Čerpadlo', 'Chladič', 'Brzda', 'Žiarovka', 'Cívka', 'Hadica']) await add({ kind: 'part', name, salePrice: '1' });
 
   expect(await found('')).toEqual(['Brzda', 'Cívka', 'Čerpadlo', 'Hadica', 'Chladič', 'Ihla', 'Zvon', 'Žiarovka']);
 });
 
 test('items with the same name are listed in a fixed order, so none is on two pages or on none', async () => {
-  for (let i = 0; i < 30; i++) await add({ kind: 'part', name: 'Rovnaký názov', unitPrice: '1' });
+  for (let i = 0; i < 30; i++) await add({ kind: 'part', name: 'Rovnaký názov', salePrice: '1' });
 
   const first = (await searchPriceList(admin, { page: 1 }, ctx.db)).items.map((item) => item.id);
   const second = (await searchPriceList(admin, { page: 2 }, ctx.db)).items.map((item) => item.id);
@@ -320,8 +320,8 @@ test('items with the same name are listed in a fixed order, so none is on two pa
 });
 
 test('the list is 25 to a page, the search keeps to the pages of what it found, and a page past the last is the last', async () => {
-  for (let i = 1; i <= 27; i++) await add({ kind: 'part', name: `Položka ${String(i).padStart(2, '0')}`, unitPrice: '1' });
-  await add({ kind: 'part', name: 'Iná vec', unitPrice: '1' });
+  for (let i = 1; i <= 27; i++) await add({ kind: 'part', name: `Položka ${String(i).padStart(2, '0')}`, salePrice: '1' });
+  await add({ kind: 'part', name: 'Iná vec', salePrice: '1' });
 
   const first = await searchPriceList(admin, { query: 'polozka' }, ctx.db);
   expect(first).toMatchObject({ page: 1, pageCount: 2, total: 27 });

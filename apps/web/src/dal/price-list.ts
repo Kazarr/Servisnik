@@ -39,7 +39,7 @@ const shownFields = {
   name: priceListItem.name,
   unit: priceListItem.unit,
   purchasePriceCents: priceListItem.purchasePriceCents,
-  unitPriceCents: priceListItem.unitPriceCents,
+  salePriceCents: priceListItem.salePriceCents,
   vatRate: priceListItem.vatRate,
 };
 
