@@ -1,6 +1,6 @@
 import { getDb, type Database } from '../db/index.ts';
 import { workOrder } from '../db/schema.ts';
-import { readHeader, type FormHeader } from './form-header.ts';
+import { readFormHeader, type FormHeader } from './form-header.ts';
 import { assertCan, type User } from './user.ts';
 
 /**
@@ -18,5 +18,5 @@ export type JobSheet = FormHeader & {
 /** The data of the zákazkový list of a Zákazka in any Stav, or null when there is no Zákazka with this id. */
 export async function getJobSheet(user: User | null, workOrderId: string, db: Database = getDb()): Promise<JobSheet | null> {
   assertCan(user, 'work-orders.job-sheet');
-  return readHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, deadline: workOrder.deadline, customerRequest: workOrder.customerRequest });
+  return readFormHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, deadline: workOrder.deadline, customerRequest: workOrder.customerRequest });
 }
