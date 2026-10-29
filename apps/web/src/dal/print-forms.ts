@@ -1,4 +1,4 @@
-import type { Amounts, ItemKind } from '@servisnik/domain/work-order';
+import { canPrintHandover, type Amounts, type ItemKind } from '@servisnik/domain/work-order';
 import { eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { workOrder, workOrderItem } from '../db/schema.ts';
@@ -51,11 +51,17 @@ export type HandoverProtocol = FormHeader & {
   items: { kind: ItemKind; code: string | null; name: string; quantityHundredths: number; unit: string }[];
 };
 
-/** The data of the odovzdávací protokol of a Zákazka in any Stav, or null when there is no Zákazka with this id. The admin's alone. */
-export async function getHandoverProtocol(user: User | null, workOrderId: string, db: Database = getDb()): Promise<HandoverProtocol | null> {
+/**
+ * The data of the odovzdávací protokol of a Zákazka that is Hotová or Vyfakturovaná (`canPrintHandover`: the customer takes
+ * the vehicle over), or null when there is no Zákazka with this id, or `'wrong-status'` when there is one in another Stav,
+ * of which nothing else is read. The admin's alone.
+ */
+export async function getHandoverProtocol(user: User | null, workOrderId: string, db: Database = getDb()): Promise<HandoverProtocol | 'wrong-status' | null> {
   assertCan(user, 'work-orders.handover');
-  const header = await readHeader(workOrderId, db, { mileageKm: workOrder.mileageKm });
-  if (!header) return null;
+  const found = await readHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, status: workOrder.status });
+  if (!found) return null;
+  const { status, ...header } = found;
+  if (!canPrintHandover(status)) return 'wrong-status';
   const items = await db
     .select({
       kind: workOrderItem.kind,

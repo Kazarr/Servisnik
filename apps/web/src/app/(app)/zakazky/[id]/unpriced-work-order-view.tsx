@@ -59,7 +59,7 @@ export function UnpricedWorkOrderView({ order, role }: { order: UnpricedWorkOrde
           </div>
         )}
       </dl>
-      <PrintLinks workOrderId={order.id} role={role} />
+      <PrintLinks workOrderId={order.id} role={role} status={order.status} />
 
       <h2>Položky</h2>
       {order.items.length === 0 ? (
