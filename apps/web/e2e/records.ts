@@ -13,15 +13,15 @@ export const admin: User = { id: 'e2e-records', email: 'admin@autoservis.test', 
 export const openDatabase = () => createDb(process.env.E2E_DATABASE_URL!);
 
 /**
- * A Zákazník with a Vozidlo and a Zákazka (Prijatá, with the Termín `deadline` if given), made through
- * the DAL as the admin and named by `tag`, so that a spec finds its own rows in the database all specs share.
+ * A Zákazník with a Vozidlo and a Zákazka (Prijatá, with no Termín), made through the DAL as the admin
+ * and named by `tag`, so that a spec finds its own rows in the database all specs share.
  */
-export async function seedWorkOrder(db: Database, tag: string, deadline?: string) {
+export async function seedWorkOrder(db: Database, tag: string) {
   const customerName = `Zákazník ${tag}`;
   const customerId = idOf(await createCustomer(admin, { type: 'person', name: customerName }, db));
   const vin = vinOf(tag, 'E2E00000000');
   const vehicleId = idOf(await createVehicle(admin, { ownerId: customerId, vin, licensePlate: '', make: 'Škoda', model: 'Octavia' }, db));
-  const created = await createWorkOrder(admin, { vehicleId, mileageKm: '1000', customerRequest: `Výmena oleja ${tag}`, deadline }, db);
+  const created = await createWorkOrder(admin, { vehicleId, mileageKm: '1000', customerRequest: `Výmena oleja ${tag}` }, db);
   if (!created.ok) throw new Error('The record was expected to be saved.');
   return { customerId, customerName, vehicleId, vin, orderId: created.id, number: created.number };
 }

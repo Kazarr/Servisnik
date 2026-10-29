@@ -2,7 +2,7 @@ import { canPrintHandover, type Amounts, type ItemKind } from '@servisnik/domain
 import { eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { workOrder, workOrderItem } from '../db/schema.ts';
-import { readHeader, type FormHeader } from './form-header.ts';
+import { readFormHeader, type FormHeader } from './form-header.ts';
 import { assertCan, type User } from './user.ts';
 import { inOrderAdded, withAmounts } from './work-order-items.ts';
 
@@ -23,8 +23,8 @@ export type Quote = FormHeader & {
 /** The data of the cenová ponuka of a Zákazka in any Stav, or null when there is no Zákazka with this id. The admin's alone. */
 export async function getQuote(user: User | null, workOrderId: string, db: Database = getDb()): Promise<Quote | null> {
   assertCan(user, 'work-orders.quote');
-  const header = await readHeader(workOrderId, db, {});
-  if (!header) return null;
+  const formHeader = await readFormHeader(workOrderId, db, {});
+  if (!formHeader) return null;
   const items = await db
     .select({
       code: workOrderItem.code,
@@ -37,7 +37,7 @@ export async function getQuote(user: User | null, workOrderId: string, db: Datab
     .from(workOrderItem)
     .where(eq(workOrderItem.workOrderId, workOrderId))
     .orderBy(...inOrderAdded);
-  return { ...header, ...withAmounts(items) };
+  return { ...formHeader, ...withAmounts(items) };
 }
 
 /**
@@ -54,14 +54,14 @@ export type HandoverProtocol = FormHeader & {
 /**
  * The data of the odovzdávací protokol of a Zákazka that is Hotová or Vyfakturovaná (`canPrintHandover`: the customer takes
  * the vehicle over), or null when there is no Zákazka with this id, or `'wrong-status'` when there is one in another Stav:
- * its header is read to tell, but nothing of it is returned and no item is read (nor, in the response, the workshop or
+ * its form header is read to tell, but nothing of it is returned and no item is read (nor, in the response, the workshop or
  * the logo). The admin's alone.
  */
 export async function getHandoverProtocol(user: User | null, workOrderId: string, db: Database = getDb()): Promise<HandoverProtocol | 'wrong-status' | null> {
   assertCan(user, 'work-orders.handover');
-  const found = await readHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, status: workOrder.status });
+  const found = await readFormHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, status: workOrder.status });
   if (!found) return null;
-  const { status, ...header } = found;
+  const { status, ...formHeader } = found;
   if (!canPrintHandover(status)) return 'wrong-status';
   const items = await db
     .select({
@@ -74,5 +74,5 @@ export async function getHandoverProtocol(user: User | null, workOrderId: string
     .from(workOrderItem)
     .where(eq(workOrderItem.workOrderId, workOrderId))
     .orderBy(...inOrderAdded);
-  return { ...header, items };
+  return { ...formHeader, items };
 }

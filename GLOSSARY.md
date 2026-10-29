@@ -133,6 +133,9 @@ _Avoid_: otvorená, aktívna
 Zákazka v stave Vyfakturovaná alebo Zrušená. Zrušená zákazka si ponechá svoje číslo.
 _Avoid_: ukončená, archivovaná
 
+**Neuzavreté** (`unclosed`):
+Zákazky, ktoré nie sú Uzavreté: Rozpracované aj Hotové. Je to predvolená voľba filtra zoznamu zákaziek podľa stavu, vedľa Všetky a jedného konkrétneho stavu.
+
 **Dátum dokončenia** (`completedOn`):
 Deň, keď zákazka prešla do stavu Hotová, podľa kalendára v Europe/Bratislava.
 _Avoid_: delivery date
@@ -141,9 +144,15 @@ _Avoid_: delivery date
 Deň, do ktorého autoservis zákazníkovi sľúbil vozidlo opraviť. Rozpracovaná zákazka po termíne je oneskorená (`late`); termín dnešného dňa ešte nie je po termíne.
 _Avoid_: dátum odovzdania, splatnosť (tá patrí faktúre)
 
+**Na fakturáciu** (`toInvoice`):
+Zákazka v stave Hotová, ktorú treba vyfakturovať; zoznam zákaziek ju označí štítkom, aby sa nezabudlo fakturovať. Označená je aj vtedy, keď sa jej faktúra práve vystavuje.
+
 **Príjem vozidla** (`intake`):
 Založenie zákazky, keď zákazník privezie vozidlo, prípadne aj s novým zákazníkom alebo vozidlom.
 _Avoid_: check-in, prevzatie
+
+**Hlavička zákazky** (`header`):
+Kilometre pri príjme, požiadavka zákazníka, Termín a interná poznámka zákazky, bez zákazníka a vozidla. Dá sa upraviť, len kým je zákazka Rozpracovaná.
 
 ### Ceny
 
