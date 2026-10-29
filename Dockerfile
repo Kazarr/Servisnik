@@ -35,8 +35,8 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
 # the code, so that a new commit does not download the browser again, and its version is the one pnpm-lock.yaml
 # locks for playwright-core (the test compares them). PLAYWRIGHT_BROWSERS_PATH stays set: it is where the app
 # looks for the browser, and every user may read it. The layer ends by removing the apt lists, the whole of /root/.npm
-# (the npm cache, its logs and the npx copy of playwright-core) and the compile cache that npx leaves in /tmp (2,6 MB
-# in the image built from this file before this line), so that none of them stays in the image.
+# (the npm cache, its logs and the npx copy of playwright-core) and the compile cache that npx leaves in /tmp, so that
+# none of them stays in the image.
 ARG PLAYWRIGHT_VERSION=1.64.1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN apt-get update \
