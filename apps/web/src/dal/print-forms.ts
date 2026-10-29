@@ -53,8 +53,9 @@ export type HandoverProtocol = FormHeader & {
 
 /**
  * The data of the odovzdávací protokol of a Zákazka that is Hotová or Vyfakturovaná (`canPrintHandover`: the customer takes
- * the vehicle over), or null when there is no Zákazka with this id, or `'wrong-status'` when there is one in another Stav,
- * of which nothing else is read. The admin's alone.
+ * the vehicle over), or null when there is no Zákazka with this id, or `'wrong-status'` when there is one in another Stav:
+ * its header is read to tell, but nothing of it is returned and no item is read (nor, in the response, the workshop or
+ * the logo). The admin's alone.
  */
 export async function getHandoverProtocol(user: User | null, workOrderId: string, db: Database = getDb()): Promise<HandoverProtocol | 'wrong-status' | null> {
   assertCan(user, 'work-orders.handover');
