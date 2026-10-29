@@ -311,7 +311,8 @@ export const workOrderItem = pgTable(
 
 /**
  * Položka cenníka: a Práca or a Diel with the prices in cents without VAT and the VAT rate it was given, as a
- * Položka zákazky has them, but no quantity. Adding one to a Zákazka copies its values: `work_order_item` has no
+ * Položka zákazky has them, but no quantity; its `salePriceCents` and the check on it are still named `unit_price` in
+ * the database, which only a migration would change. Adding one to a Zákazka copies its values: `work_order_item` has no
  * column that points here, so changing or deleting an item never reaches a Zákazka. The code is unique whatever its
  * case; PostgreSQL lets any number of rows have none. `search*` are the code and the name as the domain normalizes
  * them to be searched (`priceListSearchKeys`): the DAL writes them with every save, so the search needs no `unaccent`.
