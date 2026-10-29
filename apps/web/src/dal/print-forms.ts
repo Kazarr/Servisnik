@@ -1,30 +1,12 @@
 import { amountsOf, totalsOf, type Amounts, type ItemKind } from '@servisnik/domain/work-order';
 import { asc, eq } from 'drizzle-orm';
-import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database } from '../db/index.ts';
-import { customer, vehicle, workOrder, workOrderItem } from '../db/schema.ts';
+import { workOrder, workOrderItem } from '../db/schema.ts';
+import { readHeader, type FormHeader } from './form-header.ts';
 import { assertCan, type User } from './user.ts';
-import { isUuid } from './uuid.ts';
 
 // The data of the two forms the admin alone prints, next to the zákazkový list (job-sheet.ts). Each form reads
 // its own columns of the items and no others, so what a form must not show is never read.
-
-/** The number, the customer it was made for and the vehicle of a Zákazka, and the columns `more`; null when there is no such Zákazka. */
-async function readHeader<More extends SelectedFields>(workOrderId: string, db: Database, more: More) {
-  if (!isUuid(workOrderId)) return null;
-  const [found] = await db
-    .select({
-      number: workOrder.number,
-      customer: { name: customer.name },
-      vehicle: { vin: vehicle.vin, licensePlate: vehicle.licensePlate, make: vehicle.make, model: vehicle.model },
-      ...more,
-    })
-    .from(workOrder)
-    .innerJoin(customer, eq(workOrder.customerId, customer.id))
-    .innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id))
-    .where(eq(workOrder.id, workOrderId));
-  return found ?? null;
-}
 
 const inOrderAdded = [asc(workOrderItem.createdAt), asc(workOrderItem.id)];
 
@@ -34,10 +16,7 @@ const inOrderAdded = [asc(workOrderItem.createdAt), asc(workOrderItem.id)];
  * The amounts and the sums are the domain's (`amountsOf`, `totalsOf`), so the form adds nothing up itself.
  * It has no Nákupná cena and no Marža, which the customer does not get, and no internal note.
  */
-export type Quote = {
-  number: string;
-  customer: { name: string };
-  vehicle: { vin: string; licensePlate: string | null; make: string; model: string };
+export type Quote = FormHeader & {
   items: { code: string | null; name: string; quantityHundredths: number; unit: string; unitPriceCents: number; vatRate: number; amounts: Amounts }[];
   totals: Amounts;
 };
@@ -68,10 +47,7 @@ export async function getQuote(user: User | null, workOrderId: string, db: Datab
  * discount, and no internal note: the test of this read fails on any price key in the whole answer, so a price
  * field cannot be added here by mistake.
  */
-export type HandoverProtocol = {
-  number: string;
-  customer: { name: string };
-  vehicle: { vin: string; licensePlate: string | null; make: string; model: string };
+export type HandoverProtocol = FormHeader & {
   mileageKm: number;
   items: { kind: ItemKind; code: string | null; name: string; quantityHundredths: number; unit: string }[];
 };
