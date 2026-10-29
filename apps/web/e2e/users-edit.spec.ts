@@ -94,7 +94,7 @@ test('the admin deactivates a mechanik, who lands on the login with the reason, 
   await mechanikPage.goto('/zakazky');
   await expect(mechanikPage).toHaveURL(/\/login$/);
   await submitLogin(mechanikPage, mechanik.password, mechanik.email);
-  await expect(mechanikPage.locator('main').getByRole('alert')).toHaveText('Účet je deaktivovaný. Obráťte sa na admina.');
+  await expect(mechanikPage.locator('main').getByRole('alert')).toHaveText('Používateľ je deaktivovaný. Obráťte sa na admina.');
   await expect(mechanikPage).toHaveURL(/\/login$/);
 
   // Activated again, he signs in with the password he had.

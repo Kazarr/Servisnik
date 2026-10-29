@@ -23,21 +23,29 @@ const timestamps = {
     .$onUpdate(() => sql`now()`),
 };
 
-/** Používateľ. */
-export const user = pgTable('user', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').notNull().default(false),
-  image: text('image'),
-  // Least privilege: anyone created without an explicit role is a mechanik.
-  role: role('role').notNull().default('mechanik'),
-  /** Deaktivovaný používateľ (GLOSSARY): `banned` is true. An active user is one that is not. */
-  banned: boolean('banned').notNull().default(false),
-  banReason: text('ban_reason'),
-  banExpires: timestamp('ban_expires', { withTimezone: true }),
-  ...timestamps,
-});
+/**
+ * Používateľ. The e-mail is unique whatever its case: the index is on `lower(email)`, so PostgreSQL
+ * refuses two spellings of one e-mail even from a write that did not lower-case it. It stands in for
+ * the plain `unique()` Better Auth declares, which it makes redundant.
+ */
+export const user = pgTable(
+  'user',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    emailVerified: boolean('email_verified').notNull().default(false),
+    image: text('image'),
+    // Least privilege: anyone created without an explicit role is a mechanik.
+    role: role('role').notNull().default('mechanik'),
+    /** Deaktivovaný používateľ (GLOSSARY): `banned` is true. An active user is one that is not. */
+    banned: boolean('banned').notNull().default(false),
+    banReason: text('ban_reason'),
+    banExpires: timestamp('ban_expires', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex('user_email_lower_idx').on(sql`lower(${table.email})`)],
+);
 
 export const session = pgTable(
   'session',

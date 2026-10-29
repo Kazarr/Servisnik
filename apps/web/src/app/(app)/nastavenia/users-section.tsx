@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { listUsers } from '../../../dal/users.ts';
 import type { User } from '../../../dal/user.ts';
 import { roleLabels } from './role-labels.ts';
+import { statusLabel } from './status-label.ts';
 import { UserForm } from './user-form.tsx';
 
 /**
@@ -31,7 +32,7 @@ export async function UsersSection({ user }: { user: User }) {
                 </td>
                 <td>{email}</td>
                 <td>{roleLabels[role]}</td>
-                <td>{banned ? 'Deaktivovaný' : 'Aktívny'}</td>
+                <td>{statusLabel(banned)}</td>
               </tr>
             ))}
           </tbody>
