@@ -84,44 +84,19 @@ const pagesOf = async (respond: Respond, id: string, at = now) => readPdf(await 
 const linesOf = (page: PdfPage) => page.text.split('\n');
 const lastPage = (pages: PdfPage[]) => pages.at(-1)!;
 
+// What every form shares is printed and checked once, on the zákazkový list (job-sheet-response.test.ts): the A4 page, the
+// cache headers of the answer, the lines of the header and the footer, the letters and the day of the print. Here is what
+// differs from form to form: its file, its title, its table and who may have it.
 describe.each(forms)('the $name', ({ respond, file, title, rowStart }) => {
-  test('is downloaded by the admin as a PDF named by the number of the Zákazka, on one A4 page', async () => {
+  test('is downloaded by the admin as a PDF named by the number of the Zákazka and the form, under its title', async () => {
     const response = await respond(admin, await orderWithItems(), ctx.db, now);
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('application/pdf');
     expect(response.headers.get('Content-Disposition')).toBe(`attachment; filename="Z2026-0001-${file}.pdf"`);
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
-    const pdf = await bytesOf(response);
-    expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe('%PDF-');
-    const pages = readPdf(pdf);
-    expect(pages).toHaveLength(1);
-    expect(pages[0]!.width).toBeGreaterThan(595); // 595 × 842 points, A4; Chromium makes the page 595.92 × 842.88
-    expect(pages[0]!.width).toBeLessThan(597);
-    expect(pages[0]!.height).toBeGreaterThan(842);
-    expect(pages[0]!.height).toBeLessThan(844);
-  });
-
-  test('has the header of every form: the autoservis, its name, the number of the Zákazka, the day of the print, the customer and the vehicle, and Strana 1/1', async () => {
-    const [page] = await pagesOf(respond, await orderWithItems());
-
-    const text = page!.text;
-    for (const line of ['Autoservis Žilinský', 'Hlavná 1, 81101 Bratislava', 'IČO: 12345678', title, 'Z2026-0001', '28. 10. 2026', 'Ľubomír Škrabák', 'Škoda Octavia', 'WVWZZZ1JZ3W386752', 'BA123AB'])
-      expect(text, line).toContain(line);
-    expect(linesOf(page!).at(-1)).toBe('Strana 1/1');
-    expect(page!.missingGlyphs).toBe(0);
-  });
-
-  test('has Slovak letters in the items as letters, none of them as a missing glyph', async () => {
-    const letters = ['ľščťžýáíéóúäô', 'ňĺŕďĽŠČŤŽÝÁÍ', 'ÉÓÚÄÔŇĹŔĎ']; // a name each, so that none wraps in its column
-    const id = await newWorkOrder();
-    for (const name of letters) await addItem(admin, id, { kind: 'labour', name, quantity: '1', unitPrice: '10' }, ctx.db);
-
-    const [page] = await pagesOf(respond, id);
-
-    for (const name of letters) expect(page!.text).toContain(name);
-    expect(page!.missingGlyphs).toBe(0);
+    const [page] = readPdf(await bytesOf(response));
+    expect(page!.text).toContain(title);
+    expect(page!.text).toContain('Z2026-0001');
   });
 
   test('prints a name that is longer than its column on several lines, every character of it', async () => {
@@ -190,13 +165,6 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart }) => {
       expect(response.headers.get('Content-Type'), id).toMatch(/^application\/json/);
       expect(await response.json(), id).toEqual({ error: 'Zákazka neexistuje.' });
     }
-  });
-
-  test('prints the day in Europe/Bratislava, which late in the evening UTC is already the next one', async () => {
-    const [page] = await pagesOf(respond, await orderWithItems(), new Date('2026-10-27T23:30:00Z'));
-
-    expect(page!.text).toContain('28. 10. 2026');
-    expect(page!.text).not.toContain('27. 10. 2026');
   });
 });
 
