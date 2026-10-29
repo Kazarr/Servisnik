@@ -51,8 +51,9 @@ const RULES = {
   divisor: /(?<=calc\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\/\s*-?[\d.]+(?![\w.%])/,
   duration: /(?<![\w.-])-?\d*\.?\d+m?s\b/,
   angle: /(?<![\w.-])-?\d*\.?\d+(?:deg|grad|rad|turn)\b/,
-  // A grid track function (`minmax(0, 1fr)`) is a token like any other value: --track-fill.
-  minmax: /minmax\((?:[^()]|\([^()]*\))*\)/,
+  // A grid track function (`minmax(0, 1fr)`) is a token like any other value: --track-fill. A minmax() whose two
+  // limits are both tokens (`minmax(var(--min), var(--max))`) is made of tokens already.
+  minmax: /minmax\((?!\s*var\([^()]*\)\s*,\s*var\([^()]*\)\s*\))(?:[^()]|\([^()]*\))*\)/,
   // A colour name is a value, not a part of a longer word (white-space, red-alert, tan( ), nor an ID (#red) or
   // a selector (`.red {`, `[data-tone=red] {`).
   namedColor: new RegExp(`(?<![\\w#-])(?:${NAMED_COLORS.join('|')})(?![\\w(-])(?![^;{}]*\\{)`),
@@ -65,9 +66,10 @@ type Rule = keyof typeof RULES;
 // attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`), the condition of a @media or
 // @container and the step of a @keyframes, none of which can hold a var().
 const COMMENT = /\/\*[\s\S]*?\*\//g;
-const ROOT_BLOCK = /:root(?:\[[^\]]*\]|:[\w-]+(?:\([^)]*\))?)*\s*\{[^}]*\}/g;
+const ROOT_BLOCK = /:root(?:\[[^\]]*\]|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?)*\s*\{[^}]*\}/g;
 const AT_RULE_CONDITION = /@(?:media|container)\b[^{]*(?=\{)/g;
-const KEYFRAMES_STEP = /\d*\.?\d+%(?:\s*,\s*\d*\.?\d+%)*(?=\s*\{)/g;
+// A step list starts with a percentage: from and to hold no value, and only a percentage before them is lost.
+const KEYFRAMES_STEP = /\d*\.?\d+%(?:\s*,\s*(?:\d*\.?\d+%|from|to))*(?=\s*\{)/g;
 
 const rawValues = (css: string, rules: Record<string, RegExp> = RULES) => {
   const outside = css.replace(COMMENT, '').replace(ROOT_BLOCK, '').replace(AT_RULE_CONDITION, '').replace(KEYFRAMES_STEP, '');
@@ -162,10 +164,10 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: '.w-45deg-x { margin: 0; } .a90deg { margin: 0; } .y { background: url(icon.5turn.png); } .x { margin: 2radx 3degs; }',
   },
   minmax: {
-    raw: '.x { grid-template-columns: max-content minmax(0, 1fr); } .y { grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr)); }',
-    found: ['minmax(0, 1fr)', 'minmax(var(--card-width), 1fr)'],
+    raw: '.x { grid-template-columns: max-content minmax(0, 1fr); } .y { grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr)); } .z { grid-template-columns: minmax(0, var(--max)); }',
+    found: ['minmax(0, 1fr)', 'minmax(var(--card-width), 1fr)', 'minmax(0, var(--max))'],
     token: '.x { grid-template-columns: max-content var(--track-fill); }',
-    miss: '.minmax-cell { margin: 0; } .x { grid-area: minmax; }',
+    miss: '.minmax-cell { margin: 0; } .x { grid-area: minmax; } .y { grid-template-columns: repeat(auto-fill, minmax(var(--min), var(--max))); } .z { grid-template-columns: minmax( var(--min) , var(--max) ); }',
   },
   namedColor: {
     raw: '.x { color: red; .z { margin: 0; } background: RebeccaPurple; border: 1px solid black; box-shadow: 0 0 1px gray, 0 0 2px navy } .y { background: linear-gradient(white, var(--a)); }',
@@ -217,6 +219,7 @@ test('every :root block defines tokens, whatever attribute or pseudo-class it ca
   const css = `
     :root[data-theme='dark'] { --c: #000; --w: 2px; }
     :root:not([data-theme='light']) { --c: #000; }
+    :root:not(:has([data-theme])) { --c: #000; }
     @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --d: 2px; } }
     :root .x { margin: 4px; }
     :root > .y { margin: 5px; }
@@ -240,6 +243,7 @@ test('the width in the condition of a @media or @container is no raw value, a de
 test('the step of a @keyframes is no raw value, a declaration inside it is, and so is a percentage elsewhere', () => {
   const css = `
     @keyframes pulse { 0%, 50.5% { opacity: var(--opacity-disabled); } 100% { width: 80%; } to { margin: 0; } }
+    @keyframes k { 50%, to { opacity: var(--opacity-disabled); } 25%, from { opacity: var(--opacity-disabled); } }
     .x { background: color-mix(in srgb, var(--a) 40%, var(--b)); }`;
 
   expect(rawValues(css)).toEqual(['80%', '40%']);
