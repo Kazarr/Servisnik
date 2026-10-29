@@ -67,8 +67,8 @@ test("the admin saves another user's page, which has the field of the Rola: the 
   const worker = await newUser('mechanik');
   actingAs(boss);
 
-  const answer = await updateUserAction(null, form({ userId: worker.id, userName: 'Povýšený', userEmail: worker.email, userRole: 'admin' }));
+  const answer = await updateUserAction(null, form({ userId: worker.id, userName: 'Povýšený', userEmail: 'Povysena.Osoba@AutoServis.TEST', userRole: 'admin' }));
 
-  expect(answer).toMatchObject({ values: { name: 'Povýšený', email: worker.email, role: 'admin' }, errors: {}, saved: true });
-  expect(await rowOf(worker.id)).toEqual({ name: 'Povýšený', email: worker.email, role: 'admin' });
+  expect(answer).toMatchObject({ values: { name: 'Povýšený', email: 'povysena.osoba@autoservis.test', role: 'admin' }, errors: {}, saved: true });
+  expect(await rowOf(worker.id)).toEqual({ name: 'Povýšený', email: 'povysena.osoba@autoservis.test', role: 'admin' });
 });
