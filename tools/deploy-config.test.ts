@@ -3,12 +3,18 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { delimiter, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { parse, parseAllDocuments } from 'yaml';
 
 // Spec #77, "Nasadenie". Nothing here deploys: a cloud account, a token and a person are needed for
 // that. These tests hold the files that drive a deploy to what the ticket and the research decided,
 // and the image itself is proven by building and running it (README, "Nasadenie").
+
+// The real work: the tests that run a workflow step start a bash, a fake doctl and a few more processes per run, and the
+// slowest (the garbage-collection wait) runs the step three times: 3.3 s of the 13.6 s of this file on an idle Windows
+// machine, 36 s of 117 s with two `pnpm verify` at once (#134). The 30 s of the project ran out there; this is 2.5 times that run.
+vi.setConfig({ testTimeout: 90_000 });
+
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 type Env = { key: string; value?: string; type?: string; scope?: string };
