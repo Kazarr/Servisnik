@@ -67,8 +67,8 @@ jobs:
       - *database_url
       - *database_ca_cert
 
-  # Po každom nasadení založí admina, alebo mu nastaví toto heslo (idempotentné). Prihlasovacie údaje
-  # má len tento job: bežiaca služba ich nevidí.
+  # Po každom nasadení založí admina, keď ešte žiadny nie je; existujúcemu admina nezmení heslo ani e-mail
+  # (idempotentné). Prihlasovacie údaje má len tento job: bežiaca služba ich nevidí.
   - name: seed
     kind: POST_DEPLOY
     image: *image

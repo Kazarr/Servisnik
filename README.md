@@ -30,7 +30,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 pnpm install
 pnpm services:up   # PostgreSQL z Compose
 pnpm db:migrate    # aplikuje SQL migrácie z apps/web/drizzle
-pnpm db:seed       # založí admina z ADMIN_EMAIL a ADMIN_PASSWORD, alebo mu nastaví toto heslo; dá sa spustiť opakovane
+pnpm db:seed       # založí admina z ADMIN_EMAIL a ADMIN_PASSWORD, keď ešte žiadny admin nie je; existujúcemu nič nemení, takže sa dá spustiť opakovane
 pnpm dev           # http://localhost:3000 presmeruje na prihlásenie
 ```
 
@@ -61,7 +61,7 @@ Treba Docker Desktop a PostgreSQL z Compose (`pnpm services:up`, port z `POSTGRE
 docker build -t servisnik .
 $db = 'postgres://servisnik:servisnik@host.docker.internal:5432/servisnik'   # Compose PostgreSQL zvnútra kontajnera
 docker run --rm -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/migrate.ts   # príkaz pre-deploy jobu
-docker run --rm --env-file .env -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/seed.ts   # príkaz post-deploy jobu: admin z ADMIN_EMAIL a ADMIN_PASSWORD
+docker run --rm --env-file .env -e DATABASE_URL=$db servisnik node /migrate/apps/web/scripts/seed.ts   # príkaz post-deploy jobu: založí admina z ADMIN_EMAIL a ADMIN_PASSWORD, keď žiadny nie je
 docker run -d --name servisnik-app -p 3000:3000 --env-file .env -e DATABASE_URL=$db servisnik
 pnpm smoke http://localhost:3000
 docker rm -f servisnik-app
@@ -98,7 +98,7 @@ Agent nič z toho neurobí: ide o účet, platbu, token a tajomstvá.
    ```
 
    Povinné `<MENO>` sú v kroku `Check that the secrets are set` workflowu [`deploy`](.github/workflows/deploy.yml): pred zostavením vypíše tie, ktoré chýbajú. `BETTER_AUTH_SECRET` vygeneruj ako v časti „Spustenie appky“. Ostatné zástupky, ktoré [`.do/app.yaml`](.do/app.yaml) pozná a ktoré workflow nevyžaduje, appka zatiaľ nečíta: pridaj ich do toho istého prostredia s #81 a dovtedy ich spec odovzdá prázdne.
-6. **Appka zo specu:** prvý beh workflow vytvorí appku `servisnik-test` z `.do/app.yaml` (službu, väzbu na cluster, pre-deploy migráciu aj post-deploy seed admina), každý ďalší ju aktualizuje. Admin z `ADMIN_EMAIL` a `ADMIN_PASSWORD` vznikne po nasadení sám.
+6. **Appka zo specu:** prvý beh workflow vytvorí appku `servisnik-test` z `.do/app.yaml` (službu, väzbu na cluster, pre-deploy migráciu aj post-deploy seed admina), každý ďalší ju aktualizuje. Admin z `ADMIN_EMAIL` a `ADMIN_PASSWORD` vznikne po prvom nasadení sám; ďalšie nasadenia existujúceho admina nemenia.
 
    ```powershell
    gh workflow run deploy --repo Kazarr/Servisnik --ref main
@@ -115,5 +115,5 @@ DigitalOcean podpisuje databázy vlastnou CA, ktorú Node nepozná. Spec preto v
 
 ### Známe obmedzenia
 
-- Seed beží po každom nasadení: ak admin zmení heslo v appke, ďalšie nasadenie ho vráti na `ADMIN_PASSWORD`. Zmena hesla v appke zatiaľ nie je.
+- Seed beží po každom nasadení, ale admina založí len vtedy, keď v databáze žiadny nie je; existujúcemu admina nezmení ani heslo, ani e-mail. `ADMIN_PASSWORD` preto platí len pre prvého admina: zmena tohto tajomstva heslo existujúceho admina neprepíše, to zmení admin v appke.
 - Prvý skutočný beh workflow ešte nebežal: `deploy` je overený lokálne (image, migrácia, seed, `pnpm smoke`) a testmi konfigurácie, nie proti DigitalOcean. Kroky s logom a registrom bežia v testoch proti `doctl`, ktorý len zapisuje volania, takže ich príkazy a formát výstupu (tagy ako JSON, log appky) sú podľa zdrojov `doctl`, nie podľa skutočného behu; chyby v logu hľadá [`tools/log-diff.ts`](tools/log-diff.ts) podľa slov, lebo formát logu ešte nikto nezaznamenal. Neoverené zostáva, či DigitalOcean prijme `KROS_*` bez hodnoty; ak nie, nastav ich pri prvom behu na skutočné hodnoty z #61 a #62.
