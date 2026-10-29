@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { currentUserWith } from '../../../../../dal/current-user.ts';
 import { getUser } from '../../../../../dal/users.ts';
+import { statusLabel } from '../../status-label.ts';
 import { UserEditForm } from '../../user-edit-form.tsx';
+import { userMessages } from '../../user-messages.ts';
 import { UserPasswordForm } from '../../user-password-form.tsx';
 import { UserStatusForm } from '../../user-status-form.tsx';
 
@@ -39,8 +41,8 @@ export default async function EditUserPage({ params }: { params: Promise<{ id: s
       )}
       <section aria-labelledby="user-status-heading" className="settings-section">
         <h2 id="user-status-heading">Stav</h2>
-        <p>{target.banned ? 'Deaktivovaný' : 'Aktívny'}</p>
-        {own ? <p>Seba nemôžete deaktivovať.</p> : <UserStatusForm userId={target.id} banned={target.banned} />}
+        <p>{statusLabel(target.banned)}</p>
+        {own ? <p>{userMessages.deactivateSelf}.</p> : <UserStatusForm userId={target.id} banned={target.banned} />}
       </section>
     </>
   );

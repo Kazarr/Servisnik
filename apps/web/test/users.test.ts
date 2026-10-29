@@ -71,6 +71,15 @@ test('the e-mail is stored in lower case and the password only as a hash', async
   await expect(signIn('jan.novak@autoservis.test')).resolves.toBeDefined();
 });
 
+test('PostgreSQL refuses an e-mail that differs from another user\'s only in case, whichever path writes it', async () => {
+  const row = (email: string) => ({ id: email, name: 'Ján Novák', email });
+  await ctx.db.insert(user).values(row('Jan@Autoservis.test'));
+
+  await expect(ctx.db.insert(user).values(row('jan@autoservis.test'))).rejects.toMatchObject({ cause: { constraint: 'user_email_lower_idx' } });
+
+  expect(await ctx.db.$count(user)).toBe(1);
+});
+
 test.each([
   ['the same', 'jan@autoservis.test'],
   ['one that differs only in case', 'JAN@Autoservis.test'],
