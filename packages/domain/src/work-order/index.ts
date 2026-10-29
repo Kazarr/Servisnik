@@ -368,7 +368,8 @@ function markupError(typed: string, purchasePriceCents: number | null, salePrice
 
 /**
  * A Položka ready to store: a quantity of more than 0, prices without VAT (0 or more) and one of the
- * `vatRates` of Nastavenia, `defaultVatRate` when none was typed.
+ * `vatRates` of Nastavenia, `defaultVatRate` when none was typed. The Prirážka of a Diel is not part of it,
+ * but a Diel is refused with `markup` when the one it was sent with is none or does not fit its prices.
  */
 export function parseItem(
   input: ItemInput,
