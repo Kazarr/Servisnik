@@ -192,6 +192,23 @@ test('the filter shows the status and the days it was asked for', () => {
   expect(html).toMatch(/<input[^>]*value="2026-10-31"/);
 });
 
+test('the filter the list starts with offers no link to cancel it', () => {
+  const html = renderFilter(defaults);
+
+  expect(html).not.toContain('Zrušiť filter');
+  expect(html).not.toContain('<a ');
+});
+
+test.each([
+  ['one status', { status: 'done', from: null, to: null }],
+  ['Všetky', { status: 'all', from: null, to: null }],
+  ['a day from', { status: 'unclosed', from: '2026-10-01', to: null }],
+  ['a day to', { status: 'unclosed', from: null, to: '2026-10-31' }],
+  ['a period and one status', { status: 'cancelled', from: '2026-10-01', to: '2026-10-31' }],
+] as const)('a filter of %s offers a link back to the list that starts at the default filter', (_what, filter) => {
+  expect(renderFilter(filter)).toContain('<a href="/zakazky">Zrušiť filter</a>');
+});
+
 test('the address of a page of the list carries the filter, and leaves out what is the default', () => {
   expect(listHref(defaults, 1)).toBe('/zakazky');
   expect(listHref(defaults, 3)).toBe('/zakazky?strana=3');
