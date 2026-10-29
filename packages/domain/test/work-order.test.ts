@@ -5,6 +5,7 @@ import {
   formatWorkOrderNumber,
   isActive,
   isClosed,
+  isDefaultListFilter,
   localDate,
   localYear,
   mileageAtIntake,
@@ -357,6 +358,27 @@ describe('the filter of the list of Zákazky', () => {
 
   test.each(['', '1. 10. 2026', '2026-02-30', 'dnes'])('the day "%s" is no bound of the period', (day) => {
     expect(parseListFilter({ from: day, to: day })).toMatchObject({ from: null, to: null });
+  });
+
+  test('the filter the list starts with, Neuzavreté from any day, is the default one', () => {
+    expect(isDefaultListFilter({ status: 'unclosed', from: null, to: null })).toBe(true);
+    expect(isDefaultListFilter(parseListFilter({}))).toBe(true);
+  });
+
+  test.each(['all', 'received', 'inProgress', 'waitingForParts', 'done', 'invoiced', 'cancelled'] as const)('the status "%s" makes the filter not the default one', (status) => {
+    expect(isDefaultListFilter({ status, from: null, to: null })).toBe(false);
+  });
+
+  test.each([
+    ['a day from', { from: '2026-10-01', to: null }],
+    ['a day to', { from: null, to: '2026-10-31' }],
+    ['a period', { from: '2026-10-01', to: '2026-10-31' }],
+  ] as const)('%s makes the filter not the default one, though the status is Neuzavreté', (_what, period) => {
+    expect(isDefaultListFilter({ status: 'unclosed', ...period })).toBe(false);
+  });
+
+  test('an address with nothing valid in it is the default filter, so it offers nothing to cancel', () => {
+    expect(isDefaultListFilter(parseListFilter({ status: 'open', from: 'dnes', to: '2026-02-30' }))).toBe(true);
   });
 
   test('Neuzavreté are every status but Vyfakturovaná and Zrušená, Všetky are all six, anything else is itself', () => {
