@@ -6,7 +6,7 @@ import { createCustomer } from '../src/dal/customers.ts';
 import type { User } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
 import { saveWorkshopDetails } from '../src/dal/workshop.ts';
-import { addItem, createWorkOrder } from '../src/dal/work-orders.ts';
+import { addItem, changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.ts';
 import { handoverProtocolResponse } from '../src/handover-protocol-response.ts';
 import { quoteResponse } from '../src/quote-response.ts';
 import { watchChromium } from './support/chromium.ts';
@@ -71,10 +71,20 @@ async function orderWithSixtyItems() {
   return id;
 }
 
+/**
+ * The Zákazka when the customer takes the vehicle over: Hotová, the status the odovzdávací protokol is printed in (the cenová
+ * ponuka is printed in any). It comes after the items, which change only while a Zákazka is Rozpracovaná.
+ */
+const handedOver = async (id: string) => {
+  await changeWorkOrderStatus(admin, id, { to: 'done' }, ctx.db);
+  return id;
+};
+
 const forms = [
   // `rowStart` is how the first line of a row of an item reads in the text of the PDF: the code of the item is in it.
-  { name: 'cenová ponuka', respond: quoteResponse, file: 'cenova-ponuka', title: 'Cenová ponuka', rowStart: /^K-\d+(?: |$)/ },
-  { name: 'odovzdávací protokol', respond: handoverProtocolResponse, file: 'odovzdavaci-protokol', title: 'Odovzdávací protokol', rowStart: /^DielK-/ },
+  // `ready` brings a Zákazka with its items to the status the form is printed in.
+  { name: 'cenová ponuka', respond: quoteResponse, file: 'cenova-ponuka', title: 'Cenová ponuka', rowStart: /^K-\d+(?: |$)/, ready: async (id: string) => id },
+  { name: 'odovzdávací protokol', respond: handoverProtocolResponse, file: 'odovzdavaci-protokol', title: 'Odovzdávací protokol', rowStart: /^DielK-/, ready: handedOver },
 ] as const;
 type Respond = (typeof forms)[number]['respond'];
 
@@ -84,51 +94,26 @@ const pagesOf = async (respond: Respond, id: string, at = now) => readPdf(await 
 const linesOf = (page: PdfPage) => page.text.split('\n');
 const lastPage = (pages: PdfPage[]) => pages.at(-1)!;
 
-describe.each(forms)('the $name', ({ respond, file, title, rowStart }) => {
-  test('is downloaded by the admin as a PDF named by the number of the Zákazka, on one A4 page', async () => {
-    const response = await respond(admin, await orderWithItems(), ctx.db, now);
+// What every form shares is printed and checked once, on the zákazkový list (job-sheet-response.test.ts): the A4 page, the
+// cache headers of the answer, the lines of the header and the footer, the letters and the day of the print. Here is what
+// differs from form to form: its file, its title, its table and who may have it.
+describe.each(forms)('the $name', ({ respond, file, title, rowStart, ready }) => {
+  test('is downloaded by the admin as a PDF named by the number of the Zákazka and the form, under its title', async () => {
+    const response = await respond(admin, await ready(await orderWithItems()), ctx.db, now);
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('application/pdf');
     expect(response.headers.get('Content-Disposition')).toBe(`attachment; filename="Z2026-0001-${file}.pdf"`);
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
-    const pdf = await bytesOf(response);
-    expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe('%PDF-');
-    const pages = readPdf(pdf);
-    expect(pages).toHaveLength(1);
-    expect(pages[0]!.width).toBeGreaterThan(595); // 595 × 842 points, A4; Chromium makes the page 595.92 × 842.88
-    expect(pages[0]!.width).toBeLessThan(597);
-    expect(pages[0]!.height).toBeGreaterThan(842);
-    expect(pages[0]!.height).toBeLessThan(844);
-  });
-
-  test('has the header of every form: the autoservis, its name, the number of the Zákazka, the day of the print, the customer and the vehicle, and Strana 1/1', async () => {
-    const [page] = await pagesOf(respond, await orderWithItems());
-
-    const text = page!.text;
-    for (const line of ['Autoservis Žilinský', 'Hlavná 1, 81101 Bratislava', 'IČO: 12345678', title, 'Z2026-0001', '28. 10. 2026', 'Ľubomír Škrabák', 'Škoda Octavia', 'WVWZZZ1JZ3W386752', 'BA123AB'])
-      expect(text, line).toContain(line);
-    expect(linesOf(page!).at(-1)).toBe('Strana 1/1');
-    expect(page!.missingGlyphs).toBe(0);
-  });
-
-  test('has Slovak letters in the items as letters, none of them as a missing glyph', async () => {
-    const letters = ['ľščťžýáíéóúäô', 'ňĺŕďĽŠČŤŽÝÁÍ', 'ÉÓÚÄÔŇĹŔĎ']; // a name each, so that none wraps in its column
-    const id = await newWorkOrder();
-    for (const name of letters) await addItem(admin, id, { kind: 'labour', name, quantity: '1', unitPrice: '10' }, ctx.db);
-
-    const [page] = await pagesOf(respond, id);
-
-    for (const name of letters) expect(page!.text).toContain(name);
-    expect(page!.missingGlyphs).toBe(0);
+    const [page] = readPdf(await bytesOf(response));
+    expect(page!.text).toContain(title);
+    expect(page!.text).toContain('Z2026-0001');
   });
 
   test('prints a name that is longer than its column on several lines, every character of it', async () => {
     const id = await newWorkOrder();
     await addItem(admin, id, { kind: 'part', code: 'DLHY', name: 'Q'.repeat(150), quantity: '1', unitPrice: '1' }, ctx.db);
 
-    const [page] = await pagesOf(respond, id);
+    const [page] = await pagesOf(respond, await ready(id));
 
     const lines = linesOf(page!);
     expect(lines.filter((line) => line.includes('Q'))).not.toHaveLength(1);
@@ -141,7 +126,7 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart }) => {
     const lengths = Array.from({ length: 30 }, (_, i) => 60 + (i % 5) * 10); // a name of three to six lines each, so that a page cannot end exactly between two rows
     for (const [i, length] of lengths.entries()) await addItem(admin, id, { kind: 'part', code: `K-${i + 1}`, name: 'Q'.repeat(length), quantity: '1', unitPrice: '1' }, ctx.db);
 
-    const pages = await pagesOf(respond, id);
+    const pages = await pagesOf(respond, await ready(id));
 
     expect(pages.length).toBeGreaterThan(2);
     for (const page of pages.slice(1)) {
@@ -157,7 +142,7 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart }) => {
     await addItem(admin, first, { kind: 'labour', name: 'Práca prvej', quantity: '1', unitPrice: '1' }, ctx.db);
     await addItem(admin, second, { kind: 'labour', name: 'Práca druhej', quantity: '1', unitPrice: '1' }, ctx.db);
 
-    const [page] = await pagesOf(respond, second);
+    const [page] = await pagesOf(respond, await ready(second));
 
     expect(page!.text).toContain('Z2026-0002');
     expect(page!.text).toContain('Práca druhej');
@@ -165,7 +150,7 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart }) => {
   });
 
   test('is a 401 that says so for nobody signed in, and a 403 for the mechanik, who gets no PDF and no detail of the Zákazka', async () => {
-    const id = await orderWithItems();
+    const id = await ready(await orderWithItems());
 
     const unsigned = await respond(null, id, ctx.db, now);
     const forbidden = await respond(mechanic, id, ctx.db, now);
@@ -190,13 +175,6 @@ describe.each(forms)('the $name', ({ respond, file, title, rowStart }) => {
       expect(response.headers.get('Content-Type'), id).toMatch(/^application\/json/);
       expect(await response.json(), id).toEqual({ error: 'Zákazka neexistuje.' });
     }
-  });
-
-  test('prints the day in Europe/Bratislava, which late in the evening UTC is already the next one', async () => {
-    const [page] = await pagesOf(respond, await orderWithItems(), new Date('2026-10-27T23:30:00Z'));
-
-    expect(page!.text).toContain('28. 10. 2026');
-    expect(page!.text).not.toContain('27. 10. 2026');
   });
 });
 
@@ -226,6 +204,7 @@ describe('the cenová ponuka', () => {
     const [page] = await pagesOf(quoteResponse, id);
 
     expect(linesOf(page!)).toEqual(expect.arrayContaining(['Spolu bez DPH0,20 €', 'DPH0,02 €', 'Spolu s DPH0,22 €'])); // 0,01 € of VAT on each, not 0,01 € on both
+    expect(page!.missingGlyphs).toBe(0); // the € sign is in the font: the zákazkový list has no amount to check it on
   });
 
   test('says so for a Zákazka without items, with sums of nothing', async () => {
@@ -255,7 +234,7 @@ describe('the cenová ponuka', () => {
 
 describe('the odovzdávací protokol', () => {
   test('lists the work and the parts with their quantities and units, the kilometres and the day of the handover, and two signature lines, and no price', async () => {
-    const [page] = await pagesOf(handoverProtocolResponse, await orderWithItems());
+    const [page] = await pagesOf(handoverProtocolResponse, await handedOver(await orderWithItems()));
 
     const lines = linesOf(page!);
     expect(lines).toEqual(
@@ -272,20 +251,20 @@ describe('the odovzdávací protokol', () => {
   });
 
   test('has the day of the handover that is the day of the print, also when it is not the day of the intake', async () => {
-    const [page] = await pagesOf(handoverProtocolResponse, await orderWithItems(), new Date('2026-12-24T11:00:00Z'));
+    const [page] = await pagesOf(handoverProtocolResponse, await handedOver(await orderWithItems()), new Date('2026-12-24T11:00:00Z'));
 
     expect(linesOf(page!)).toContain('Dátum odovzdania24. 12. 2026');
   });
 
   test('says so for a Zákazka without work or parts, and still has its signatures', async () => {
-    const [page] = await pagesOf(handoverProtocolResponse, await newWorkOrder());
+    const [page] = await pagesOf(handoverProtocolResponse, await handedOver(await newWorkOrder()));
 
     expect(page!.text).toContain('Zákazka nemá žiadne práce ani diely.');
     expect(linesOf(page!)).toContain('Podpis zákazníkaPodpis autoservisu');
   });
 
   test('with sixty items continues on the next pages: the head of the table on each, no row cut, every item once, the signatures on the last page, Strana X/Y on each', async () => {
-    const pages = await pagesOf(handoverProtocolResponse, await orderWithSixtyItems());
+    const pages = await pagesOf(handoverProtocolResponse, await handedOver(await orderWithSixtyItems()));
 
     expect(pages.length).toBeGreaterThan(1);
     pages.forEach((page, index) => expect(linesOf(page).at(-1)).toBe(`Strana ${index + 1}/${pages.length}`));
@@ -295,5 +274,14 @@ describe('the odovzdávací protokol', () => {
     for (let i = 1; i <= 60; i++) expect(rows.filter((row) => row === `DielK-${i}Položka ${i}x1 ks`), `K-${i}`).toHaveLength(1);
     for (const page of pages.slice(0, -1)) expect(page.text).not.toContain('Podpis');
     expect(linesOf(lastPage(pages))).toContain('Podpis zákazníkaPodpis autoservisu');
+  });
+
+  // The customer takes the vehicle over when the work is done (Kazarr, #139). Which statuses print is checked in test/handover-protocol.test.ts.
+  test('is refused with a 409 and a message, and no PDF is printed, for a Zákazka that is not Hotová or Vyfakturovaná yet', async () => {
+    const response = await handoverProtocolResponse(admin, await orderWithItems(), ctx.db, now);
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get('Content-Type')).toMatch(/^application\/json/);
+    expect(await response.json()).toEqual({ error: 'Odovzdávací protokol sa tlačí len pre zákazku v stave Hotová alebo Vyfakturovaná.' });
   });
 });

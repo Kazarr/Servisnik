@@ -4,7 +4,7 @@ import { currentUserWith } from '../../../dal/current-user.ts';
 import { searchPriceList } from '../../../dal/price-list.ts';
 import { formatEuro } from '../../../format.ts';
 import { Field } from '../field.tsx';
-import { itemKindLabels } from '../item-kind-labels.ts';
+import { itemKindLabels } from '../../../item-kind-labels.ts';
 import { Pager } from '../pager.tsx';
 import { first, pageOf, searchHref } from '../search-params.ts';
 import { DeletePriceListItemForm } from './delete-price-list-item-form.tsx';
