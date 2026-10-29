@@ -7,7 +7,7 @@ import { searchVehicles } from '../src/dal/vehicles.ts';
 import { addItem, getWorkOrder, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
 import { idOf } from '../test/support/id-of.ts';
 import { seedUser, setRole } from '../test/support/users.ts';
-import { dayFromToday, downloadPdf, expect, fillVehicle, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
+import { dayFromToday, downloadPdf, expect, fillLabour, fillVehicle, itemForm, runTag, seedMechanik, signInAs, test, vinOf } from './fixtures.ts';
 import { admin, openDatabase, seedWorkOrder } from './records.ts';
 
 let db: ReturnType<typeof openDatabase>;
@@ -121,10 +121,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   const itemId = idOf(await addItem(admin, order.orderId, { kind: 'part', name: 'Zostane', quantity: '1', unitPrice: '10' }, db));
   const detailPage = await context.newPage();
   await detailPage.goto(`/zakazky/${order.orderId}`);
-  const labourForm = detailPage.getByRole('form', { name: 'Pridať prácu' });
-  await labourForm.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
-  await labourForm.getByLabel('Množstvo', { exact: true }).fill('1');
-  await labourForm.getByLabel('Predajná cena za jednotku bez DPH (€)').fill('10');
+  await fillLabour(detailPage, { name: 'Nemala by sa pridať', quantity: '1', unitPrice: '10' });
   const itemPage = await context.newPage();
   await itemPage.goto(`/zakazky/${order.orderId}/polozky/${itemId}`);
   await itemPage.getByLabel('Názov', { exact: true }).fill('Nemal by sa zmeniť');
@@ -158,7 +155,7 @@ test('forms and buttons used after the admin became a mechanik answer with a mes
   await expect(intakePage.getByLabel('Model')).toHaveValue('Fabia');
   await headerPage.getByRole('button', { name: 'Uložiť zákazku' }).click();
   await expect(headerPage.locator('main').getByRole('alert')).toHaveText(message);
-  await labourForm.getByRole('button', { name: 'Pridať prácu' }).click();
+  await itemForm(detailPage, 'Pridať prácu').getByRole('button', { name: 'Pridať prácu' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText(message);
   await detailPage.getByRole('button', { name: 'Zmazať Zostane' }).click();
   await expect(detailPage.locator('main').getByRole('alert')).toHaveText([message, message]);

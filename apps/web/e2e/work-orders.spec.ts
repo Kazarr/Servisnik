@@ -1,12 +1,15 @@
 import type { Page } from '@playwright/test';
 import {
   addCustomer,
+  addLabour,
   addVehicleAndOpen,
   dayFromToday,
   detail,
   endSessionBehindThePage,
   expect,
   fillIntake,
+  fillLabour,
+  itemForm,
   numberOnTheDetail,
   runTag,
   signIn,
@@ -28,17 +31,6 @@ const year = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Br
 
 /** The running number of a work order number, e.g. 12 for "Z2026-0012". */
 const sequenceOf = (number: string) => Number(number.split('-')[1]);
-
-/** On a work order's detail: the form with this name; the Práca and the Diel each have one. */
-const formNamed = (page: Page, name: 'Pridať prácu' | 'Pridať diel') => page.locator('main').getByRole('form', { name });
-
-async function addLabour(page: Page, fields: { name: string; quantity: string; unitPrice: string }) {
-  const form = formNamed(page, 'Pridať prácu');
-  await form.getByLabel('Názov', { exact: true }).fill(fields.name);
-  await form.getByLabel('Množstvo', { exact: true }).fill(fields.quantity);
-  await form.getByLabel('Predajná cena za jednotku bez DPH (€)').fill(fields.unitPrice);
-  await form.getByRole('button', { name: 'Pridať prácu' }).click();
-}
 
 test('the admin adds a work order to a vehicle, then adds work, sees the amounts and marks it done', async ({ page }) => {
   test.slow(); // the longest flow; under --repeat-each the workers share one server
@@ -73,7 +65,7 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(main.getByRole('search')).toHaveCount(1);
 
   // The VAT rate starts at 23 %. A work item that is not one stays on the form, with the reason at the field.
-  const labourForm = formNamed(page, 'Pridať prácu');
+  const labourForm = itemForm(page, 'Pridať prácu');
   await expect(labourForm.getByLabel('Sadzba DPH (%)')).toHaveValue('23');
   await expect(labourForm.getByLabel('Jednotka')).toHaveValue('h');
   await addLabour(page, { name: 'Výmena oleja', quantity: '0', unitPrice: '40' });
@@ -149,7 +141,7 @@ test('the admin adds a part with a markup and sees the margin, then completes it
   await signIn(page);
   await page.goto(`/zakazky/${order.orderId}`);
   const main = page.locator('main');
-  const form = formNamed(page, 'Pridať diel');
+  const form = itemForm(page, 'Pridať diel');
   const purchasePrice = form.getByLabel('Nákupná cena za jednotku bez DPH (€)');
   const markup = form.getByLabel('Prirážka (%)');
   const salePrice = form.getByLabel('Predajná cena za jednotku bez DPH (€)');
@@ -341,12 +333,9 @@ test('the work order forms and the buttons for an item and for done, used after 
   await fillIntake(page, '500', 'Uloží sa');
   await expect(page).toHaveURL(/\/zakazky\/[0-9a-f-]{36}$/);
   const orderUrl = page.url();
-  const labourForm = formNamed(page, 'Pridať prácu');
-  await labourForm.getByLabel('Názov', { exact: true }).fill('Nemala by sa pridať');
-  await labourForm.getByLabel('Množstvo', { exact: true }).fill('1');
-  await labourForm.getByLabel('Predajná cena za jednotku bez DPH (€)').fill('10');
+  await fillLabour(page, { name: 'Nemala by sa pridať', quantity: '1', unitPrice: '10' });
   await endSessionBehindThePage(page, browser, baseURL);
-  await labourForm.getByRole('button', { name: 'Pridať prácu' }).click();
+  await itemForm(page, 'Pridať prácu').getByRole('button', { name: 'Pridať prácu' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await signIn(page);
   await page.goto(orderUrl);
