@@ -1,7 +1,7 @@
 'use client';
 
 import type { Rates } from '@servisnik/domain/settings';
-import { vatRatesKeeping, type ItemKind } from '@servisnik/domain/work-order';
+import { vatRatesKeeping, type ItemKind, type WorkOrderItem } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
 import { formatQuantityInput } from '../../../../format.ts';
 import { Field, FormError } from '../../field.tsx';
@@ -9,18 +9,8 @@ import { valueIn } from '../../form-value.ts';
 import { ItemFields, startingValues, usePriceSync, valuesOfItem } from '../../item-fields.tsx';
 import { addItemToWorkOrder, updateItemOfWorkOrder } from '../actions.ts';
 
-/** What the form needs to start from an item that is being edited. */
-export type EditedItem = {
-  id: string;
-  kind: ItemKind;
-  code: string | null;
-  name: string;
-  quantityHundredths: number;
-  unit: string;
-  purchasePriceCents: number | null;
-  unitPriceCents: number;
-  vatRate: number;
-};
+/** What the form needs to start from an item that is being edited: the item and its id. */
+export type EditedItem = WorkOrderItem & { id: string };
 
 /**
  * The form of a Položka zákazky: adds a Práca or a Diel to the Zákazka in `target`, or edits `target.item`. A new

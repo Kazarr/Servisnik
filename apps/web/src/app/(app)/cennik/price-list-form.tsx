@@ -1,5 +1,6 @@
 'use client';
 
+import type { PriceListItem } from '@servisnik/domain/price-list';
 import type { Rates } from '@servisnik/domain/settings';
 import { vatRatesKeeping, type ItemKind } from '@servisnik/domain/work-order';
 import { useActionState } from 'react';
@@ -8,17 +9,8 @@ import { valueIn } from '../form-value.ts';
 import { ItemFields, startingValues, usePriceSync, valuesOfItem } from '../item-fields.tsx';
 import { addToPriceList, editPriceListItem } from './actions.ts';
 
-/** What the form needs to start from an item of the Cenník that is being edited. */
-export type EditedPriceListItem = {
-  id: string;
-  kind: ItemKind;
-  code: string | null;
-  name: string;
-  unit: string;
-  purchasePriceCents: number | null;
-  unitPriceCents: number;
-  vatRate: number;
-};
+/** What the form needs to start from an item of the Cenník that is being edited: the item and its id. */
+export type EditedPriceListItem = PriceListItem & { id: string };
 
 /**
  * The form of a Položka cenníka: adds a Práca or a Diel of the kind in `target`, or edits `target.item`. It is the form
