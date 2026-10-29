@@ -20,6 +20,11 @@ export async function seedUser(db: Database, input: { email: string; password: s
   return id;
 }
 
+/** The name, e-mail and Rola of the user with this id as they are stored, or undefined when nobody has it. */
+export async function userRow(db: Database, id: string) {
+  return (await db.select({ name: user.name, email: user.email, role: user.role }).from(user).where(eq(user.id, id)))[0];
+}
+
 /** Changes the Rola of the user with this e-mail. It counts from the user's next request: the session reads the Rola from the database each time. */
 export async function setRole(db: Database, email: string, role: Role) {
   await db.update(user).set({ role }).where(eq(user.email, email));

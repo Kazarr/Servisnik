@@ -13,7 +13,7 @@ const secret = 'test-secret-test-secret-test-secret-0123';
 const email = 'jan@autoservis.test';
 const password = 'pociatocne-heslo-1234';
 const wrongMessage = 'Nesprávny e-mail alebo heslo.';
-const deactivatedMessage = 'Účet je deaktivovaný. Obráťte sa na admina.';
+const deactivatedMessage = 'Používateľ je deaktivovaný. Obráťte sa na admina.';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let auth: ReturnType<typeof createAuth>;
@@ -45,7 +45,7 @@ test.each([
   expect(await ctx.db.$count(session)).toBe(0);
 });
 
-test('a Deaktivovaný používateľ with the right password is told his account is deactivated, and no session starts', async () => {
+test('a Deaktivovaný používateľ with the right password is told he is deactivated, and no session starts', async () => {
   await deactivate();
 
   expect(await signIn(email, password)).toEqual({ ok: false, message: deactivatedMessage });
