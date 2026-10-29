@@ -182,7 +182,7 @@ describe('what a status allows', () => {
 
 // Money is whole cents and the quantity is in hundredths (150 = 1,5 h). Every expected value below
 // is worked out by hand: the exact amount, then rounded half up to the cent.
-const labour = (quantityHundredths: number, unitPriceCents: number, vatRate = 23) => ({ quantityHundredths, unitPriceCents, vatRate });
+const labour = (quantityHundredths: number, salePriceCents: number, vatRate = 23) => ({ quantityHundredths, salePriceCents, vatRate });
 
 describe('amounts of an item', () => {
   test('1,5 h at 40 € without VAT, VAT 23 %', () => {

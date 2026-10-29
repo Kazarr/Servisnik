@@ -141,7 +141,7 @@ describe('the Prirážka made from a Nákupná cena and a Predajná cena', () =>
 // A Položka zákazky as the admin types it, a Práca or a Diel. The rates of Nastavenia are handed to the domain.
 describe('a Položka zákazky as the admin types it', () => {
   const rates = { defaultVatRate: 23, vatRates: [23, 19, 5] };
-  const labour = { kind: 'labour', name: ' Výmena oleja ', quantity: '1,5', unitPrice: '40', vatRate: '23' } as const;
+  const labour = { kind: 'labour', name: ' Výmena oleja ', quantity: '1,5', salePrice: '40', vatRate: '23' } as const;
   const part = {
     kind: 'part',
     code: ' OL-5W30 ',
@@ -149,7 +149,7 @@ describe('a Položka zákazky as the admin types it', () => {
     quantity: '4',
     unit: 'l',
     purchasePrice: '12,50',
-    unitPrice: '15,60',
+    salePrice: '15,60',
     vatRate: '19',
   } as const;
   const parsed = (input: ItemInput) => parseItem(input, rates);
@@ -158,14 +158,14 @@ describe('a Položka zákazky as the admin types it', () => {
   test('a Práca is in hours unless the unit is typed, has no code and no Nákupná cena, and keeps its quantity in hundredths and its price in cents', () => {
     expect(parsed(labour)).toEqual({
       ok: true,
-      item: { kind: 'labour', code: null, name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', purchasePriceCents: null, unitPriceCents: 4000, vatRate: 23 },
+      item: { kind: 'labour', code: null, name: 'Výmena oleja', quantityHundredths: 150, unit: 'h', purchasePriceCents: null, salePriceCents: 4000, vatRate: 23 },
     });
   });
 
   test('a Diel keeps its trimmed code, unit and Nákupná cena beside the Predajná cena', () => {
     expect(parsed(part)).toEqual({
       ok: true,
-      item: { kind: 'part', code: 'OL-5W30', name: 'Olej 5W-30', quantityHundredths: 400, unit: 'l', purchasePriceCents: 1250, unitPriceCents: 1560, vatRate: 19 },
+      item: { kind: 'part', code: 'OL-5W30', name: 'Olej 5W-30', quantityHundredths: 400, unit: 'l', purchasePriceCents: 1250, salePriceCents: 1560, vatRate: 19 },
     });
   });
 
@@ -221,8 +221,8 @@ describe('a Položka zákazky as the admin types it', () => {
     ['33,33', 3333],
     ['0', 0],
     ['1 000 000', 100000000],
-  ])('Predajná cena "%s" is %i cents', (unitPrice, cents) => {
-    expect(refused({ unitPrice })).toMatchObject({ ok: true, item: { unitPriceCents: cents } });
+  ])('Predajná cena "%s" is %i cents', (salePrice, cents) => {
+    expect(refused({ salePrice })).toMatchObject({ ok: true, item: { salePriceCents: cents } });
   });
 
   test.each([
@@ -237,8 +237,8 @@ describe('a Položka zákazky as the admin types it', () => {
     expect(refused({ quantity })).toEqual({ ok: false, errors: { quantity: 'invalid' } });
   });
 
-  test.each(['', '-5', '40,505', '40 €', 'drahé', '1000000,01'])('Predajná cena "%s" is refused', (unitPrice) => {
-    expect(refused({ unitPrice })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
+  test.each(['', '-5', '40,505', '40 €', 'drahé', '1000000,01'])('Predajná cena "%s" is refused', (salePrice) => {
+    expect(refused({ salePrice })).toEqual({ ok: false, errors: { salePrice: 'invalid' } });
   });
 
   test.each(['-5', '12,505', '12 €', 'drahé', '1000000,01'])('Nákupná cena "%s" of a Diel is refused', (purchasePrice) => {
@@ -256,9 +256,9 @@ describe('a Položka zákazky as the admin types it', () => {
 
   test('a name is required, and every reason comes back at once', () => {
     expect(refused({ name: '  ' })).toEqual({ ok: false, errors: { name: 'required' } });
-    expect(parsed({ ...part, name: '', quantity: '0', unit: '', purchasePrice: 'x', markup: 'x', unitPrice: '', vatRate: 'x' })).toEqual({
+    expect(parsed({ ...part, name: '', quantity: '0', unit: '', purchasePrice: 'x', markup: 'x', salePrice: '', vatRate: 'x' })).toEqual({
       ok: false,
-      errors: { name: 'required', quantity: 'invalid', unit: 'required', purchasePrice: 'invalid', markup: 'invalid', unitPrice: 'invalid', vatRate: 'invalid' },
+      errors: { name: 'required', quantity: 'invalid', unit: 'required', purchasePrice: 'invalid', markup: 'invalid', salePrice: 'invalid', vatRate: 'invalid' },
     });
   });
 
@@ -274,16 +274,16 @@ describe('a Položka zákazky as the admin types it', () => {
     });
 
     test('one that makes the Predajná cena is accepted though the price makes another: 12,5 % on 3,33 € is 3,75 €, which is 12,6 % of 3,33 €', () => {
-      expect(withMarkup('12,5', { purchasePrice: '3,33', unitPrice: '3,75' })).toMatchObject({ ok: true, item: { purchasePriceCents: 333, unitPriceCents: 375 } });
+      expect(withMarkup('12,5', { purchasePrice: '3,33', salePrice: '3,75' })).toMatchObject({ ok: true, item: { purchasePriceCents: 333, salePriceCents: 375 } });
     });
 
     test('a sale below the Nákupná cena is saved as it was, with the negative Prirážka the form shows: 9,00 € on 10,00 € is -10 %', () => {
-      expect(withMarkup('-10', { purchasePrice: '10', unitPrice: '9' })).toMatchObject({ ok: true, item: { purchasePriceCents: 1000, unitPriceCents: 900 } });
-      expect(withMarkup('-100', { purchasePrice: '10', unitPrice: '0' })).toMatchObject({ ok: true, item: { unitPriceCents: 0 } });
+      expect(withMarkup('-10', { purchasePrice: '10', salePrice: '9' })).toMatchObject({ ok: true, item: { purchasePriceCents: 1000, salePriceCents: 900 } });
+      expect(withMarkup('-100', { purchasePrice: '10', salePrice: '0' })).toMatchObject({ ok: true, item: { salePriceCents: 0 } });
     });
 
     test('a Prirážka of 0 is one that fits a Predajná cena equal to the Nákupná cena', () => {
-      expect(withMarkup('0', { purchasePrice: '10', unitPrice: '10' })).toMatchObject({ ok: true });
+      expect(withMarkup('0', { purchasePrice: '10', salePrice: '10' })).toMatchObject({ ok: true });
     });
 
     test('a field left blank, or not sent, says nothing the prices could contradict', () => {
@@ -307,18 +307,18 @@ describe('a Položka zákazky as the admin types it', () => {
     });
 
     test('a Nákupná cena of 0 € has no Prirážka to show: a blank one fits any Predajná cena, and one that is typed fits only the Predajná cena of 0 € that it makes', () => {
-      expect(withMarkup('', { purchasePrice: '0', unitPrice: '5' })).toMatchObject({ ok: true });
-      expect(withMarkup('25', { purchasePrice: '0', unitPrice: '0' })).toMatchObject({ ok: true });
-      expect(withMarkup('25', { purchasePrice: '0', unitPrice: '5' })).toEqual({ ok: false, errors: { markup: 'disagrees' } });
+      expect(withMarkup('', { purchasePrice: '0', salePrice: '5' })).toMatchObject({ ok: true });
+      expect(withMarkup('25', { purchasePrice: '0', salePrice: '0' })).toMatchObject({ ok: true });
+      expect(withMarkup('25', { purchasePrice: '0', salePrice: '5' })).toEqual({ ok: false, errors: { markup: 'disagrees' } });
     });
 
     test('there is nothing to fit without a Nákupná cena: the Prirážka of Nastavenia that starts the form stays, whatever the price', () => {
-      expect(withMarkup('25', { purchasePrice: '' })).toMatchObject({ ok: true, item: { purchasePriceCents: null, unitPriceCents: 1560 } });
+      expect(withMarkup('25', { purchasePrice: '' })).toMatchObject({ ok: true, item: { purchasePriceCents: null, salePriceCents: 1560 } });
       expect(withMarkup('25', { purchasePrice: undefined })).toMatchObject({ ok: true });
     });
 
     test('it is not asked when the prices are not fit to ask it of, and only the reasons of the prices come back', () => {
-      expect(withMarkup('25', { unitPrice: 'x' })).toEqual({ ok: false, errors: { unitPrice: 'invalid' } });
+      expect(withMarkup('25', { salePrice: 'x' })).toEqual({ ok: false, errors: { salePrice: 'invalid' } });
       expect(withMarkup('25', { purchasePrice: 'x' })).toEqual({ ok: false, errors: { purchasePrice: 'invalid' } });
     });
 
@@ -356,9 +356,9 @@ describe('the Sadzby DPH an item that is edited may choose from', () => {
 });
 
 describe('the Marža of a Zákazka', () => {
-  const labour = (quantityHundredths: number, unitPriceCents: number) => ({ kind: 'labour', quantityHundredths, unitPriceCents, vatRate: 23, purchasePriceCents: null }) as const;
-  const part = (quantityHundredths: number, purchasePriceCents: number | null, unitPriceCents: number) =>
-    ({ kind: 'part', quantityHundredths, unitPriceCents, vatRate: 23, purchasePriceCents }) as const;
+  const labour = (quantityHundredths: number, salePriceCents: number) => ({ kind: 'labour', quantityHundredths, salePriceCents, vatRate: 23, purchasePriceCents: null }) as const;
+  const part = (quantityHundredths: number, purchasePriceCents: number | null, salePriceCents: number) =>
+    ({ kind: 'part', quantityHundredths, salePriceCents, vatRate: 23, purchasePriceCents }) as const;
 
   test('a Zákazka with no Položka has no Marža and no percentage', () => {
     expect(marginOf([])).toEqual({ purchaseNet: 0, cents: 0, percentTenths: null, partsWithoutPurchasePrice: 0 });
