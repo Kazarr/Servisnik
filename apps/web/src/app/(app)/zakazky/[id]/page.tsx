@@ -40,15 +40,15 @@ export default async function WorkOrderPage({
   const { q, strana } = await searchParams;
   if (!order) notFound();
   const mayWrite = can(user.role, 'work-orders.write'); // a Rola that may not write sees no button, form or link that changes the Zákazka
-  const mayChange = mayWrite && canEdit(order.status);
+  const editable = mayWrite && canEdit(order.status); // the link to the header, the Akcie of the items and the forms that add an item are drawn only then
   const transitions = mayWrite ? userTransitions(order.status) : [];
-  const rates = mayChange ? await getRates(user) : null; // only the forms for the items use them, and only while they can change
+  const rates = editable ? await getRates(user) : null; // the forms that add an item need them, so they are read only for an editable Zákazka
 
   return (
     <>
       <div className="page-header">
         <h1>{order.number}</h1>
-        {mayChange && (
+        {editable && (
           <Link href={`/zakazky/${order.id}/upravit`} className="button">
             Upraviť zákazku
           </Link>
@@ -121,7 +121,7 @@ export default async function WorkOrderPage({
                   <th scope="col" className="amount">Bez DPH</th>
                   <th scope="col" className="amount">DPH</th>
                   <th scope="col" className="amount">S DPH</th>
-                  {rates && <th scope="col">Akcie</th>}
+                  {editable && <th scope="col">Akcie</th>}
                 </tr>
               </thead>
               <tbody>
@@ -138,7 +138,7 @@ export default async function WorkOrderPage({
                     <td className="amount">{formatEuro(item.amounts.net)}</td>
                     <td className="amount">{formatEuro(item.amounts.vat)}</td>
                     <td className="amount">{formatEuro(item.amounts.gross)}</td>
-                    {rates && (
+                    {editable && (
                       <td>
                         <div className="row-actions">
                           <Link href={`/zakazky/${order.id}/polozky/${item.id}`} aria-label={`Upraviť ${item.name}`}>
