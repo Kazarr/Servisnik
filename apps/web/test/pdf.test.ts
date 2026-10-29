@@ -15,9 +15,14 @@ afterAll(closeAll);
 const page = (body: string) => `<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>Skúška</title></head><body>${body}</body></html>`;
 const millimetres = (mm: number) => (mm * 72) / 25.4;
 
+// The real work of a test that starts Chromium: launching it (and, in the second, closing the one that runs first),
+// then the prints: 1.5 s on an idle machine, and Playwright itself gives a launch 30 s. Under load (several verify
+// runs at once, #134) the second took longer than the 30 s of a test, so these two have three times that.
+const startsChromium = { timeout: 90_000 };
+
 // The first two run in this order: they count the launches of the one Chromium of the process.
 
-test('Chromium starts with the first print, and every next print uses the same one', async () => {
+test('Chromium starts with the first print, and every next print uses the same one', startsChromium, async () => {
   expect(launched).toHaveLength(0);
 
   await printPdf(page('<p>Prvá</p>'));
@@ -26,7 +31,7 @@ test('Chromium starts with the first print, and every next print uses the same o
   expect(launched).toHaveLength(1);
 });
 
-test('after Chromium went away the next print starts a new one, and prints that start together share it', async () => {
+test('after Chromium went away the next print starts a new one, and prints that start together share it', startsChromium, async () => {
   await launched[0]!.close();
 
   await Promise.all([printPdf(page('<p>A</p>')), printPdf(page('<p>B</p>')), printPdf(page('<p>C</p>'))]);

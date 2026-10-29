@@ -35,6 +35,8 @@ const commit = (subject: string, ...files: string[]) => {
 const merge = (branch: string, subject: string) => git('merge', '-q', '--no-ff', '-m', subject, branch);
 const check = (base: string) => checkCommits(parseGitLog(git(...gitLogArgs(base))));
 
+// The real work: nine git processes (init, five config, add, commit, rev-parse), about a second on an idle Windows machine.
+// The 10 s of a hook failed under load (#134); it gets the 30 s the tests below have for theirs.
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'check-commits-'));
   git('init', '-q', '-b', 'trunk');
@@ -44,7 +46,7 @@ beforeAll(() => {
   git('config', 'core.autocrlf', 'false');
   git('config', 'core.hooksPath', join(dir, 'no-hooks'));
   commit('chore: base', 'README.md');
-});
+}, 30_000);
 
 afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 3 }));
 

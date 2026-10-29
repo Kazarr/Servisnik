@@ -119,7 +119,9 @@ test('a file of exactly 1 MB is kept and one byte more is refused with 413, the 
 
   expect(response.status).toBe(413);
   expect(await response.json()).toEqual({ error: 'Súbor je väčší ako 1 MB. Vyberte menšie logo.' });
-  expect(await stored()).toEqual(padded(png, maxLogoBytes));
+  const kept = await stored();
+  expect(kept).not.toBeNull();
+  expect(Buffer.compare(kept!, padded(png, maxLogoBytes))).toBe(0); // `toEqual` walks a million bytes one by one: seconds on an idle machine, over the limit on a busy one
 });
 
 test('a body that says in advance it is over 1 MB is refused before it is read', async () => {
