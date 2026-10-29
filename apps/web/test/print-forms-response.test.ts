@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { forbiddenMessage } from '../src/app/(app)/forbidden.ts';
 import { createCustomer } from '../src/dal/customers.ts';
@@ -14,6 +13,7 @@ import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { readPdf, type PdfPage } from './support/pdf.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The Route Handlers of the cenová ponuka and the odovzdávací protokol (spec #95, Tlačivá; ticket #103): the admin gets the
 // PDF of a Zákazka as a download, nobody else does. The route files only find the user in the session; the answers are
@@ -48,7 +48,7 @@ afterAll(async () => {
   await ctx.close();
 });
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter');
   const ownerId = idOf(await createCustomer(admin, { type: 'person', name: 'Ľubomír Škrabák' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Škoda', model: 'Octavia' }, ctx.db));
 });

@@ -9,6 +9,13 @@ import { parse, parseAllDocuments } from 'yaml';
 // Spec #77, "Nasadenie". Nothing here deploys: a cloud account, a token and a person are needed for
 // that. These tests hold the files that drive a deploy to what the ticket and the research decided,
 // and the image itself is proven by building and running it (README, "Nasadenie").
+
+// The real work of the tests that run a workflow step: a bash, a fake doctl and a few more processes per run, and the
+// slowest (the garbage-collection wait) runs the step three times. That is 3.4 s on an idle Windows machine and 36 s with
+// two `pnpm verify` at once (#134), where the 30 s of the project ran out. 70 s is twenty times the idle run; the tests
+// that only read files keep the 30 s of the project.
+const bashSteps = { timeout: 70_000 };
+
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 type Env = { key: string; value?: string; type?: string; scope?: string };
@@ -329,7 +336,7 @@ function execute(workflowStep: Step, { logs, tags, files = {}, env = {} }: Given
   return result;
 }
 
-test('before the deploy the workflow saves the run log of the service the spec names, and an empty one while the app does not exist', () => {
+test('before the deploy the workflow saves the run log of the service the spec names, and an empty one while the app does not exist', bashSteps, () => {
   const { name, services } = spec();
   const logs = 'Error: connect ECONNREFUSED\n';
 
@@ -341,7 +348,7 @@ test('before the deploy the workflow saves the run log of the service the spec n
   expect(first.output).toContain('::notice');
 });
 
-test('after the smoke the workflow fails on an error the run log gained, and passes when it gained none', () => {
+test('after the smoke the workflow fails on an error the run log gained, and passes when it gained none', bashSteps, () => {
   const known = '2026-10-28T10:00:00Z Error: connect ECONNREFUSED\n';
   const compare = (after: string) => execute(step(isLogDiff), { files: { 'run-before.log': known }, logs: after, env: { APP_ID: 'app-id-1' } });
 
@@ -363,7 +370,7 @@ const listTags = 'registry repository list-tags servisnik --output json';
 const collect = 'registry garbage-collection start --include-untagged-manifests --force';
 const cleanup = (given: Given & { sha?: string } = {}) => execute(step(isRetention), { tags: registryTags, ...given, env: { GITHUB_SHA: given.sha ?? 'e', ...given.env } });
 
-test('after the push the registry keeps the newest tags, the one just pushed and the live one, deletes the rest and collects the garbage', () => {
+test('after the push the registry keeps the newest tags, the one just pushed and the live one, deletes the rest and collects the garbage', bashSteps, () => {
   expect(cleanup({ files: { apps: runningApps('d') } })).toMatchObject({
     status: 0,
     calls: [listApps, listTags, 'registry repository delete-tag servisnik --force b a', collect],
@@ -375,20 +382,20 @@ test('after the push the registry keeps the newest tags, the one just pushed and
   });
 });
 
-test('after the push the registry deletes no tag while it holds few, or while the app has no live version yet, and still collects the garbage', () => {
+test('after the push the registry deletes no tag while it holds few, or while the app has no live version yet, and still collects the garbage', bashSteps, () => {
   const few = JSON.stringify([tagged('a', 1)]);
 
   expect(cleanup({ tags: few, sha: 'a', files: { apps: runningApps() } })).toMatchObject({ status: 0, calls: [listApps, listTags, collect] });
 });
 
-test('the registry is left alone, and the step fails, when the live version cannot be told: the apps call fails, or the deployment shows no image tag', () => {
+test('the registry is left alone, and the step fails, when the live version cannot be told: the apps call fails, or the deployment shows no image tag', bashSteps, () => {
   const noTag = JSON.stringify([{ spec: { name: spec().name }, active_deployment: { spec: { services: [] } } }]);
 
   expect(cleanup({})).toMatchObject({ status: 1, calls: [listApps] }); // no `apps` file: doctl fails
   expect(cleanup({ files: { apps: noTag } })).toMatchObject({ status: 1, calls: [listApps, listTags] });
 });
 
-test('the registry is left alone, and the step fails, when listing its tags fails or its output is no JSON: a pipe does not hide the failure', () => {
+test('the registry is left alone, and the step fails, when listing its tags fails or its output is no JSON: a pipe does not hide the failure', bashSteps, () => {
   const apps = { apps: runningApps('d') };
   const listingFails = execute(step(isRetention), { files: apps, env: { GITHUB_SHA: 'e' } }); // no `tags` file: doctl fails
   const notJson = cleanup({ tags: 'doctl: unauthorized', files: apps });
@@ -397,7 +404,7 @@ test('the registry is left alone, and the step fails, when listing its tags fail
   expect(notJson).toMatchObject({ status: 1, calls: [listApps, listTags] });
 });
 
-test('before the build the workflow waits while the registry collects garbage, which keeps it read-only, and gives up after ten minutes', () => {
+test('before the build the workflow waits while the registry collects garbage, which keeps it read-only, and gives up after ten minutes', bashSteps, () => {
   // The step polls 30 times, 20 seconds apart, unless told otherwise; the test shortens both.
   const wait = (collections: number) => execute(step(isGcWait), { files: { 'gc-active': String(collections) }, env: { GC_POLL_SECONDS: '0', GC_POLL_ATTEMPTS: '3' } });
   const poll = 'registry garbage-collection get-active';
@@ -411,7 +418,7 @@ test('before the build the workflow waits while the registry collects garbage, w
   expect(stuck.output).toContain('::error');
 });
 
-test('the deploy workflow stops with a clear error naming each secret that is missing, before it builds', () => {
+test('the deploy workflow stops with a clear error naming each secret that is missing, before it builds', bashSteps, () => {
   const check = step(isSecretCheck);
   const names = Object.keys(check.env ?? {});
   // The step runs as it is, with the secrets it is given as environment variables.

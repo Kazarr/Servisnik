@@ -2,7 +2,7 @@ import type { PriceListItemInput } from '@servisnik/domain/price-list';
 import { workOrderStatuses, type ItemInput, type WorkOrderStatus } from '@servisnik/domain/work-order';
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { createPriceListItem, deletePriceListItem, updatePriceListItem } from '../src/dal/price-list.ts';
 import { UnauthenticatedError } from '../src/dal/user.ts';
@@ -25,7 +25,9 @@ import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { failInsertsInto } from './support/failing-insert.ts';
 import { idOf } from './support/id-of.ts';
+import { untilLockWaits } from './support/lock-waits.ts';
 import { findPriceKeys } from './support/price-keys.ts';
+import { truncateTables } from './support/reset.ts';
 
 const summer = new Date('2026-07-15T10:00:00Z');
 
@@ -37,7 +39,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter, price_list_item cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter', 'price_list_item');
   await ctx.db.execute(sql`update workshop set vat_rates = '{23,19,5}', default_vat_rate = 23`); // the rates the migration starts with; some tests change them
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
@@ -91,16 +93,11 @@ async function whileHeld(hold: (tx: Parameters<Parameters<typeof ctx.db.transact
 
   const acting = act();
   try {
-    await vi.waitFor(
-      async () => {
-        const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
-        expect(waiting.rows).toHaveLength(1);
-      },
-      { timeout: 10_000 },
-    );
+    await untilLockWaits(ctx.db);
   } finally {
     committed.resolve();
     await other;
+    await acting.catch(() => {}); // when waiting failed, `act` still finishes before the next test resets the tables (#134); the failure is the one reported
   }
   return acting;
 }
@@ -724,33 +721,14 @@ test('a Zákazka that cannot be saved leaves the Stav km of the vehicle and the 
 
 test('kilometres read the Stav km of the vehicle after another save of it has committed, so a lower one cannot overwrite a higher one', async () => {
   await setVehicleKm(100000);
-  const raising = Promise.withResolvers<void>();
-  const committed = Promise.withResolvers<void>();
-  // The other save: another intake raised the Stav km to 200 000 and holds the row until `committed` is resolved.
-  const raised = ctx.db.transaction(async (tx) => {
-    await tx.execute(sql`update vehicle set mileage_km = 200000 where id = ${vehicleId}`);
-    raising.resolve();
-    await committed.promise;
-  });
-  await raising.promise;
 
-  const creating = createWorkOrder(admin, intake({ mileageKm: '150 000' }), ctx.db, summer);
-  try {
-    // Not a timer: go on only once PostgreSQL shows a session of this database waiting for a lock.
-    await vi.waitFor(
-      async () => {
-        const waiting = await ctx.db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`);
-        expect(waiting.rows).toHaveLength(1);
-      },
-      { timeout: 10_000 },
-    );
-  } finally {
-    // Also when nothing waits: the other save must end, or its connection keeps the pool open.
-    committed.resolve();
-    await raised;
-  }
+  // The other save: another intake raised the Stav km to 200 000 and holds the row until this one has met the lock.
+  const created = await whileHeld(
+    (tx) => tx.execute(sql`update vehicle set mileage_km = 200000 where id = ${vehicleId}`),
+    () => createWorkOrder(admin, intake({ mileageKm: '150 000' }), ctx.db, summer),
+  );
 
-  expect(await creating).toMatchObject({ ok: true, lowerMileage: { vehicleMileageKm: 200000 } });
+  expect(created).toMatchObject({ ok: true, lowerMileage: { vehicleMileageKm: 200000 } });
   expect((await vehicleRow()).mileageKm).toBe(200000);
 });
 

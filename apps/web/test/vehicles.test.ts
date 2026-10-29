@@ -10,6 +10,7 @@ import { createWorkOrder, getWorkOrder } from '../src/dal/work-orders.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { truncateTables } from './support/reset.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
 
@@ -20,7 +21,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer cascade`);
+  await truncateTables(ctx.db, 'customer');
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
 });
 

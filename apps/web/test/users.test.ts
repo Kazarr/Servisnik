@@ -6,6 +6,7 @@ import { account, user } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { raceForUserWrites } from './support/race.ts';
+import { truncateTables } from './support/reset.ts';
 
 // Používatelia in Nastavenia: the list and the creation of one, on the real Better Auth (admin plugin) and PostgreSQL.
 // Who may do it is the table in dal-access.test.ts.
@@ -22,7 +23,7 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 // Every test starts without a user.
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate "user" cascade`);
+  await truncateTables(ctx.db, '"user"');
 });
 
 const create = (input: Partial<Parameters<typeof createUser>[1]> = {}) =>

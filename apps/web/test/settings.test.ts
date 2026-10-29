@@ -8,6 +8,7 @@ import { workshop } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The rates part of Nastavenia (GLOSSARY): the VAT rates with the default one, the hourly rate and the markup on parts.
 // Who may read and write them is the table in dal-access.test.ts.
@@ -24,7 +25,7 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 // Every test starts from the rates the migration created.
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter');
   expect(await saveRates(admin, startingInput, ctx.db)).toMatchObject({ ok: true });
 });
 

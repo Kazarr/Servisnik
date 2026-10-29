@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer, deleteCustomer, getCustomer, searchCustomers } from '../src/dal/customers.ts';
 import { createVehicle, deleteVehicle, getVehicle } from '../src/dal/vehicles.ts';
 import { changeWorkOrderStatus, createWorkOrder, listWorkOrdersOfCustomer, listWorkOrdersOfVehicle } from '../src/dal/work-orders.ts';
@@ -7,6 +7,8 @@ import { customer, vehicle } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { untilLockWaits } from './support/lock-waits.ts';
+import { truncateTables } from './support/reset.ts';
 
 // Mazanie (spec #67): a Zákazník or a Vozidlo with any link is never deleted. PostgreSQL decides (the
 // foreign keys are `restrict`), so no check can go stale between the look and the delete; the Rola
@@ -19,7 +21,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer cascade`);
+  await truncateTables(ctx.db, 'customer');
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
 });
 
@@ -138,27 +140,26 @@ test('every foreign key that points at a Zákazník or a Vozidlo is `restrict`, 
 // A link that is added while the delete is under way. Its foreign key holds a lock on the row the
 // delete wants, so the delete waits for it, and then PostgreSQL looks again and refuses.
 
-/** Waits until a statement of this database is blocked behind another one's lock. */
-const untilSomeoneWaits = () =>
-  vi.waitFor(async () => {
-    const { rows } = await ctx.db.execute<{ waiting: number }>(
-      sql`select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
-    );
-    expect(rows[0]!.waiting).toBeGreaterThan(0);
-  });
-
 /** Runs `link` in a transaction that stays open, starts `deleting`, lets it wait on the lock of the link, and only then commits. */
 async function deleteWhileLinkIsAdded<Result>(link: string, parameters: unknown[], deleting: () => Promise<Result>) {
   const other = await ctx.db.$client.connect();
+  let result: Promise<Result> | undefined;
+  let failed = true;
   try {
     await other.query('begin');
     await other.query(link, parameters);
-    const result = deleting();
-    await untilSomeoneWaits();
+    result = deleting();
+    await untilLockWaits(ctx.db);
     await other.query('commit');
-    return await result;
+    const done = await result;
+    failed = false;
+    return done;
   } finally {
-    other.release();
+    // After a failure the connection still has its transaction open and holds the locks, so the delete would wait for them and
+    // the next test's reset after it. Destroying the connection ends the transaction (#134), and waiting for the delete leaves
+    // nothing running when the next test starts; the failure that got us here is the one the test reports.
+    other.release(failed);
+    await result?.catch(() => {});
   }
 }
 

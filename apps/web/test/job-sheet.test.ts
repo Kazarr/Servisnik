@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { getJobSheet } from '../src/dal/job-sheet.ts';
@@ -9,6 +8,7 @@ import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The data of the Zákazkový list (GLOSSARY): the customer, the vehicle, the kilometres and the request, and no price.
 
@@ -20,7 +20,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate customer, work_order_counter cascade`);
+  await truncateTables(ctx.db, 'customer', 'work_order_counter');
   ownerId = idOf(await createCustomer(admin, { type: 'company', name: 'Firma s.r.o.', ico: '12345678' }, ctx.db));
   vehicleId = idOf(await createVehicle(admin, { ownerId, vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 });

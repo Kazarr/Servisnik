@@ -6,13 +6,14 @@ import { createVehicle, searchVehicles } from '../src/dal/vehicles.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
+import { truncateTables } from './support/reset.ts';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => {
   ctx = await createTestDb();
 });
 afterAll(() => ctx.close());
-beforeEach(() => ctx.db.execute(sql`truncate customer cascade`));
+beforeEach(() => truncateTables(ctx.db, 'customer'));
 
 const customer = async (name: string) => idOf(await createCustomer(admin, { type: 'person', name }, ctx.db));
 

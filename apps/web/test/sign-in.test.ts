@@ -1,10 +1,11 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { signInWithPassword } from '../src/app/login/sign-in.ts';
 import { createAuth } from '../src/auth.ts';
 import { session, user } from '../src/db/schema.ts';
 import { createTestDb } from './support/db.ts';
 import { seedUser } from './support/users.ts';
+import { truncateTables } from './support/reset.ts';
 
 // The login of a Používateľ, with the message each refusal gets (spec #117, "Používatelia"): the
 // message of a Deaktivovaný používateľ comes only after the right password.
@@ -23,7 +24,7 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 beforeEach(async () => {
-  await ctx.db.execute(sql`truncate "user" cascade`);
+  await truncateTables(ctx.db, '"user"');
   await seedUser(ctx.db, { email, password, role: 'mechanik' });
 });
 

@@ -18,5 +18,9 @@ export async function createTestDb(): Promise<{ db: Database; close: () => Promi
   await maintenance.end();
 
   const db = createDb(withDatabase(uri, name));
+  // The pool of the app waits 2 s for a connection, so that /api/health answers in time (src/db/index.ts, test/health.test.ts).
+  // A test is not a health check: with two `pnpm verify` at once a connection to the container took longer (#134), and the
+  // test failed with "Connection terminated due to connection timeout". pg-pool reads the option at every checkout.
+  db.$client.options.connectionTimeoutMillis = 30_000;
   return { db, close: () => db.$client.end() };
 }
