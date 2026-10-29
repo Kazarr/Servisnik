@@ -37,8 +37,9 @@ const check = (base: string) => checkCommits(parseGitLog(git(...gitLogArgs(base)
 
 // The real work is git processes: nine in the hook (init, five config, add, commit, rev-parse), about a second on an idle
 // Windows machine, and one to four seconds for each test below (a branch, some commits, a merge). With two `pnpm verify` at
-// once (#134) the hook ran past its 10 s default and a test past 30 s, so all of them have 90 s: twenty times the slowest idle run.
-const gitWork = 90_000;
+// once (#134) the hook ran past its 10 s default and a test past 30 s, so all of them have 80 s: twenty times the 4 s of the
+// slowest idle test (3.9 s measured).
+const gitWork = 80_000;
 
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'check-commits-'));
