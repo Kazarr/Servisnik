@@ -2,6 +2,7 @@ import type { ItemKind, WorkOrderStatus } from '@servisnik/domain/work-order';
 import { eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { customer, vehicle, workOrder, workOrderItem } from '../db/schema.ts';
+import type { FormHeader } from './form-header.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 import { inOrderAdded } from './work-order-items.ts';
@@ -17,8 +18,8 @@ export type UnpricedWorkOrder = {
   id: string;
   number: string;
   status: WorkOrderStatus;
-  customer: { name: string };
-  vehicle: { vin: string; licensePlate: string | null; make: string; model: string };
+  customer: FormHeader['customer'];
+  vehicle: FormHeader['vehicle'];
   mileageKm: number;
   customerRequest: string;
   deadline: string | null;
