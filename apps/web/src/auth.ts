@@ -62,7 +62,7 @@ export function createAuth({
         adminRoles: ['admin'],
         defaultRole: 'mechanik',
         // What a Deaktivovaný používateľ is told at the login, after the right password; a wrong one gets the ordinary message (app/login/sign-in.ts).
-        bannedUserMessage: 'Účet je deaktivovaný. Obráťte sa na admina.',
+        bannedUserMessage: 'Používateľ je deaktivovaný. Obráťte sa na admina.',
       }),
       nextCookies(), // keep last
     ],
