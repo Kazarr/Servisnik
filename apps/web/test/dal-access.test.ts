@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { createAuth } from '../src/auth.ts';
 import * as attemptLimit from '../src/dal/attempt-limit.ts';
+import * as branding from '../src/dal/branding.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
@@ -178,9 +179,13 @@ const dataAccess = {
  * One exception: `readFormHeader` of form-header.ts does read data, without asking a capability. Only job-sheet.ts
  * and print-forms.ts call it, each after its own `assertCan`. It is pinned here, not in `calls`, because it takes no
  * user; the functions that call it are in `calls`, so one that forgets its `assertCan` fails there.
+ *
+ * The other exception is on purpose: branding.ts reads the logo of the autoservis for the login page, which is shown to
+ * somebody who is not signed in. `getLogo` of logo.ts asks the capability and then reads through it.
  */
 const helpers = {
   'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
+  'branding.ts': { module: branding, exports: ['readLogo', 'readLogoVersion'] },
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
   'form-header.ts': { module: formHeader, exports: ['readFormHeader'] },

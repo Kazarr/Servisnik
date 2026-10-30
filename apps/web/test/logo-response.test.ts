@@ -20,7 +20,8 @@ beforeEach(() => removeLogo(admin, ctx.db));
 const url = 'http://localhost/api/logo';
 const put = (user: User | null, body: BodyInit | null, headers: Record<string, string> = {}) =>
   putLogoResponse(user, new Request(url, { method: 'PUT', body, headers }), ctx.db);
-const get = (user: User | null) => getLogoResponse(user, ctx.db);
+// The image is the login page's too (ticket #150), so reading it asks for no session: `get` takes nobody.
+const get = () => getLogoResponse(ctx.db);
 const remove = (user: User | null) => deleteLogoResponse(user, ctx.db);
 
 /** A body of `file` that reports whether anybody read it: its queue holds nothing ahead of a read. */
@@ -42,17 +43,15 @@ function watchedBody(file: Uint8Array) {
 const bytesOf = async (response: Response) => new Uint8Array(await response.arrayBuffer());
 const stored = async () => (await getLogo(admin, ctx.db))?.bytes ?? null;
 
-test('the admin uploads a PNG, and every signed-in user reads it back with its type and nosniff', async () => {
+test('the admin uploads a PNG, and anybody reads it back with its type and nosniff, signed in or not', async () => {
   const uploaded = await put(admin, png, { 'Content-Type': 'image/png' });
   expect(uploaded.status).toBe(204);
 
-  for (const user of [admin, mechanic]) {
-    const response = await get(user);
-    expect(response.status).toBe(200);
-    expect(response.headers.get('Content-Type')).toBe('image/png');
-    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
-    expect(await bytesOf(response)).toEqual(png);
-  }
+  const response = await get();
+  expect(response.status).toBe(200);
+  expect(response.headers.get('Content-Type')).toBe('image/png');
+  expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  expect(await bytesOf(response)).toEqual(png);
 });
 
 // A replaced logo must show at once: the browser asks again on every use (no-cache), and no shared cache keeps the image (private).
@@ -60,7 +59,7 @@ test('the admin uploads a PNG, and every signed-in user reads it back with its t
 test('the image is revalidated on every use and kept out of shared caches', async () => {
   await put(admin, png);
 
-  const response = await get(mechanic);
+  const response = await get();
 
   expect(response.headers.get('Cache-Control')).toBe('private, no-cache');
 });
@@ -68,7 +67,7 @@ test('the image is revalidated on every use and kept out of shared caches', asyn
 test('the type of the answer is the one read from the content, not the one the sender claimed', async () => {
   expect((await put(admin, jpeg, { 'Content-Type': 'image/png' })).status).toBe(204);
 
-  const response = await get(mechanic);
+  const response = await get();
 
   expect(response.headers.get('Content-Type')).toBe('image/jpeg');
 });
@@ -76,11 +75,11 @@ test('the type of the answer is the one read from the content, not the one the s
 test('a PNG sent as text is still a PNG, because only its content counts', async () => {
   expect((await put(admin, png, { 'Content-Type': 'text/plain' })).status).toBe(204);
 
-  expect((await get(admin)).headers.get('Content-Type')).toBe('image/png');
+  expect((await get()).headers.get('Content-Type')).toBe('image/png');
 });
 
 test('an answer that is not the image does not claim to be one', async () => {
-  const missing = await get(admin);
+  const missing = await get();
 
   expect(missing.status).toBe(404);
   expect(missing.headers.get('Content-Type')).toMatch(/^application\/json/);
@@ -90,12 +89,12 @@ test('an answer that is not the image does not claim to be one', async () => {
 test('a new upload replaces the logo, and removing it makes the image a 404 again', async () => {
   await put(admin, png);
   await put(admin, jpeg);
-  expect(await bytesOf(await get(mechanic))).toEqual(jpeg);
+  expect(await bytesOf(await get())).toEqual(jpeg);
 
   expect((await remove(admin)).status).toBe(204);
   expect((await remove(admin)).status).toBe(204); // nothing to remove is no failure
 
-  expect((await get(mechanic)).status).toBe(404);
+  expect((await get()).status).toBe(404);
 });
 
 test.each([
@@ -175,12 +174,13 @@ test('a mechanik who sends a file that is too large and not an image is told he 
   expect((await put(mechanic, padded(gif, maxLogoBytes + 1))).status).toBe(403);
 });
 
-test('nobody signed in may do anything with the logo: 401, and the image is not shown', async () => {
+test('nobody signed in may change the logo: 401, but the image is shown to anybody, as the login page needs it', async () => {
   await saveLogo(admin, png, ctx.db);
 
-  for (const response of [await get(null), await put(null, png), await remove(null)]) {
+  for (const response of [await put(null, png), await remove(null)]) {
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'Nie ste prihlásený.' });
   }
   expect(await stored()).toEqual(png);
+  expect(await bytesOf(await get())).toEqual(png);
 });
