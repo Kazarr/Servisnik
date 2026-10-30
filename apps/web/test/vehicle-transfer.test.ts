@@ -7,6 +7,7 @@ import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { truncateTables } from './support/reset.ts';
+import { savedInOrder } from './support/saved-in-order.ts';
 
 // The Prepis of a Vozidlo (GLOSSARY): it changes the Majiteľ and nothing else, and the Zákazky stay with
 // the Vozidlo and with the Zákazník they were made for (spec #67). Against a real PostgreSQL.
@@ -61,6 +62,7 @@ test('after a Prepis every Zákazka of the vehicle is still its Zákazka, unchan
   const other = idOf(await createCustomer(admin, { type: 'person', name: 'Peter Horváth' }, ctx.db));
   const ownOrder = idOf(await createWorkOrder(admin, intake(), ctx.db)); // for the owner of the vehicle
   const foreignOrder = idOf(await createWorkOrder(admin, intake({ customerId: other }), ctx.db)); // for someone else, on the same vehicle
+  await savedInOrder(ctx.db, 'work_order', [ownOrder, foreignOrder]);
   const before = [await getWorkOrder(admin, ownOrder, ctx.db), await getWorkOrder(admin, foreignOrder, ctx.db)];
 
   await transfer(buyerId);

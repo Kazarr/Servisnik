@@ -28,6 +28,7 @@ import { idOf } from './support/id-of.ts';
 import { untilLockWaits } from './support/lock-waits.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 import { truncateTables } from './support/reset.ts';
+import { savedInOrder } from './support/saved-in-order.ts';
 
 const summer = new Date('2026-07-15T10:00:00Z');
 
@@ -593,6 +594,7 @@ test('a vehicle lists all its Zákazky from the newest with their customer, in e
   for (const status of workOrderStatuses) oldestFirst.push({ id: await workOrderIn(status), status, customer: 'Firma s.r.o.' });
   oldestFirst.push({ id: await newWorkOrderId({ customerId: other }), status: 'received', customer: 'Ján Novák' });
   await newWorkOrderId({ vehicleId: otherVehicle });
+  await savedInOrder(ctx.db, 'work_order', oldestFirst.map(({ id }) => id));
 
   const history = await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
 
@@ -617,6 +619,7 @@ test('a customer lists every Zákazka they are the customer of, from the newest,
   await move(done, 'done');
   const invoiced = await workOrderIn('invoiced'); // Uzavretá, and still listed
   await newWorkOrderId({ customerId: other }); // on a vehicle of the owner, but for someone else
+  await savedInOrder(ctx.db, 'work_order', [received, done, invoiced]);
 
   const orders = await listWorkOrdersOfCustomer(admin, ownerId, ctx.db);
 
