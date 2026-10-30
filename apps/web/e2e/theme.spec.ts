@@ -1,4 +1,4 @@
-import { appCss, cssRgb, hexesOf, tokensOf, translucentOf } from '../test/support/css-tokens.ts';
+import { appCss, colour, cssRgb, hexesOf, tokensOf, translucentOf } from '../test/support/css-tokens.ts';
 import { expect, signIn, test } from './fixtures.ts';
 
 // The demo theme (ticket #150): black glossy pages, white text in Outfit and a gold accent. The values are the tokens of
@@ -6,7 +6,6 @@ import { expect, signIn, test } from './fixtures.ts';
 // that specs share, so the specs here may run beside any other.
 
 const tokens = tokensOf(appCss);
-const colour = (name: string) => cssRgb(hexesOf(tokens[name]!)[0]!);
 /** Whether a computed `background-image` is the gradient the token names: a gradient, through every colour that the token lists. */
 const paints = (computed: string, name: string) => /gradient\(/.test(computed) && hexesOf(tokens[name]!).every((rgb) => computed.includes(cssRgb(rgb)));
 const styleOf = (page: import('@playwright/test').Page, selector: string, property: string) =>
