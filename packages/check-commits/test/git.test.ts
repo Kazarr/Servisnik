@@ -5,14 +5,14 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { checkCommits, gitLogArgs, parseGitLog } from '../src/index.ts';
 
-test('gitLogArgs reads <base>..HEAD oldest first, parents before children, renames as delete + add, with statuses', () => {
+test('gitLogArgs reads <base>..HEAD oldest first, parents before children, a move as one line with both paths, with statuses', () => {
   expect(gitLogArgs('origin/main')).toEqual([
     '-c',
     'core.quotepath=false',
     'log',
     '--reverse',
     '--topo-order',
-    '--no-renames',
+    '-M',
     '--name-status',
     '--format=%x1e%H%x1f%P%x1f%s',
     'origin/main..HEAD',
@@ -106,6 +106,30 @@ test('a fix of a file the branch added is flagged, a fix of a file of the base i
   commit('fix: base readme', 'README.md');
   const sha = commit('fix: own', 'src/own.ts');
   expect(check('trunk')).toEqual([
-    `${sha} fix: own: fix changes only files added earlier in this range, so it is a feat of the same ticket: src/own.ts`,
+    `${sha} fix: own: fix changes only files its own first-parent line added, so it is a feat of the same ticket: src/own.ts`,
+  ]);
+});
+
+test('a fix of a file of the base that the branch moved first is not flagged', { timeout: gitWork }, () => {
+  git('checkout', '-q', '-b', 'move-fix-base', 'trunk');
+  commit('chore: price', 'src/price.ts');
+  git('checkout', '-q', '-b', 'move-fix');
+  mkdirSync(join(dir, 'src/shop'));
+  git('mv', 'src/price.ts', 'src/shop/price.ts');
+  commit('refactor: move price');
+  commit('fix: price rounds half up', 'src/shop/price.ts');
+  expect(check('move-fix-base')).toEqual([]);
+});
+
+test('a fix of a file the branch added and then moved is flagged by the new path', { timeout: gitWork }, () => {
+  git('checkout', '-q', '-b', 'move-own', 'trunk');
+  commit('test: own', 'test/moved.test.ts');
+  commit('feat: own', 'src/moved.ts');
+  mkdirSync(join(dir, 'src/shop'));
+  git('mv', 'src/moved.ts', 'src/shop/moved.ts');
+  commit('refactor: move own');
+  const sha = commit('fix: own', 'src/shop/moved.ts');
+  expect(check('trunk')).toEqual([
+    `${sha} fix: own: fix changes only files its own first-parent line added, so it is a feat of the same ticket: src/shop/moved.ts`,
   ]);
 });
