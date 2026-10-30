@@ -1,7 +1,11 @@
+import { appCss, cssRgb, hexesOf, tokensOf } from '../test/support/css-tokens.ts';
 import { detail, expect, fillIntake, fillVehicle, newIco, runTag, signIn, startWorkOrder, test, vinOf } from './fixtures.ts';
 
 // The rules of the intake (km, atomicity, the owner, a taken VIN or IČO) are proven by the domain, the Data
 // Access Layer and the parts of the form (apps/web/test); this is the path through the browser.
+
+const tokens = tokensOf(appCss);
+const colour = (name: string) => cssRgb(hexesOf(tokens[name]!)[0]!);
 
 test('the admin takes in a new vehicle with a new customer from Zákazky in one form, and kilometres lower than its Stav km are warned of', async ({ page }) => {
   test.slow(); // sign-in, a long form and the pages after it; under --repeat-each the workers share one server
@@ -39,4 +43,7 @@ test('the admin takes in a new vehicle with a new customer from Zákazky in one 
   const notice = main.getByRole('status');
   await expect(notice).toContainText('nižšie ako stav km vozidla (45 000 km)');
   await expect(notice.getByRole('link', { name: /^Z\d{4}-\d{4}$/ })).toBeVisible();
+  // A notice is no error: its bar is the warning colour, not the danger colour of an error (ticket #145).
+  await expect(notice).toHaveCSS('border-left-color', colour('--color-warning'));
+  await expect(notice).not.toHaveCSS('border-left-color', colour('--color-danger'));
 });
