@@ -91,8 +91,9 @@ test.each([
 });
 
 // The right column of the header and the identifiers of the autoservis (ticket #148): a number, a day and a labelled identifier
-// are each printed on one line, however long the details of the autoservis are. The details are the real ones of the demo, and
-// the counter is set so that the number is the long one, `Z2026-123456`.
+// are each printed on one line, however long the details of the autoservis are. The name, the address and the identifiers are the
+// demo's; the e-mail, the phone, the IBAN and the entry of the register are made long so that the details column is wide. The
+// counter is set so that the number is the long one, `Z2026-123456`.
 const printedOn = new Date('2026-10-29T09:00:00Z');
 test.each(
   (['white', 'blackBar'] as const).flatMap((letterhead) => [
