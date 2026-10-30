@@ -5,8 +5,8 @@ import { PoweredBy } from '../src/app/powered-by.tsx';
 import { productName } from '../src/product.ts';
 
 // The name the app is shown under (tickets #154 and #156). The literals are on purpose: the decision, not the code, is the source of
-// them. When MG changes the name, the one edit is `productName` of src/product.ts, and the tests below and the e2e specs that
-// name it follow with their literal.
+// them. When MG changes the name, the one edit in the code is `productName` of src/product.ts, and then every literal
+// `git grep Garage24Hub apps/web` finds follows.
 
 test('the product is called Garage24Hub', () => {
   expect(productName).toBe('Garage24Hub');

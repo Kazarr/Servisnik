@@ -59,7 +59,7 @@ test('the admin signs in, sees the menu on the left and signs out', async ({ pag
 });
 
 // The app is shown as Garage24Hub (ticket #156): in the title of every page, and as a quiet "powered by" on the login page and at the
-// bottom of the menu, whether or not the autoservis has a logo (the logo spec has the menu without one).
+// bottom of the menu (the logo spec checks the line in the menu while a logo is set).
 test('the title, the login page and the menu name Garage24Hub', async ({ page }) => {
   await page.goto('/login');
   await expect(page).toHaveTitle('Prihlásenie – Garage24Hub');
