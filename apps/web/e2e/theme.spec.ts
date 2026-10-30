@@ -21,7 +21,7 @@ test('the login page is black and glossy with white text, set in Outfit that the
   const body = page.locator('body');
   await expect(body).toHaveCSS('background-color', colour('--color-background'));
   await expect(body).toHaveCSS('color', colour('--color-text'));
-  await expect(body).toHaveCSS('background-attachment', 'fixed');
+  await expect(body).toHaveCSS('background-attachment', /^fixed(, fixed)*$/); // one value for each of the two gradients
   expect(paints(await styleOf(page, 'body', 'background-image'), '--gloss-background')).toBe(true);
 
   // `document.fonts.check()` is true for a family nobody declared, so the faces that were loaded are read, and where from.
