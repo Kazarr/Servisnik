@@ -91,13 +91,13 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     raw: '.x { min-height: 100vh; width: .5vw; height: 50dvh 20svw 10lvh; margin: 1vi 2vb 3vmin 4vmax; padding: 5cqi 6cqh 7cqmax 8cqw 9cqb 10cqmin; top: 12.25svh; }',
     found: ['100vh', '.5vw', '50dvh', '20svw', '10lvh', '1vi', '2vb', '3vmin', '4vmax', '5cqi', '6cqh', '7cqmax', '8cqw', '9cqb', '10cqmin', '12.25svh'],
     token: '.x { min-height: var(--viewport-height); }',
-    miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; } .x { width: 4vww; height: 2cqiz; } .y { background: url(a.5vh.png); }',
+    miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; } .x { width: 4vww; height: 2cqiz; }',
   },
   length: {
     raw: '.x { padding: 0.5rem 8px -1em; margin: 0; height: 2lh 3rlh; width: 4Q 5cap 6rcap; gap: 7ic 8ric 9ex 10rex 11ch 12rch; border-width: 13pt 14cm 15mm 16in 17pc; top: 0.25rem .75em; }',
     found: ['0.5rem', '8px', '-1em', '2lh', '3rlh', '4Q', '5cap', '6rcap', '7ic', '8ric', '9ex', '10rex', '11ch', '12rch', '13pt', '14cm', '15mm', '16in', '17pc', '0.25rem', '.75em'],
     token: '.x { padding: var(--space-2) var(--space-3); margin: 0; grid-template-columns: var(--track-fill); }',
-    miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .y { background: url(icon.5px.png); } .x { margin: 2lhx; }',
+    miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .x { margin: 2lhx; } em { margin: 0; }',
   },
   percentage: {
     raw: '.x { width: 100%; background: color-mix(in srgb, var(--a) 40%, var(--b)); } .y { top: .5%; left: 33.33%; }',
@@ -153,6 +153,7 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: [
       '.a { font: 1rem/1.5rem serif; } .b { font: 1rem/150% serif; } .c { aspect-ratio: 16 / 9; grid-row: 1 / 3; }',
       '.d { font: inherit; grid-area: 1 / 2; } .e { font: inherit } .f { grid-row: 1 / 3 } .g { --font: 1rem/2 serif; } .h { myfont: 1rem/2 serif; }',
+      '.i { --font-ratio: 16 / 9; font-variant: normal; }',
     ].join(' '),
   },
   multiplier: {
@@ -162,44 +163,50 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: 'h1 * { margin: 0; } .col-2 * { margin: 0; } *.x { margin: 0; } .y { margin: calc(var(--a) * 1.5rem) calc(var(--a) * 50%); }',
   },
   divisor: {
-    raw: '.x { width: calc(var(--space-1) / 2); height: calc((100% - var(--gap)) / 3); margin: calc(var(--a)/4) calc(var(--a) / -2) calc(var(--a) / 12) calc(var(--a) / .5); }',
-    found: ['/ 2', '/ 3', '/4', '/ -2', '/ 12', '/ .5'],
+    raw: '.x { width: calc(var(--space-1) / 2); height: calc((100% - var(--gap)) / 3); margin: calc(var(--a)/4) calc(var(--a) / -2) calc(var(--a) / 12) calc(var(--a) / .5); } .y { width: min(var(--a) / 5, 1px); height: max(1px, var(--a) / 6); padding: clamp(1px, var(--a) / 7, 2px); } .z { margin: calc(max(var(--a, calc(1px)), 2px) / 8); }',
+    found: ['/ 2', '/ 3', '/4', '/ -2', '/ 12', '/ .5', '/ 5', '/ 6', '/ 7', '/ 8'],
     token: '.x { margin: var(--space-6); width: calc(var(--space-1) / var(--columns)); }',
-    miss: '.a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); } .e { width: calc(var(--a) / 1.5rem); } .f { width: calc(var(--a) / 50%); } .g { grid-row: calc(1 + (2 * (3))) / 4; } .h { grid-row: calc((1 + 2)) / 4; }',
+    miss: '.k { width: calc(max(var(--a, max(var(--b), 2px)), 3px) / 9); } .i { width: --max(var(--a) / 2); } .j { grid-template-columns: minmax(var(--a) / 2, 1fr); } .a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); } .e { width: calc(var(--a) / 1.5rem); } .f { width: calc(var(--a) / 50%); } .g { grid-row: calc(1 + (2 * (3))) / 4; } .h { grid-row: calc((1 + 2)) / 4; }',
   },
   duration: {
     raw: '.x { transition: opacity 200ms ease-in; animation-duration: 0.3s; transition-delay: -1s .25s; animation-delay: 0.25s; }',
     found: ['200ms', '0.3s', '-1s', '.25s', '0.25s'],
     token: '.x { transition: opacity var(--duration-fast) ease-in; }',
-    miss: '.w-2s-x { margin: 0; } .a2s { margin: 0; } .y { background: url(icon.5s.png); } .x { margin: 3ss 2msx; }',
+    miss: '.w-2s-x { margin: 0; } .a2s { margin: 0; } .x { margin: 3ss 2msx; } s { margin: 0; }',
   },
   angle: {
     raw: '.x { transform: rotate(45deg) skew(-0.5turn); rotate: 1.5rad; background: conic-gradient(from 90grad, var(--a), var(--b)); } .y { rotate: .5turn 0.25turn; }',
     found: ['45deg', '-0.5turn', '1.5rad', '90grad', '.5turn', '0.25turn'],
     token: '.x { transform: rotate(var(--angle-open)); }',
-    miss: '.w-45deg-x { margin: 0; } .a90deg { margin: 0; } .y { background: url(icon.5turn.png); } .x { margin: 2radx 3degs; }',
+    miss: '.w-45deg-x { margin: 0; } .a90deg { margin: 0; } .x { margin: 2radx 3degs; }',
   },
   minmax: {
-    raw: '.x { grid-template-columns: max-content minmax(0, 1fr); } .y { grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr)); } .z { grid-template-columns: minmax(0, var(--max)); } .v { grid-template-columns: minmax(0, calc(1fr + 2px)); margin: calc(1px + 2px); } .u { grid-template-columns: repeat(auto-fill, minmax(0, 1fr)); margin: calc(1px + 2px); }',
-    found: ['minmax(0, 1fr)', 'minmax(var(--card-width), 1fr)', 'minmax(0, var(--max))', 'minmax(0, calc(1fr + 2px))', 'minmax(0, 1fr)'],
+    raw: '.x { grid-template-columns: max-content minmax(0, 1fr); } .y { grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr)); } .z { grid-template-columns: minmax(0, var(--max)); } .v { grid-template-columns: minmax(0, calc(1fr + 2px)); margin: calc(1px + 2px); } .u { grid-template-columns: repeat(auto-fill, minmax(0, 1fr)); margin: calc(1px + 2px); } .t { grid-template-columns: minmax(max(var(--a), var(--b)), 1fr); } .s { grid-template-columns: minmax(max(var(--a, calc(1px)), 2px), 1fr); } .r { grid-template-columns: minmax(max(var(--a), var(--b)), var(--c)); }',
+    found: ['minmax(0, 1fr)', 'minmax(var(--card-width), 1fr)', 'minmax(0, var(--max))', 'minmax(0, calc(1fr + 2px))', 'minmax(0, 1fr)', 'minmax(max(var(--a), var(--b)), 1fr)', 'minmax(max(var(--a, calc(1px)), 2px), 1fr)', 'minmax(max(var(--a), var(--b)), var(--c))'],
     token: '.x { grid-template-columns: max-content var(--track-fill); }',
-    miss: '.minmax-cell { margin: 0; } .x { grid-area: minmax; } .y { grid-template-columns: repeat(auto-fill, minmax(var(--min), var(--max))); } .z { grid-template-columns: minmax( var(--min) , var(--max) ); } .w { grid-template-columns: minmax(var(--min),var(--max)); }',
+    miss: [
+      '.minmax-cell { margin: 0; } .x { grid-area: minmax; } .y { grid-template-columns: repeat(auto-fill, minmax(var(--min), var(--max))); } .z { grid-template-columns: minmax( var(--min) , var(--max) ); } .w { grid-template-columns: minmax(var(--min),var(--max)); }',
+      '.a { grid-template-columns: minmax(var(--a, max(var(--b, calc(1px)), 2px)), var(--c, 1fr)); } .b { grid-template-columns: 1fr 2fr; } .c { grid-template-columns: repeat(3, 1fr); }',
+      // Four levels of parentheses inside the minmax() are one more than are read: not seen (see the header).
+      '.d { grid-template-columns: minmax(max(var(--a, max(var(--b), 2px)), 3px), 1fr); }',
+    ].join(' '),
   },
   namedColor: {
-    raw: '.x { color: red; .z { margin: 0; } background: RebeccaPurple; border: 1px solid black; box-shadow: 0 0 1px gray, 0 0 2px navy } .y { background: linear-gradient(white, var(--a)); }',
-    found: ['red', 'RebeccaPurple', 'black', 'gray', 'navy', 'white'],
+    raw: '.x { color: red; .z { margin: 0; } background: RebeccaPurple; border: 1px solid black; box-shadow: 0 0 1px gray, 0 0 2px navy } .y { background: linear-gradient(white, var(--a)); } .v { animation: spin 1s; background: tan; } .u { --animation: gold; } .t { animation-name: spin } .s { color: coral; } .r { myanimation: ivory; }',
+    found: ['red', 'RebeccaPurple', 'black', 'gray', 'navy', 'white', 'tan', 'gold', 'coral', 'ivory'],
     token: '.x { color: var(--color-text); outline: var(--border-width-strong) solid CanvasText; background: Canvas; color: ButtonText; border-color: transparent; fill: currentcolor; }',
     miss: [
       '.red { margin: 0; } #tan { margin: 0; } .x-red, .gold-x { margin: 0; } [data-tone=red] { margin: 0; } [data-tone="gold"] > .x { margin: 0; }',
-      '.a { color: var(--color-red); animation-name: red-alert; margin: 0 redundant; animation-name: scarred; white-space: nowrap; } .b { width: calc(var(--a) * tan(var(--angle))); }',
-      '@keyframes gold { to { margin: 0; } } .c { background: url(#red); }',
+      '.a { color: var(--color-red); grid-area: red-alert; margin: 0 redundant; will-change: scarred; white-space: nowrap; } .b { width: calc(var(--a) * tan(var(--angle))); }',
+      '@keyframes gold { to { margin: 0; } } .c { --target: #red; --other: #tan; }',
+      '.m { animation-name: navy; } .n { animation-name: spin, gold; } .o { animation: tan 1s ease, red 2s; }',
     ].join(' '),
   },
   hex: {
-    raw: '.x { color: #fff; .y { margin: 0; } background: #1D5FC4 } .z { margin: 0; } .w { color: #fffa; border-color: #ff000080; }',
-    found: ['#fff', '#1D5FC4', '#fffa', '#ff000080'],
+    raw: '.x { color: #fff; .y { margin: 0; } background: #1D5FC4 } .z { margin: 0; } .w { color: #fffa; border-color: #ff000080; } .v { color: #999; border-color: #990000; }',
+    found: ['#fff', '#1D5FC4', '#fffa', '#ff000080', '#999', '#990000'],
     token: '.x { color: var(--color-text); }',
-    miss: '#main { margin: 0; } #feedbag { margin: 0; } #add { margin: 0; } a:hover #cafe > .x, #fade { margin: 0; } .y { background: url(#add-btn); } .z { background: url(#badge); }',
+    miss: '#main { margin: 0; } #feedbag { margin: 0; } #add { margin: 0; } a:hover #cafe > .x, #fade { margin: 0; } .y { --target: #add-btn; --other: #badge; }',
   },
 };
 
@@ -216,6 +223,63 @@ test('the namedColor rule finds each of the 148 named colours of CSS Color 4', (
 
   expect(NAMED_COLORS).toHaveLength(148);
   for (const name of NAMED_COLORS) expect(rawValues(`.x { color: ${name}; }`, only), name).toEqual([name]);
+});
+
+// A minmax(), a division and a :root:not(...) read their parentheses with nested(): text whose parentheses balance, up
+// to a depth, and nothing else. `x(x)x` has one opening and one closing one; every pair of counts up to one level
+// more than the depth is tried, and only equal counts within the depth match.
+test('nested(depth) matches text whose parentheses balance to that depth, and nothing else', () => {
+  const reads = (depth: number, text: string) => new RegExp(`^${nested(depth)}$`).test(text);
+  const text = (open: number, close: number) => `x${'(x'.repeat(open)}${')x'.repeat(close)}`;
+
+  expect(PARENS).toBe(nested(PARENS_DEPTH));
+  for (let depth = 0; depth <= PARENS_DEPTH + 1; depth++) {
+    for (let open = 0; open <= depth + 1; open++) {
+      for (let close = 0; close <= depth + 1; close++) expect(reads(depth, text(open, close)), `${depth}: ${text(open, close)}`).toBe(open === close && open <= depth);
+    }
+  }
+  expect(reads(1, 'x(x)x(x)x')).toBe(true);
+  expect(reads(2, 'x(x(x)x(x)x)x(x)x')).toBe(true);
+  expect(reads(3, 'x(x(x(x)x(x)x)x)x')).toBe(true);
+});
+
+// Valid CSS in which a text that looks like a raw value is none, each with a raw value after it, which is still found:
+// where what is not read ends, the reading goes on. What comes after holds a `)` and a string of each kind, so a
+// string or an url() that ran on to the next quote or parenthesis would swallow the raw values before them.
+const LOOKS_RAW = {
+  '@page': '@page { margin: 15mm }',
+  '@font-face': '@font-face { font-family: X; font-weight: 100 900; }',
+  'two @font-face': '@font-face { font-weight: 400; } @font-face { font-weight: 700; }',
+  '@supports': '@supports (height: 100dvh) { .a { margin: 0; } }',
+  '@property': "@property --a { syntax: '<length>'; inherits: false; initial-value: 0px; }",
+  '@import': '@import "a.css" screen and (min-width: 40rem);',
+  '@import url()': '@import url(a.css) (min-width: 40rem);',
+  'a string': '.a { content: "red"; }',
+  'a string in single quotes': ".a { content: 'red'; }",
+  'a string with an escaped quote': '.a { content: "say \\"red\\" 2px"; }',
+  'a string in single quotes with an escaped quote': ".a { content: 'say \\'red\\' 2px'; }",
+  'an attribute value': '[data-col="2px"] { margin: 0; }',
+  'an unquoted url()': '.a { background: url(/img/16px.png); }',
+  'a quoted url()': '.a { background: url("/img/16px.png"); }',
+  'a quoted url() with a parenthesis in it': '.a { background: url("/img/a)2px.png"); }',
+  'a url() in single quotes with a parenthesis in it': ".a { background: url('/img/a)2px.png'); }",
+  'the name of a @keyframes': '.a { animation-name: navy; }',
+  'the name in an animation': '.a { animation: tan var(--duration-fast) ease; }',
+};
+
+test.each(Object.entries(LOOKS_RAW))('%s holds no raw value, and what follows it is read', (_, valid) => {
+  expect(rawValues(valid)).toEqual([]);
+  expect(rawValues(`${valid} .z { margin: 2px; color: red; background: var(--a); content: "x"; font-family: 'y'; }`)).toEqual(['2px', 'red']);
+});
+
+// An @page ends at its first closing brace: a margin box of its own ends it too.
+test('an @page is read up to its first closing brace, so a declaration after a margin box is read', () => {
+  expect(rawValues('@page { margin: 15mm; @bottom-center { font-size: 8pt; } }')).toEqual([]);
+  expect(rawValues('@page { @bottom-center { font-size: 8pt; } margin: 15mm; }')).toEqual(['15mm']);
+});
+
+test('a comment holds no raw value, and a quote in it starts no string', () => {
+  expect(rawValues(`/* don't read 2px */ .a { margin: 3px; } /* "nor 4px */ .b { margin: 5px; content: "/* 6px */"; }`)).toEqual(['3px', '5px']);
 });
 
 test('raw values are fine where tokens are defined, in :root and in comments, and nowhere else', () => {
@@ -237,13 +301,17 @@ test('every :root block defines tokens, whatever attribute or pseudo-class it ca
     :root[data-theme='dark'] { --c: #000; --w: 2px; }
     :root:not([data-theme='light']) { --c: #000; }
     :root:not(:has([data-theme])) { --c: #000; }
+    :root:not(:has(:is(:where([data-theme])))) { --c: #000; }
     :root:first-child{ --f: #000; }
     @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --d: 2px; } }
     :root .x { margin: 4px; }
     :root > .y { margin: 5px; }
-    :rooted { margin: 6px; }`;
+    :rooted { margin: 6px; }
+    :root::before { margin: 7px; }
+    :root:not(:has(:is(:where(:is([data-theme]))))) { --g: 8px; }`;
 
-  expect(rawValues(css)).toEqual(['4px', '5px', '6px']);
+  // The last has four levels of parentheses in :not(), one more than are read (see the header): no block of tokens.
+  expect(rawValues(css)).toEqual(['4px', '5px', '6px', '7px', '8px']);
 });
 
 // var() does not work in the condition of an at-rule, so a width there cannot be a token.
