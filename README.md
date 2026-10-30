@@ -34,6 +34,8 @@ pnpm db:seed       # keď žiadny admin nie je, založí ho z ADMIN_EMAIL a ADMI
 pnpm dev           # http://localhost:3000 presmeruje na prihlásenie
 ```
 
+Ukážka pre zákazníka (téma, logo, údaje autoservisu a zákazky na prémiových autách): `pnpm db:demo` proti databáze ukážky (`DATABASE_URL`). Spúšťa sa rukou, nasadenie ani `db:seed` ho nespúšťajú, a dá sa opakovať: čo už je, nechá, a telefón, IBAN a zápis v registri, ktoré admin napísal v Nastaveniach, neprepíše. Telefón v obchodnom registri nie je, preto ho doplní admin v Nastaveniach.
+
 Registrácia v appke nie je: prvého admina založí seed a ďalších používateľov admin v Nastaveniach. Zmenu schémy (`apps/web/src/db/schema.ts`) premietne `pnpm --filter @servisnik/web db:generate` do novej migrácie, ktorú commitni.
 
 ## Testy
