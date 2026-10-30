@@ -12,8 +12,9 @@ test('the not-found page speaks Slovak and links back to the Zákazky', () => {
   const html = renderToStaticMarkup(NotFound());
 
   expect(html).toContain('<h1>Stránka sa nenašla</h1>');
+  expect(html).toContain('<p>Takú adresu Garage24Hub nepozná.</p>');
   expect(html).toContain('href="/zakazky"');
-  expect(html).not.toMatch(/not found|could not/i);
+  expect(html).not.toMatch(/not found|could not|Servisník/i);
 });
 
 // The error page sits in the (app) group, inside the layout with the menu, which supplies the <main>.

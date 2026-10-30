@@ -54,7 +54,7 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   await page.reload();
   await expect(preview).toHaveJSProperty('naturalWidth', 1);
 
-  // The logo and the name of the autoservis stand in the menu in place of "Servisník", on every page of the app (ticket #150): the
+  // The logo and the name of the autoservis stand in the menu in place of "Garage24Hub", on every page of the app (ticket #150): the
   // logo is cut to its box and its black square blends into the menu. The name is the one of Údaje autoservisu, which another spec
   // writes, so it is read from the database when it is compared, and the menu shows none while the name is empty.
   const brand = page.locator('.sidebar .brand');
@@ -63,7 +63,8 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   await expect(brandLogo).toHaveJSProperty('naturalWidth', 1);
   await expect(brandLogo).toHaveCSS('object-fit', 'cover');
   await expect(brandLogo).toHaveCSS('mix-blend-mode', 'screen');
-  await expect(brand.getByText('Servisník', { exact: true })).toHaveCount(0);
+  await expect(brand.getByText('Garage24Hub', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.sidebar .powered-by')).toHaveText('powered by Garage24Hub'); // the product stays at the bottom of the menu beside the logo
   await expect(async () => {
     const [row] = await db.select({ name: workshop.name }).from(workshop);
     if (row!.name) await expect(brand.locator('.brand-name')).toHaveText(row!.name, { timeout: 1000 });
@@ -115,6 +116,7 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   await expect(loginBrand.locator('img.login-logo')).toHaveCSS('object-fit', 'cover');
   await expect(loginBrand.getByText('Kvalita nepozná kompromis', { exact: true })).toBeVisible();
   expect(await loginPage.evaluate(() => document.querySelector('.login-logo + .login-slogan') !== null)).toBe(true); // the slogan is under the logo
+  await expect(loginPage.locator('main .powered-by')).toHaveText('powered by Garage24Hub'); // and the product is named under the form, not as the logo
 
   // A replacement: the same PNG with bytes after its end, which a browser ignores, so only the size tells them apart.
   const replacement = padded(png, png.length + 30);
@@ -141,8 +143,8 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   await expect(preview).toHaveCount(0);
   await expect(main.getByRole('button', { name: 'Odstrániť logo' })).toHaveCount(0);
   expect((await page.request.get('/api/logo')).status()).toBe(404);
-  // Without a logo the menu says "Servisník" again, and the login page has neither the logo nor the slogan.
-  await expect(brand.getByText('Servisník', { exact: true })).toBeVisible();
+  // Without a logo the menu says "Garage24Hub" again, and the login page has neither the logo nor the slogan.
+  await expect(brand.getByText('Garage24Hub', { exact: true })).toBeVisible();
   await expect(brand.locator('img')).toHaveCount(0);
   await loginPage.reload();
   await expect(loginPage.locator('main h1')).toHaveText('Prihlásenie');
