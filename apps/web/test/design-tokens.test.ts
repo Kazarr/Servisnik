@@ -28,52 +28,94 @@ const NAMED_COLORS = `aliceblue antiquewhite aqua aquamarine azure beige bisque 
   steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen`.split(/\s+/);
 
 // Design values (frontend-design): every CSS file of the app and the CSS of the printed forms take colours,
-// lengths, percentages, font weights, line heights, mix ratios, durations, angles and grid tracks from the custom
-// properties of :root, so a value changes in one place. One rule per value type; this finds the raw ones
-// outside :root and outside comments. The percentage rule is also the one for the ratio of a color-mix(), and
-// the multiplier and divisor rules for calc(var(--x) * n) and calc(var(--x) / n), which are raw values in
-// disguise unless they define a token in :root.
+// lengths, percentages, font weights, line heights, mix ratios, durations, angles and the minmax() of a grid track
+// from the custom properties of :root, so a value changes in one place. One rule per value type; this finds the
+// raw ones outside :root and outside what cannot hold a var(). The percentage rule is also the one for the ratio
+// of a color-mix(), and the multiplier and divisor rules for calc(var(--x) * n) and calc(var(--x) / n), which are
+// raw values in disguise unless they define a token in :root.
+//
+// What the check does not read, so that no one takes its green for more:
+// - A fraction is layout, not a design value: `1fr 2fr` and `repeat(3, 1fr)` pass. Of the grid track functions only
+//   minmax() is read, and a minmax() whose two limits are a plain var() each is made of tokens already.
+// - Parentheses are read PARENS_DEPTH levels deep. A minmax() or a division with more levels inside is not seen, and
+//   a :root:not(...) with more is no block of tokens.
+// - The divisor is read inside calc(), min(), max() and clamp(), the places where a `/` divides; round(), mod() and
+//   the other math functions are not read.
+// - A custom property outside :root is read for the units and colours in its value like any other declaration, but
+//   not as a font shorthand: `--font: 700 var(--size) serif` has no weight to report, as nothing says that the
+//   property holds a shorthand.
+// - A colour name is no colour in animation-name and animation (`animation-name: navy` names a @keyframes). Any
+//   other place where an identifier can spell a colour (counter-reset, grid-area, font-family) is read as a colour.
+// - Not values, so not read (NOT_VALUES and what follows it): comments, strings, an unquoted url(), the blocks of
+//   :root, @font-face, @property and @page, the prelude of @media, @container, @supports and @import, the steps
+//   of a @keyframes. A declaration after the first margin box of an @page is read.
+
+// The parts several rules are made of. A number is `5`, `.5` or `0.55`; its sign belongs to the rules that take one.
+const NUMBER = String.raw`\d*\.?\d+`;
+// A number with one of the units, not the end of a longer word or class name (`.w-2px-x`, `.a2em`, `4vww`).
+const unit = (units: string) => new RegExp(String.raw`(?<![\w-])-?${NUMBER}(?:${units})\b`);
+// Text whose parentheses balance, nested to at most `depth` levels: `x(x(x))` is two.
+const nested = (depth: number): string => (depth === 0 ? String.raw`[^()]*` : String.raw`(?:[^()]|\(${nested(depth - 1)}\))*`);
+const PARENS_DEPTH = 3;
+const PARENS = nested(PARENS_DEPTH);
+// Everything of a `font:` declaration up to the point a rule looks at. A custom property (`--font:`) or a longer name
+// (`myfont:`) is none, and neither is font-variation-settings.
+const FONT = String.raw`(?<![\w-])font:[^;}]*`;
+// The start of an animation or animation-name declaration, where a colour name is the name of a @keyframes.
+const ANIMATION = String.raw`(?<![\w-])animation(?:-name)?:[^;}]*`;
+// A limit of a minmax() that is a token as it stands: var(--min), with or without a fallback.
+const VAR = String.raw`var\(${PARENS}\)`;
+
 const RULES = {
   opacity: /opacity:\s*[\d.]+/,
-  viewport: /(?<![\w.-])-?\d*\.?\d+(?:[sld]?v(?:[whib]|min|max)|cq(?:[whib]|min|max))\b/,
-  length: /(?<![\w.-])-?\d*\.?\d+(?:px|r?em|r?ex|r?ch|r?cap|r?ic|r?lh|pt|cm|mm|Q|in|pc)\b/,
-  percentage: /\d*\.?\d+%/,
+  viewport: unit('[sld]?v(?:[whib]|min|max)|cq(?:[whib]|min|max)'),
+  length: unit('px|r?em|r?ex|r?ch|r?cap|r?ic|r?lh|pt|cm|mm|Q|in|pc'),
+  percentage: new RegExp(`${NUMBER}%`),
   fontWeight: /font-weight:\s*(?:\d+|normal|bold|bolder|lighter)\b/,
   lineHeight: /line-height:\s*[\d.]+(?![\w.%])/,
   colorFunction: /(?<![\w-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^)]*\)/,
   // The weight and the line height in the shorthand `font: 700 1rem/1.5 serif`: the weight is a bare number or
-  // bold, bolder, lighter before the family, the line height a number after the slash. Only a `font:` counts,
-  // not font-variation-settings, and only up to its `;` or `}`.
-  fontShorthandWeight: /(?<=(?<![\w-])font:[^;}]*)(?<![\w.-])(?<!\/\s*)(?:\d+|bold|bolder|lighter)(?![\w.%-])/,
-  fontShorthandLineHeight: /(?<=(?<![\w-])font:[^;}]*\/\s*)\d*\.?\d+(?![\w.%])/,
+  // bold, bolder, lighter before the family, the line height a number after the slash.
+  fontShorthandWeight: new RegExp(String.raw`(?<=${FONT})(?<![\w.-])(?<!\/\s*)(?:\d+|bold|bolder|lighter)(?![\w.%-])`),
+  fontShorthandLineHeight: new RegExp(String.raw`(?<=${FONT}\/\s*)${NUMBER}(?![\w.%])`),
   // A sign is part of the number: calc(-1 * var(--x)). An identifier that ends in a number (.col-2 *) is not.
   multiplier: /(?<![\w-])-?[\d.]+\s*\*|\*\s*-?[\d.]+(?![\w.%])/,
-  // Only a number after the slash in a calc(): `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too.
-  divisor: /(?<=calc\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\/\s*-?[\d.]+(?![\w.%])/,
-  duration: /(?<![\w.-])-?\d*\.?\d+m?s\b/,
-  angle: /(?<![\w.-])-?\d*\.?\d+(?:deg|grad|rad|turn)\b/,
+  // Only a number after the slash in a math function: `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too,
+  // and so has a custom function (`--max(1 / 2)`) whose name ends in one of the four.
+  divisor: new RegExp(String.raw`(?<=(?<![\w-])(?:calc|min|max|clamp)\(${PARENS})\/\s*-?[\d.]+(?![\w.%])`),
+  duration: unit('m?s'),
+  angle: unit('deg|grad|rad|turn'),
   // A grid track function (`minmax(0, 1fr)`) is a token like any other value: --track-fill. A minmax() whose two
   // limits are both tokens (`minmax(var(--min), var(--max))`) is made of tokens already.
-  minmax: /minmax\((?!\s*var\([^()]*\)\s*,\s*var\([^()]*\)\s*\))(?:[^()]|\([^()]*\))*\)/,
+  minmax: new RegExp(String.raw`minmax\((?!\s*${VAR}\s*,\s*${VAR})${PARENS}\)`),
   // A colour name is a value, not a part of a longer word (white-space, red-alert, tan( ), nor an ID (#red) or
-  // a selector (`.red {`, `[data-tone=red] {`).
-  namedColor: new RegExp(`(?<![\\w#-])(?:${NAMED_COLORS.join('|')})(?![\\w(-])(?![^;{}]*\\{)`),
+  // a selector (`.red {`, `[data-tone=red] {`), nor the name of a @keyframes.
+  namedColor: new RegExp(String.raw`(?<![\w#-])(?<!${ANIMATION})(?:${NAMED_COLORS.join('|')})(?![\w(-])(?![^;}]*\{)`),
   // A hex colour is a value: an ID selector that spells one (#add, #cafe) has a `{` after it before any `;` or `}`.
-  hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;{}]*\{)/,
+  hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;}]*\{)/,
 };
 type Rule = keyof typeof RULES;
 
-// What is not a value to turn into a token: comments, the :root blocks that define the tokens (also with an
-// attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`), the condition of a @media or
-// @container and the step of a @keyframes, none of which can hold a var().
-const COMMENT = /\/\*[\s\S]*?\*\//g;
-const ROOT_BLOCK = /:root(?:\[[^\]]*\]|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?)*\s*\{[^}]*\}/g;
-const AT_RULE_CONDITION = /@(?:media|container)[^{]*/g;
+// What is not a value to turn into a token. No var() can stand in a comment, a string (the text of `content: "red"`,
+// the value of `[data-col="2px"]`), an unquoted url() (a quoted one is a string), the descriptors of @font-face and
+// @property, the prelude of a @media, @container, @supports or @import (a condition) and the step of a @keyframes (a
+// selector). An @page is not read either: its page context inherits from :root or, as an engine may do instead (CSS
+// Page 3, section 6), from the initial values, which carry no token. The :root blocks define the tokens (also with
+// an attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`).
+const NOT_VALUES = /\/\*[\s\S]*?\*\/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|url\([^)"']*\)/g;
+const ROOT_BLOCK = new RegExp(String.raw`:root(?:\[[^\]]*\]|:[\w-]+(?:\(${PARENS}\))?)*\s*\{[^}]*\}`, 'g');
+const AT_RULE_BLOCK = /@(?:font-face|property|page)[^{]*\{[^}]*\}/g;
+const AT_RULE_PRELUDE = /@(?:media|container|supports)[^{]*|@import[^;]*/g;
 // A step list starts with a percentage: from and to hold no value, and only a percentage before them is lost.
-const KEYFRAMES_STEP = /\d*\.?\d+%(?:\s*,\s*(?:\d*\.?\d+%|from|to))*(?=\s*\{)/g;
+const KEYFRAMES_STEP = new RegExp(String.raw`${NUMBER}%(?:\s*,\s*(?:${NUMBER}%|from|to))*(?=\s*\{)`, 'g');
 
 const rawValues = (css: string, rules: Record<string, RegExp> = RULES) => {
-  const outside = css.replace(COMMENT, '').replace(ROOT_BLOCK, '').replace(AT_RULE_CONDITION, '').replace(KEYFRAMES_STEP, '');
+  const outside = css
+    .replace(NOT_VALUES, '')
+    .replace(ROOT_BLOCK, '')
+    .replace(AT_RULE_BLOCK, '')
+    .replace(AT_RULE_PRELUDE, '')
+    .replace(KEYFRAMES_STEP, '');
   const raw = new RegExp(Object.values(rules).map((rule) => rule.source).join('|'), 'gi');
   return outside.match(raw) ?? [];
 };
@@ -292,6 +334,12 @@ test('raw values are fine where tokens are defined, in :root and in comments, an
     /* one comment ends where it ends */ .z { margin: 4px; } /* the next is another */`;
 
   expect(rawValues(css)).toEqual(['2px', '3px', '4px']);
+});
+
+// Below :root a custom property is a declaration like any other: the units and colours in it are read (a token has
+// its value in :root), but it is no font shorthand, as nothing says that it holds one (see the header).
+test('a custom property outside :root is read for its units and colours, but not as a font shorthand', () => {
+  expect(rawValues('.x { --gap: 2px; --tone: #fff; --font: 700 var(--size) serif; }')).toEqual(['2px', '#fff']);
 });
 
 // A block of tokens is any rule whose selector is :root with attributes or pseudo-classes: a dark theme is
