@@ -41,14 +41,20 @@ export function reasonOf(html: string, name: string) {
   return reason ? textOf(reason) : null;
 }
 
-/** The options of the `<select>` of the field with this name: their values and their texts in order, and which values are selected. */
-export function options(html: string, name: string) {
+/** The markup of the options of the `<select>` of the field with this name; throws when the form has none. */
+function optionsOf(html: string, name: string) {
   const select = new RegExp(`<select[^>]*\\sname="${name}"[^>]*>(.*?)</select>`).exec(html)?.[1];
   if (select === undefined) throw new Error(`No select named ${name}.`);
-  const all = [...select.matchAll(/<option([^>]*)>([^<]*)<\/option>/g)].map(([, attributes, text]) => ({
-    value: /value="([^"]*)"/.exec(attributes!)![1],
-    selected: /selected/.test(attributes!),
-    text: textOf(text!),
-  }));
-  return { values: all.map(({ value }) => value), labels: all.map(({ text }) => text), selected: all.filter(({ selected }) => selected).map(({ value }) => value) };
+  return select;
+}
+
+/** The options of the `<select>` of the field with this name: their values in order, and which one is selected. */
+export function options(html: string, name: string) {
+  const all = [...optionsOf(html, name).matchAll(/<option([^>]*)>/g)].map(([, attributes]) => attributes!);
+  return { values: all.map((attributes) => /value="([^"]*)"/.exec(attributes)![1]), selected: all.filter((attributes) => /selected/.test(attributes)).map((attributes) => /value="([^"]*)"/.exec(attributes)![1]) };
+}
+
+/** The text of each option of the `<select>` of the field with this name, in order: what the admin reads when he picks one. */
+export function optionTexts(html: string, name: string) {
+  return [...optionsOf(html, name).matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map(([, text]) => textOf(text!));
 }

@@ -6,7 +6,7 @@ import VehiclesPage from '../src/app/(app)/vozidla/page.tsx';
 import type { Database } from '../src/db/index.ts';
 import { savedIn } from './support/customer-vehicle.ts';
 import { createTestDb } from './support/db.ts';
-import { areaValue, input, labelOf, options, valueOf } from './support/form-markup.ts';
+import { areaValue, input, labelOf, optionTexts, options, valueOf } from './support/form-markup.ts';
 import { detailsOf, hrefOf, linksIn, rowsOf } from './support/page-markup.ts';
 import { renderPage } from './support/render-page.ts';
 import { truncateTables } from './support/reset.ts';
@@ -250,7 +250,7 @@ test('the form that edits a vehicle starts from every field it has saved, names 
     ['mileageKm', 'Stav km'],
     ['note', 'Poznámka'],
   ]);
-  expect(options(html, 'fuel').labels).toEqual(['—', 'Benzín', 'Nafta', 'Hybrid', 'Elektro', 'LPG', 'CNG', 'Iné']);
+  expect(optionTexts(html, 'fuel')).toEqual(['—', 'Benzín', 'Nafta', 'Hybrid', 'Elektro', 'LPG', 'CNG', 'Iné']);
 });
 
 test('the form that edits a vehicle without a ŠPZ, a year or a note starts with those empty, not with "null"', async () => {
