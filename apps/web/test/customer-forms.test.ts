@@ -117,7 +117,7 @@ test('a firma with a Czech IČ DPH and a PSČ written with a space is saved, lea
   expect(await getCustomer(admin, id, ctx.db)).toMatchObject({ type: 'company', name: 'Prvá Firma', ico: '12345678', dic: '2020123456', icDph: 'CZ12345678', postalCode: '81101', email: 'info@firma.sk' });
 });
 
-test('a firma with only a name and an IČO is saved, and so are an osoba and a firma with the same name', async () => {
+test('a firma with only a name and an IČO is saved, and two osoby with the same name are saved beside it: a name is no key', async () => {
   const sent = { name: 'Ján Novák' };
 
   const firma = await savedAs(addCustomer(null, form({ type: 'company', ico: '12345678', ...sent })));
@@ -125,7 +125,11 @@ test('a firma with only a name and an IČO is saved, and so are an osoba and a f
   const another = await savedAs(addCustomer(null, form({ type: 'person', ...sent })));
 
   expect(new Set([firma, osoba, another]).size).toBe(3);
-  expect((await listCustomers(admin, ctx.db)).map(({ name }) => name)).toEqual(['Ján Novák', 'Ján Novák', 'Ján Novák']);
+  expect((await listCustomers(admin, ctx.db)).map(({ name, type }) => [name, type]).sort()).toEqual([
+    ['Ján Novák', 'company'],
+    ['Ján Novák', 'person'],
+    ['Ján Novák', 'person'],
+  ]);
 });
 
 test('an edit is saved and leads to the detail of the same customer, with what the form added to what it had', async () => {

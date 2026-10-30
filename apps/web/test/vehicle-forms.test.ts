@@ -11,7 +11,7 @@ import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { ledTo } from './support/digest-of.ts';
 import { form } from './support/form-data.ts';
-import { reasonOf, valueOf } from './support/form-markup.ts';
+import { areaValue, options, reasonOf, valueOf } from './support/form-markup.ts';
 import { idOf } from './support/id-of.ts';
 import { hrefOf } from './support/page-markup.ts';
 import { truncateTables } from './support/reset.ts';
@@ -97,7 +97,7 @@ test('a year and kilometres out of range are refused at their own fields, with t
   expect(await vehicles()).toEqual([]);
 });
 
-test('with every reason fixed the vehicle is saved once, with 0 km, which is a stav km too, and the form leads to its owner', async () => {
+test('a vehicle of the last year the form allows and with 0 km, which is a stav km too, is saved once, and the form leads to its owner', async () => {
   expect(await ledTo(addVehicle(null, form({ ownerId, vin, make: 'Volkswagen', model: 'Golf', year: String(lastYear()), mileageKm: '0' })), 'zakaznici')).toBe(ownerId);
 
   expect(await vehicles()).toHaveLength(1);
@@ -122,15 +122,19 @@ test('a vehicle typed the way it is read off a document is saved with the VIN an
   });
 });
 
-test('a second vehicle with a VIN that is taken is refused however the VIN is typed: its field names the first, its owner, and leads to both', async () => {
+test.each([
+  ['as it was saved', vin],
+  ['in small letters', vin.toLowerCase()],
+  ['with spaces and a hyphen, as it is read off a document', 'wvw zzz1jz-3w386752'],
+])('a second vehicle with a VIN that is taken is refused when the VIN is typed %s: its field names the first, its owner, and leads to both', async (_how, typed) => {
   const first = idOf(await createVehicle(admin, { ownerId, vin, licensePlate: '', make: 'Volkswagen', model: 'Golf' }, ctx.db));
 
-  const html = drawnNew(await addVehicle(null, form({ ownerId, vin: vin.toLowerCase(), make: 'Škoda', model: 'Octavia' })));
+  const html = drawnNew(await addVehicle(null, form({ ownerId, vin: typed, make: 'Škoda', model: 'Octavia' })));
 
   expect(reasonOf(html, 'vin')).toBe('Vozidlo s týmto VIN už existuje: Volkswagen Golf, majiteľ Autodoprava Kováč s.r.o.');
   expect(hrefOf(html, 'Volkswagen Golf')).toBe(`/vozidla/${first}`);
   expect(hrefOf(html, 'Autodoprava Kováč s.r.o.')).toBe(`/zakaznici/${ownerId}`);
-  expect(valueOf(html, 'vin')).toBe(vin.toLowerCase());
+  expect(valueOf(html, 'vin')).toBe(typed);
   expect((await vehicles()).map(({ id }) => id)).toEqual([first]);
 });
 
@@ -154,6 +158,8 @@ test("an edit to the VIN of another vehicle is refused at the VIN field, which n
     ['year', '2015'],
     ['mileageKm', '123 456'],
   ]);
+  expect(options(html, 'fuel').selected).toEqual(['diesel']);
+  expect(areaValue(html, 'note')).toBe('Nová spojka');
   expect(await getVehicle(admin, id, ctx.db)).toMatchObject({ vin });
 });
 
