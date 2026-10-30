@@ -5,15 +5,15 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { checkCommits, gitLogArgs, parseGitLog } from '../src/index.ts';
 
-test('gitLogArgs reads <base>..HEAD oldest first, parents before children, renames as delete + add', () => {
+test('gitLogArgs reads <base>..HEAD oldest first, parents before children, a move as one line with both paths, with statuses', () => {
   expect(gitLogArgs('origin/main')).toEqual([
     '-c',
     'core.quotepath=false',
     'log',
     '--reverse',
     '--topo-order',
-    '--no-renames',
-    '--name-only',
+    '-M',
+    '--name-status',
     '--format=%x1e%H%x1f%P%x1f%s',
     'origin/main..HEAD',
   ]);
@@ -22,9 +22,11 @@ test('gitLogArgs reads <base>..HEAD oldest first, parents before children, renam
 // The same arguments against a real repository: what git prints is what parseGitLog and the rules see.
 let dir: string;
 const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
+// A file listed again is modified, because every write gives it new content.
+let revision = 0;
 const write = (file: string) => {
   mkdirSync(dirname(join(dir, file)), { recursive: true });
-  writeFileSync(join(dir, file), `${file}\n`);
+  writeFileSync(join(dir, file), `${file} ${++revision}\n`);
 };
 const commit = (subject: string, ...files: string[]) => {
   files.forEach(write);
@@ -86,4 +88,48 @@ test('a ticket branch that merges its base mid-branch passes on the run -> main 
   git('checkout', '-q', 'run');
   merge('b', 'Merge B');
   expect(check('trunk')).toEqual([]);
+});
+
+test('a commit that moves a file between packages is flagged with both packages', { timeout: gitWork }, () => {
+  git('checkout', '-q', '-b', 'move-package', 'trunk');
+  commit('chore: add x', 'packages/a/src/x.ts');
+  mkdirSync(join(dir, 'packages/b/src'), { recursive: true });
+  git('mv', 'packages/a/src/x.ts', 'packages/b/src/x.ts');
+  const sha = commit('refactor: move x');
+  expect(check('trunk')).toEqual([`${sha} refactor: move x: commit changes more than one package: packages/a, packages/b`]);
+});
+
+test('a fix of a file the branch added is flagged, a fix of a file of the base is not', { timeout: gitWork }, () => {
+  git('checkout', '-q', '-b', 'fix-own', 'trunk');
+  commit('test: own', 'test/own.test.ts');
+  commit('feat: own', 'src/own.ts');
+  commit('fix: base readme', 'README.md');
+  const sha = commit('fix: own', 'src/own.ts');
+  expect(check('trunk')).toEqual([
+    `${sha} fix: own: fix changes only files its own first-parent line added, so it is a feat of the same ticket: src/own.ts`,
+  ]);
+});
+
+test('a fix of a file of the base that the branch moved first is not flagged', { timeout: gitWork }, () => {
+  git('checkout', '-q', '-b', 'move-fix-base', 'trunk');
+  commit('chore: price', 'src/price.ts');
+  git('checkout', '-q', '-b', 'move-fix');
+  mkdirSync(join(dir, 'src/shop'));
+  git('mv', 'src/price.ts', 'src/shop/price.ts');
+  commit('refactor: move price');
+  commit('fix: price rounds half up', 'src/shop/price.ts');
+  expect(check('move-fix-base')).toEqual([]);
+});
+
+test('a fix of a file the branch added and then moved is flagged by the new path', { timeout: gitWork }, () => {
+  git('checkout', '-q', '-b', 'move-own', 'trunk');
+  commit('test: own', 'test/moved.test.ts');
+  commit('feat: own', 'src/moved.ts');
+  mkdirSync(join(dir, 'src/shop'));
+  git('mv', 'src/moved.ts', 'src/shop/moved.ts');
+  commit('refactor: move own');
+  const sha = commit('fix: own', 'src/shop/moved.ts');
+  expect(check('trunk')).toEqual([
+    `${sha} fix: own: fix changes only files its own first-parent line added, so it is a feat of the same ticket: src/shop/moved.ts`,
+  ]);
 });

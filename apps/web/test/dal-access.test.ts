@@ -8,6 +8,7 @@ import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
 import * as formHeader from '../src/dal/form-header.ts';
 import * as jobSheet from '../src/dal/job-sheet.ts';
+import * as joyRide from '../src/dal/joy-ride.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
@@ -27,6 +28,8 @@ import type { Database } from '../src/db/index.ts';
 import {
   account,
   customer,
+  joyRideEdition,
+  joyRideRegistration,
   priceListItem,
   user as userTable,
   vehicle,
@@ -55,6 +58,7 @@ let idleVehicleId: string;
 let orderId: string;
 let itemId: string;
 let priceListItemId: string;
+let registrationId: string;
 beforeAll(async () => {
   ctx = await createTestDb();
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123' }); // on the real db, so that building it is not a touch of the watched one
@@ -66,6 +70,8 @@ beforeAll(async () => {
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
   itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db));
   priceListItemId = idOf(await priceList.createPriceListItem(admin, { kind: 'part', code: 'FIL-1', name: 'Olejový filter', purchasePrice: '5', salePrice: '9' }, ctx.db));
+  await joyRide.saveEdition(admin, { name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' }, ctx.db);
+  registrationId = idOf(await joyRide.createRegistration(admin, { name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, ctx.db));
   await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
@@ -111,6 +117,16 @@ const calls: Record<string, Call> = {
   deletePriceListItem: (user, db) => priceList.deletePriceListItem(user, priceListItemId, db),
   searchPriceList: (user, db) => priceList.searchPriceList(user, { query: 'filter' }, db),
   getPriceListItem: (user, db) => priceList.getPriceListItem(user, priceListItemId, db),
+  getEdition: (user, db) => joyRide.getEdition(user, db),
+  saveEdition: (user, db) =>
+    joyRide.saveEdition(user, { name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' }, db),
+  createRegistration: (user, db) =>
+    joyRide.createRegistration(user, { name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, db),
+  listRegistrations: (user, db) => joyRide.listRegistrations(user, { category: 'veteran', status: 'new' }, db),
+  getRegistration: (user, db) => joyRide.getRegistration(user, registrationId, db),
+  updateRegistration: (user, db) =>
+    joyRide.updateRegistration(user, registrationId, { name: 'Eva Premenovaná', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, db),
+  setRegistrationStatus: (user, db) => joyRide.setRegistrationStatus(user, registrationId, 'approved', db),
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
@@ -157,6 +173,7 @@ const mechanikMay = ['listWorkOrders', 'getUnpricedWorkOrder', 'getJobSheet', 'c
 const dataAccess = {
   'customers.ts': customers,
   'job-sheet.ts': jobSheet,
+  'joy-ride.ts': joyRide,
   'logo.ts': logo,
   'password.ts': password,
   'price-list.ts': priceList,
@@ -221,6 +238,8 @@ const everything = async () => ({
   workOrders: await ctx.db.select().from(workOrder),
   items: await ctx.db.select().from(workOrderItem),
   priceListItems: await ctx.db.select().from(priceListItem),
+  joyRideEditions: await ctx.db.select().from(joyRideEdition),
+  joyRideRegistrations: await ctx.db.select().from(joyRideRegistration),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
   workshopLogo: await ctx.db.select().from(workshopLogo),

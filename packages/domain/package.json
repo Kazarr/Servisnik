@@ -5,6 +5,7 @@
   "exports": {
     "./access": "./src/access/index.ts",
     "./customer": "./src/customer/index.ts",
+    "./joy-ride": "./src/joy-ride/index.ts",
     "./price-list": "./src/price-list/index.ts",
     "./print": "./src/print/index.ts",
     "./settings": "./src/settings/index.ts",

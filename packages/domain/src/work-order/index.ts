@@ -178,7 +178,7 @@ export function parseVatRate(typed: string): number | null {
 }
 
 /** A day as a date field sends it, `YYYY-MM-DD`, when it is a real day of the calendar; else null. */
-function parseDay(typed: string): string | null {
+export function parseDay(typed: string): string | null {
   const day = typed.trim();
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
   if (!match) return null;
