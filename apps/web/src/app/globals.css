@@ -446,6 +446,15 @@ th {
   white-space: nowrap;
 }
 
+/* The items of a Zákazka have ten columns: their headings wrap to two lines, so that the table fits from 1366 px (ticket #148). The amounts stay on one line. */
+.items th.amount {
+  white-space: normal;
+}
+
+.items td:first-child {
+  white-space: nowrap;
+}
+
 tfoot th,
 tfoot td {
   border-top: var(--border-width-strong) solid var(--color-border);

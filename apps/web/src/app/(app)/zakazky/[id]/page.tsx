@@ -109,18 +109,18 @@ export default async function WorkOrderPage({
       ) : (
         <>
           <div className="table-wrap">
-            <table aria-label="Položky zákazky">
+            <table aria-label="Položky zákazky" className="items">
               <thead>
                 <tr>
                   <th scope="col">Kód</th>
                   <th scope="col">Názov</th>
                   <th scope="col" className="amount">Množstvo</th>
-                  <th scope="col" className="amount">Nákupná cena za jednotku bez DPH</th>
-                  <th scope="col" className="amount">Predajná cena za jednotku bez DPH</th>
+                  <th scope="col" className="amount">Nákupná cena bez DPH</th>
+                  <th scope="col" className="amount">Cena za jednotku bez DPH</th>
                   <th scope="col" className="amount">Sadzba DPH</th>
-                  <th scope="col" className="amount">Bez DPH</th>
+                  <th scope="col" className="amount">Suma bez DPH</th>
                   <th scope="col" className="amount">DPH</th>
-                  <th scope="col" className="amount">S DPH</th>
+                  <th scope="col" className="amount">Suma s DPH</th>
                   {editable && <th scope="col">Akcie</th>}
                 </tr>
               </thead>
