@@ -1,5 +1,6 @@
 'use server';
 
+import { registrationDecisions } from '@servisnik/domain/joy-ride';
 import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
 import { currentUser } from '../../../dal/current-user.ts';
@@ -63,16 +64,13 @@ export async function editRegistration(_state: RegistrationFormState, formData: 
 
 export type DecisionState = { error: string } | null;
 
-/** The Stavy the buttons of the list set: the decision of the admin. A Registrácia is Nová only until then. */
-const decisions = ['approved', 'rejected'] as const;
-
 /**
  * Server Action of the buttons that approve or reject a Registrácia in the list; it checks the session itself, like every action. A click
  * that names neither decision, or a Registrácia that is not there, is a page that does not exist.
  */
 export async function decideRegistration(_state: DecisionState, formData: FormData): Promise<DecisionState> {
   const user = await currentUser();
-  const status = decisions.find((known) => known === field(formData, 'status'));
+  const status = registrationDecisions.find((known) => known === field(formData, 'status'));
   if (!status) notFound();
 
   const result = await orForbidden(setRegistrationStatus(user, field(formData, 'registrationId'), status));

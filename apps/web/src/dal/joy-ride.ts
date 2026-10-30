@@ -5,6 +5,7 @@ import {
   type EditionErrors,
   type EditionInput,
   type RegistrationErrors,
+  type RegistrationDecision,
   type RegistrationInput,
   type RegistrationStatus,
 } from '@servisnik/domain/joy-ride';
@@ -145,8 +146,8 @@ export async function updateRegistration(user: User | null, id: string, input: R
 
 export type SetRegistrationStatusResult = { ok: true } | { ok: false; error: 'unknown' };
 
-/** Approves or rejects a Registrácia (or takes either back): the admin's decision, with one click, whatever the Stav was. */
-export async function setRegistrationStatus(user: User | null, id: string, status: RegistrationStatus, db: Database = getDb()): Promise<SetRegistrationStatusResult> {
+/** Approves or rejects a Registrácia (or takes either back): the admin's decision, with one click, whatever the Stav was. It is never set back to Nová. */
+export async function setRegistrationStatus(user: User | null, id: string, status: RegistrationDecision, db: Database = getDb()): Promise<SetRegistrationStatusResult> {
   assertCan(user, 'joy-ride.write');
   if (!isUuid(id)) return { ok: false, error: 'unknown' };
   const saved = await db.update(joyRideRegistration).set({ status }).where(eq(joyRideRegistration.id, id)).returning({ id: joyRideRegistration.id });
