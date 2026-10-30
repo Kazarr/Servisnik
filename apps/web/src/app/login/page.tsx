@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { readLogoVersion } from '../../dal/branding.ts';
+import { PoweredBy } from '../powered-by.tsx';
 import { LoginForm } from './login-form.tsx';
 
 export const metadata: Metadata = { title: 'Prihlásenie' };
@@ -23,6 +24,7 @@ export default async function LoginPage() {
       )}
       <h1>Prihlásenie</h1>
       <LoginForm />
+      <PoweredBy />
     </main>
   );
 }
