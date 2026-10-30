@@ -85,11 +85,25 @@ export function readPdf(bytes: Uint8Array): PdfPage[] {
     const { dict } = get(kid);
     const box = /\/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]/.exec(dict);
     if (!box) throw new Error(`Page ${kid} has no MediaBox from 0 0.`);
+    const pageContent = get(reference(dict, 'Contents')!).stream!.toString('latin1');
+    // Chromium puts what the page draws into a form (an XObject that the page calls with `/X12 Do`) when something on it blends, like
+    // the logo on the black bar of the Hlavička tlačív (`mix-blend-mode`): the text and the fills are then in the form, with fonts of its own.
+    const dicts = [dict];
+    const withForms = (stream: string, owner: string): string =>
+      stream.replace(/\/(\w+) Do\b/g, (call, name: string) => {
+        const id = new RegExp(`/${name}\\s+(\\d+) 0 R`).exec(/\/XObject\s*<<([^>]*)>>/.exec(owner)?.[1] ?? '')?.[1];
+        const form = id ? get(Number(id)) : null;
+        if (!form?.stream || !/\/Subtype\s*\/Form/.test(form.dict)) return call;
+        dicts.push(form.dict);
+        return withForms(form.stream.toString('latin1'), form.dict);
+      });
+    const content = withForms(pageContent, dict);
     // `/F4 4 0 R`: the name a content stream uses for a font, and the font object.
     const fonts = new Map(
-      [...(/\/Font\s*<<([^>]*)>>/.exec(dict)?.[1] ?? '').matchAll(/\/(F\d+)\s+(\d+) 0 R/g)].map(([, name, id]) => [name!, glyphCharacters(get(reference(get(Number(id)).dict, 'ToUnicode')!).stream!.toString('latin1'))]),
+      dicts.flatMap((owner) =>
+        [...(/\/Font\s*<<([^>]*)>>/.exec(owner)?.[1] ?? '').matchAll(/\/(F\d+)\s+(\d+) 0 R/g)].map(([, name, id]) => [name!, glyphCharacters(get(reference(get(Number(id)).dict, 'ToUnicode')!).stream!.toString('latin1'))] as const),
+      ),
     );
-    const content = get(reference(dict, 'Contents')!).stream!.toString('latin1');
 
     // A text run is what one `BT` shows from one `Tm`, the y of which is its baseline. Runs on one baseline are one line:
     // "Strana ", "1", "/" and "3" of the footer are four runs.
@@ -131,7 +145,7 @@ export function readPdf(bytes: Uint8Array): PdfPage[] {
       text: lines.map(({ text }) => text).join('\n').replace(/\p{Zs}/gu, ' '),
       missingGlyphs,
       fills: [...new Set([...content.matchAll(/(\S+ \S+ \S+) rg\b/g)].map(([, colour]) => colour!))],
-      margins: marginsOf(content, width, height),
+      margins: marginsOf(pageContent, width, height),
     };
   });
 }
