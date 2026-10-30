@@ -130,14 +130,14 @@ export function parseGitLog(output: string): Commit[] {
       const added: string[] = [];
       const moves: [string, string][] = [];
       for (const line of rest.filter(Boolean)) {
-        const [, from, to] = MOVE.exec(line) ?? [];
-        const [, status, path] = CHANGE.exec(line) ?? [];
-        if (from && to) {
-          files.push(from, to);
-          moves.push([from, to]);
-        } else if (status && path) {
-          files.push(path);
-          if (status === 'A') added.push(path);
+        const move = MOVE.exec(line);
+        const change = CHANGE.exec(line);
+        if (move) {
+          files.push(move[1]!, move[2]!);
+          moves.push([move[1]!, move[2]!]);
+        } else if (change) {
+          files.push(change[2]!);
+          if (change[1] === 'A') added.push(change[2]!);
         } else {
           throw new Error(`git log: commit ${sha}: expected "<status><TAB><path>" or "R<score><TAB><old path><TAB><new path>", got "${line}"`);
         }
