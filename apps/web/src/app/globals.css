@@ -1,22 +1,38 @@
+/*
+ * The demo theme for the customer's meeting: black and glossy, white text, one warm colour (gold). It is set in
+ * the values of the tokens and nowhere else, so the names stay. The printed forms stay white (src/print/styles.ts).
+ */
 :root {
-  --color-background: #ffffff;
-  --color-surface: #f3f5f8;
-  --color-text: #1c2430;
-  --color-text-muted: #5a6677;
-  --color-border: #d3d9e2;
-  --color-accent: #1d5fc4;
-  --color-accent-text: #ffffff;
-  --color-danger: #b3261e;
-  --color-danger-background: #fdecea;
-  --color-warning: #b45309;
-  --color-warning-background: #fff1de;
+  /* Native controls (the scrollbar, a select's list, a date picker) draw dark too. */
+  color-scheme: dark;
 
-  --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --color-background: #050505;
+  --color-surface: #111111;
+  --color-text: #ffffff;
+  --color-text-muted: #a8a8a8;
+  --color-border: #2b2b2b;
+  --color-accent: #e0a446;
+  --color-accent-text: #0a0a0a;
+  --color-danger: #f0584f;
+  --color-danger-background: #2a0f0d;
+  /* Orange, so that it is not taken for the gold of the accent. */
+  --color-warning: #f27a2e;
+  --color-warning-background: #2b1708;
+
+  /* The gloss: a gradient with a light edge instead of a flat colour. The colour tokens above stay under it. */
+  --gloss-background: radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.1), transparent 60%), linear-gradient(180deg, #1a1a1a 0%, #070707 45%, #000 100%);
+  --gloss-surface: linear-gradient(180deg, #1f1f1f 0%, #0d0d0d 55%, #050505 100%);
+  --gloss-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --gloss-accent: linear-gradient(180deg, #f6cf7f 0%, #e0a446 50%, #b97d22 100%);
+
+  /* Outfit is loaded by next/font in layout.tsx, which puts its family in --font-outfit; a page without the layout has the system font. */
+  --font-family: var(--font-outfit, system-ui), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-size-base: 1rem;
+  --font-size-small: 0.875rem;
   --font-size-title: 1.5rem;
   --font-size-heading: 1.25rem;
-  --font-weight-medium: 500;
-  --font-weight-bold: 700;
+  --font-weight-medium: 600;
+  --font-weight-bold: 800;
   --line-height-base: 1.5;
 
   --space-1: 0.25rem;
@@ -32,6 +48,8 @@
   --sidebar-width: 14rem;
   --form-width: 22rem;
   --logo-preview-height: 8rem;
+  --brand-logo-height: 5rem;
+  --login-logo-height: 8rem;
   --viewport-height: 100vh;
   --width-full: 100%;
   --track-fill: minmax(0, 1fr);
@@ -47,16 +65,24 @@
 
 body {
   margin: 0;
-  background: var(--color-background);
+  background-color: var(--color-background);
+  background-image: var(--gloss-background);
+  background-attachment: fixed;
   color: var(--color-text);
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   line-height: var(--line-height-base);
 }
 
+/* The blue of a browser's links cannot be read on black. */
+a {
+  color: var(--color-accent);
+}
+
 h1 {
   margin: 0 0 var(--space-3);
   font-size: var(--font-size-title);
+  font-weight: var(--font-weight-bold);
 }
 
 button,
@@ -69,6 +95,7 @@ select {
 h2 {
   margin: 0;
   font-size: var(--font-size-heading);
+  font-weight: var(--font-weight-bold);
 }
 
 /* A link that looks like the button next to it. */
@@ -78,7 +105,8 @@ button,
   padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--color-accent);
   border-radius: var(--radius);
-  background: var(--color-accent);
+  background-color: var(--color-accent);
+  background-image: var(--gloss-accent);
   color: var(--color-accent-text);
   text-decoration: none;
   cursor: pointer;
@@ -102,13 +130,41 @@ button:disabled {
   gap: var(--space-4);
   padding: var(--space-4) var(--space-3);
   border-right: var(--border-width) solid var(--color-border);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
+  background-image: var(--gloss-surface);
+  box-shadow: var(--gloss-highlight);
 }
 
+/* The name of the app, or the logo of the autoservis with its name under it. */
 .brand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.brand-text {
   margin: 0;
   font-size: var(--font-size-title);
   font-weight: var(--font-weight-bold);
+}
+
+/* The logo is white on a black square with an empty margin: `cover` cuts the margin off, and `screen` lets the black take the colour behind it. */
+.brand-logo,
+.login-logo {
+  display: block;
+  width: var(--width-full);
+  object-fit: cover;
+  mix-blend-mode: screen;
+}
+
+.brand-logo {
+  height: var(--brand-logo-height);
+}
+
+.brand-name {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
 }
 
 .menu {
@@ -134,7 +190,8 @@ button:disabled {
 }
 
 .menu a[aria-current='page'] {
-  background: var(--color-accent);
+  background-color: var(--color-accent);
+  background-image: var(--gloss-accent);
   color: var(--color-accent-text);
   font-weight: var(--font-weight-medium);
 }
@@ -190,6 +247,24 @@ button:disabled {
   padding: var(--space-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* The logo of the autoservis above the form, and under it a line of what it stands for. */
+.login-brand {
+  margin: 0 0 var(--space-4);
+}
+
+.login-logo {
+  height: var(--login-logo-height);
+}
+
+.login-slogan {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  text-align: center;
 }
 
 .error {
@@ -203,7 +278,9 @@ button:disabled {
   padding: var(--space-3);
   border: var(--border-width-strong) solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
+  background-image: var(--gloss-surface);
+  box-shadow: var(--gloss-highlight);
 }
 
 .notice p {
@@ -268,6 +345,8 @@ button:disabled {
   padding: var(--space-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .field input[aria-invalid='true'],
@@ -310,6 +389,9 @@ button:disabled {
 table {
   width: var(--width-full);
   border-collapse: collapse;
+  background-color: var(--color-surface);
+  background-image: var(--gloss-surface);
+  box-shadow: var(--gloss-highlight);
 }
 
 th,
@@ -391,7 +473,9 @@ tfoot td {
   margin: 0 0 var(--space-4);
   padding: var(--space-2) var(--space-3);
   border-left: var(--border-width-strong) solid var(--color-danger);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
+  background-image: var(--gloss-surface);
+  box-shadow: var(--gloss-highlight);
 }
 
 /* The buttons of a form sit in the row of .actions as if the form were not there. */
@@ -421,7 +505,9 @@ tfoot td {
   padding: var(--space-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
+  background-image: var(--gloss-surface);
+  box-shadow: var(--gloss-highlight);
 }
 
 .logo-preview img {
