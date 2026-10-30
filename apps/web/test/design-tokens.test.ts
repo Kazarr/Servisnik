@@ -4,7 +4,7 @@ import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { documentCss, footerTemplate, printTokens } from '../src/print/styles.ts';
-import { tokensOf } from './support/css-tokens.ts';
+import { COMMENT, tokensOf } from './support/css-tokens.ts';
 
 const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
@@ -66,7 +66,6 @@ type Rule = keyof typeof RULES;
 // What is not a value to turn into a token: comments, the :root blocks that define the tokens (also with an
 // attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`), the condition of a @media or
 // @container and the step of a @keyframes, none of which can hold a var().
-const COMMENT = /\/\*[\s\S]*?\*\//g;
 const ROOT_BLOCK = /:root(?:\[[^\]]*\]|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?)*\s*\{[^}]*\}/g;
 const AT_RULE_CONDITION = /@(?:media|container)[^{]*/g;
 // A step list starts with a percentage: from and to hold no value, and only a percentage before them is lost.

@@ -93,3 +93,11 @@ test('a Zákazka saved with lower kilometres says so, names the Stav km of the v
   expect(html).toContain('stav km vozidla sa nezmenil');
   expect(hrefOf(html, 'Z2026-0007')).toBe(`/zakazky/${existingId}`);
 });
+
+test('a Zákazka saved with lower kilometres is a notice and no error: it has the class of a notice and none of an error', () => {
+  const html = renderToStaticMarkup(createElement(LowerMileageNotice, { id: existingId, number: 'Z2026-0007', vehicleMileageKm: 100000 }));
+
+  expect(html).toMatch(/class="notice"/);
+  expect(html).not.toMatch(/class="[^"]*\berror\b/);
+  expect(html).not.toContain('role="alert"');
+});
