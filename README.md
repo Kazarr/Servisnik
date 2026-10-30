@@ -34,6 +34,8 @@ pnpm db:seed       # keď žiadny admin nie je, založí ho z ADMIN_EMAIL a ADMI
 pnpm dev           # http://localhost:3000 presmeruje na prihlásenie
 ```
 
+Ukážka pre zákazníka (téma, logo, údaje autoservisu a zákazky na prémiových autách): `pnpm db:demo` proti databáze ukážky (`DATABASE_URL`), a len s `DEMO=1`, aby omylom neprepísal ostrú databázu: `$env:DEMO='1'; pnpm db:demo` (PowerShell). Spúšťa sa rukou, nasadenie ani `db:seed` ho nespúšťajú. Dá sa spustiť opakovane: každý beh vráti názov, adresu, IČO, DIČ, IČ DPH a e-mail autoservisu na hodnoty z obchodného registra a nahradí logo logom stiahnutým z webu zákazníka, takže čo admin v týchto poliach napísal, sa prepíše. Keď sa logo nepodarí stiahnuť, skript pokračuje a vypíše, že ho treba nahrať v Nastaveniach → Logo; logo, ktoré tam bolo, ostane. Telefón, IBAN a zápis v registri nechá tak, ako ich admin napísal. Telefón skript nevypĺňa, lebo repozitár je verejný: doplní ho admin v Nastaveniach. Zákazky pozná podľa VIN vozidla: chýbajúce založí, tie, čo už sú, nechá, len ich Termín nastaví každý beh odznova ako počet dní od dňa behu (jedna zákazka je po termíne, ostatné pred ním). Preto ho spusti ráno v deň ukážky: Termíny sa počítajú od dňa behu, takže pri behu o niekoľko dní skôr by boli v deň ukážky po termíne aj zákazky, ktoré majú byť pred ním.
+
 Registrácia v appke nie je: prvého admina založí seed a ďalších používateľov admin v Nastaveniach. Zmenu schémy (`apps/web/src/db/schema.ts`) premietne `pnpm --filter @servisnik/web db:generate` do novej migrácie, ktorú commitni.
 
 ## Testy

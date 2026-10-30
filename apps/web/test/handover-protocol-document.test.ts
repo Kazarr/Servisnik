@@ -19,7 +19,7 @@ const protocol: HandoverProtocol = {
 };
 
 const print = (overrides: Partial<HandoverProtocol> = {}, logo: Parameters<typeof handoverProtocolDocument>[0]['logo'] = null, printedOn = '2026-10-28') =>
-  handoverProtocolDocument({ protocol: { ...protocol, ...overrides }, workshop, logo, printedOn });
+  handoverProtocolDocument({ protocol: { ...protocol, ...overrides }, workshop, logo, letterhead: 'white', printedOn });
 
 /** The text of a cell: its markup without tags, a no-break space read as a space. */
 const textOf = (cell: string) => cell.replace(/<[^>]*>/g, '').replace(/\p{Zs}/gu, ' ').trim();

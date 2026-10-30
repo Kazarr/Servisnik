@@ -2,23 +2,24 @@ import { checkLogo, type LogoContentType, type LogoError } from '@servisnik/doma
 import { sql } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { workshopLogo } from '../db/schema.ts';
+import { readLogo, type Logo } from './branding.ts';
 import { assertCan, type User } from './user.ts';
 
 // The logo of the Autoservis lives in the one row of `workshop_logo` (src/db/schema.ts), apart from the
 // other values of Nastavenia so that reading those never loads the image.
 
-export type Logo = { contentType: LogoContentType; bytes: Uint8Array };
+export type { Logo };
 export type LogoInfo = { contentType: LogoContentType; sizeBytes: number; updatedAt: Date };
 export type SaveLogoResult = { ok: true } | { ok: false; error: LogoError };
 
 /**
- * The logo for print and for the image route, or null when there is none. Every signed-in Používateľ
- * may read it, the mechanik too: the forms he prints carry it.
+ * The logo for print, or null when there is none. Every signed-in Používateľ may read it, the mechanik
+ * too: the forms he prints carry it. The image route and the login page read it without a user, through
+ * `readLogo` of branding.ts.
  */
 export async function getLogo(user: User | null, db: Database = getDb()): Promise<Logo | null> {
   assertCan(user, 'workshop.read');
-  const [row] = await db.select({ contentType: workshopLogo.contentType, bytes: workshopLogo.data }).from(workshopLogo);
-  return row ?? null;
+  return readLogo(db);
 }
 
 /** What Nastavenia shows about the logo, without the image itself; null when there is none. */

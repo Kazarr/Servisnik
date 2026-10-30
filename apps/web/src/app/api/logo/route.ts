@@ -4,7 +4,7 @@ import { sessionUser } from '../../../route-guard.ts';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = async (request: Request) => getLogoResponse(await sessionUser(request), getDb());
+export const GET = async () => getLogoResponse(getDb());
 
 export const PUT = async (request: Request) => putLogoResponse(await sessionUser(request), request, getDb());
 

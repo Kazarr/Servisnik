@@ -1,4 +1,11 @@
-import type { Page } from '@playwright/test';
+import type { ConsoleMessage, Page } from '@playwright/test';
+
+/**
+ * The 404 of the image of the logo, which is no problem of the page that got it. The logo is one row for all the specs, and
+ * logo.spec.ts removes it; every page of the app has the logo in its menu while it is there (ticket #150), so a page that was
+ * made just before the removal asks for an image that is gone. The text of the message does not name the address, its location does.
+ */
+const logoGone = (message: ConsoleMessage) => /status of 404/.test(message.text()) && new URL(message.location().url || 'http://localhost/').pathname === '/api/logo';
 
 /**
  * The rules of the `context` fixture in fixtures.ts, which applies them to every page of the context: a
@@ -10,7 +17,7 @@ import type { Page } from '@playwright/test';
 export function watchPage(page: Page): string[] {
   const problems: string[] = [];
   page.on('console', (message) => {
-    if (message.type() === 'error') problems.push(`console.error: ${message.text()}`);
+    if (message.type() === 'error' && !logoGone(message)) problems.push(`console.error: ${message.text()}`);
   });
   page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
   page.on('response', (response) => {

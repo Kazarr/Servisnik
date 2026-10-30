@@ -10,7 +10,7 @@ import { printedFormResponse } from './print-response.ts';
 /** The cenová ponuka of a Zákazka as a PDF download. It has the prices, so it is the admin's alone: any other Rola gets a 403. */
 export const quoteResponse = (user: User | null, workOrderId: string, db: Database, now: Date = new Date()) =>
   printedFormResponse(
-    { form: 'quote', read: getQuote, document: ({ data: quote, workshop, logo, printedOn }) => quoteDocument({ quote, workshop, logo, printedOn }) },
+    { form: 'quote', read: getQuote, document: ({ data: quote, ...rest }) => quoteDocument({ quote, ...rest }) },
     user,
     workOrderId,
     db,

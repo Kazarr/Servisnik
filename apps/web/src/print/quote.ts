@@ -1,7 +1,6 @@
-import type { WorkshopDetails } from '@servisnik/domain/workshop';
-import type { Logo } from '../dal/logo.ts';
 import type { Quote } from '../dal/print-forms.ts';
 import { formatEuro, formatQuantity } from '../format.ts';
+import type { PrintedInput } from '../print-response.ts';
 import { printedDocument } from './document.ts';
 import { html } from './html.ts';
 
@@ -38,9 +37,15 @@ const itemsTable = (items: Quote['items']) => html`
  * sums of the Zákazka. Every number is the one the Data Access Layer read from the domain; the form adds nothing
  * up. It has no Nákupná cena, no Marža and no number of its own: it carries the number of the Zákazka.
  */
-export const quoteDocument = ({ quote, workshop, logo, printedOn }: { quote: Quote; workshop: WorkshopDetails; logo: Logo | null; printedOn: string }) =>
+export const quoteDocument = ({
+  quote,
+  workshop,
+  logo,
+  letterhead,
+  printedOn,
+}: Omit<PrintedInput<Quote>, 'data'> & { quote: Quote }) =>
   printedDocument(
-    { title: 'Cenová ponuka', number: quote.number, printedOn, workshop, logo, customer: quote.customer, vehicle: quote.vehicle },
+    { title: 'Cenová ponuka', number: quote.number, printedOn, workshop, logo, letterhead, customer: quote.customer, vehicle: quote.vehicle },
     html`
 <section class="items">
   <h2>Položky</h2>

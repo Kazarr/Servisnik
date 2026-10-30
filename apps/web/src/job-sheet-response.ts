@@ -16,7 +16,7 @@ import { printedFormResponse } from './print-response.ts';
  */
 export const jobSheetResponse = (user: User | null, workOrderId: string, db: Database, now: Date = new Date()) =>
   printedFormResponse(
-    { form: 'jobSheet', read: getJobSheet, document: ({ data: sheet, workshop, logo, printedOn }) => jobSheetDocument({ sheet, workshop, logo, printedOn }) },
+    { form: 'jobSheet', read: getJobSheet, document: ({ data: sheet, ...rest }) => jobSheetDocument({ sheet, ...rest }) },
     user,
     workOrderId,
     db,

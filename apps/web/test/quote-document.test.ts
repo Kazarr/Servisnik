@@ -19,7 +19,7 @@ const quote: Quote = {
 };
 
 const print = (overrides: Partial<Quote> = {}, logo: Parameters<typeof quoteDocument>[0]['logo'] = null) =>
-  quoteDocument({ quote: { ...quote, ...overrides }, workshop, logo, printedOn: '2026-10-28' });
+  quoteDocument({ quote: { ...quote, ...overrides }, workshop, logo, letterhead: 'white', printedOn: '2026-10-28' });
 
 /** The text of a cell: its markup without tags, a no-break space read as a space. */
 const textOf = (cell: string) => cell.replace(/<[^>]*>/g, '').replace(/\p{Zs}/gu, ' ').trim();

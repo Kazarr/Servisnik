@@ -1,9 +1,9 @@
-import { printFileName, type PrintForm } from '@servisnik/domain/print';
+import { printFileName, type Letterhead, type PrintForm } from '@servisnik/domain/print';
 import { localDate } from '@servisnik/domain/work-order';
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import { getLogo, type Logo } from './dal/logo.ts';
 import type { User } from './dal/user.ts';
-import { getWorkshopDetails } from './dal/workshop.ts';
+import { getLetterhead, getWorkshopDetails } from './dal/workshop.ts';
 import type { Database } from './db/index.ts';
 import { printPdf } from './print/pdf.ts';
 import { failure, guarded } from './route-guard.ts';
@@ -12,8 +12,8 @@ import { failure, guarded } from './route-guard.ts';
 // Action). A form brings its read of the Zákazka and its HTML; the capability, the 404, the header and the
 // download are the same for all of them.
 
-/** What a form hands the HTML of its document: what it read of the Zákazka, the autoservis, its logo and the day of the print. */
-export type PrintedInput<Data> = { data: Data; workshop: WorkshopDetails; logo: Logo | null; printedOn: string };
+/** What a form hands the HTML of its document: what it read of the Zákazka, the autoservis, its logo, its Hlavička tlačív and the day of the print. */
+export type PrintedInput<Data> = { data: Data; workshop: WorkshopDetails; logo: Logo | null; letterhead: Letterhead; printedOn: string };
 
 /**
  * The PDF of a form of a Zákazka as a download, printed with the day `now` in Europe/Bratislava. `read` asks
@@ -37,8 +37,8 @@ export const printedFormResponse = <Data extends { number: string }>(
     const data = await read(user, workOrderId, db);
     if (!data) return failure('Zákazka neexistuje.', 404);
     if (data instanceof Response) return data;
-    const [workshop, logo] = await Promise.all([getWorkshopDetails(user, db), getLogo(user, db)]);
-    const pdf = await printPdf(document({ data, workshop, logo, printedOn: localDate(now) }));
+    const [workshop, logo, letterhead] = await Promise.all([getWorkshopDetails(user, db), getLogo(user, db), getLetterhead(user, db)]);
+    const pdf = await printPdf(document({ data, workshop, logo, letterhead, printedOn: localDate(now) }));
     return new Response(pdf as Uint8Array<ArrayBuffer>, {
       headers: {
         'Content-Type': 'application/pdf',

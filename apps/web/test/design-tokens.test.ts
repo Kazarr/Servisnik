@@ -4,6 +4,7 @@ import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { documentCss, footerTemplate, printTokens } from '../src/print/styles.ts';
+import { tokensOf } from './support/css-tokens.ts';
 
 const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
@@ -300,11 +301,17 @@ test('icon.svg paints with the accent tokens of globals.css', () => {
 });
 
 // The printed forms are HTML that Chromium prints from a string, outside the page of the app, so they cannot
-// read globals.css: they carry a :root of their own (src/print/styles.ts), and it must be the app's. As with
-// icon.svg, what they share by name must equal the tokens, and a colour, weight or line height they have must
-// be one the app has too. The one thing a form takes from no token of the app is its font: the app's own is
-// `system-ui`, which is whatever the machine says, and the machine of the image says a Chinese font.
-const tokensOf = (css: string) => Object.fromEntries([...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name!, value!.trim()]));
+// read globals.css: they carry a :root of their own (src/print/styles.ts). As with icon.svg, what they share
+// by name with the app must equal the app's tokens, and a colour, weight or line height they have must be one
+// the app has too. Six tokens are the exception since the demo theme (below). A form takes its font from no token
+// of the app: the app's own is Outfit, with `system-ui` after it, which is whatever the machine says, and the
+// machine of the image says a Chinese font.
+
+// The demo theme (ticket #150) makes the app black and set in Outfit, while the paper stays white and set in Arial. These six
+// tokens keep their names in both and have other values on paper, so they are not held equal to the app's. What holds each on
+// paper: the first three are read against the white paper by test/theme-contrast.test.ts, and the other three are pinned here.
+const demoThemed = ['--color-text', '--color-text-muted', '--color-surface', '--color-border', '--font-weight-medium', '--font-weight-bold'];
+const paperValues = { '--color-border': '#d3d9e2', '--font-weight-medium': '500', '--font-weight-bold': '700' };
 
 test('the tokens of a printed form that the app has too have the same value, and a form invents no colour, weight or line height', () => {
   const app = tokensOf(read('globals.css'));
@@ -312,8 +319,13 @@ test('the tokens of a printed form that the app has too have the same value, and
   const shared = Object.keys(print).filter((name) => name in app);
 
   expect(shared).toEqual(expect.arrayContaining(['--color-text', '--color-text-muted', '--font-weight-bold', '--line-height-base']));
-  for (const name of shared) expect(print[name], name).toBe(app[name]);
-  expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app))).toEqual([]);
+  for (const name of shared.filter((token) => !demoThemed.includes(token))) expect(print[name], name).toBe(app[name]);
+  expect(print).toMatchObject(paperValues);
+  // The one exception is the black bar of the Hlavička tlačív (ticket #150): `--color-letterhead-*` are the colours of the app's theme laid
+  // on paper, so each must be a colour the app has, under whatever name it has it.
+  const appColours = Object.entries(app).filter(([name]) => name.startsWith('--color-')).map(([, value]) => value);
+  const letterheadColour = (name: string) => name.startsWith('--color-letterhead-') && appColours.includes(print[name]!);
+  expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app) && !letterheadColour(name))).toEqual([]);
 });
 
 test('a printed form names its own fonts, and none of them is the font of the system', () => {

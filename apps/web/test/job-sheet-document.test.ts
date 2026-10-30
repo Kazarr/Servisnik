@@ -1,3 +1,4 @@
+import type { Letterhead } from '@servisnik/domain/print';
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import { describe, expect, test } from 'vitest';
 import type { JobSheet } from '../src/dal/job-sheet.ts';
@@ -17,8 +18,8 @@ const sheet: JobSheet = {
   customerRequest: 'Výmena oleja\nKontrola bŕzd',
 };
 
-const print = (overrides: { sheet?: JobSheet; workshop?: WorkshopDetails; logo?: Parameters<typeof jobSheetDocument>[0]['logo'] } = {}) =>
-  jobSheetDocument({ sheet, workshop, logo: null, printedOn: '2026-10-28', ...overrides });
+const print = (overrides: { sheet?: JobSheet; workshop?: WorkshopDetails; logo?: Parameters<typeof jobSheetDocument>[0]['logo']; letterhead?: Letterhead } = {}) =>
+  jobSheetDocument({ sheet, workshop, logo: null, letterhead: 'white', printedOn: '2026-10-28', ...overrides });
 
 describe('the header', () => {
   test('carries the name, address, identifiers and contacts of the autoservis, the number of the Zákazka and the day of the print', () => {
@@ -59,6 +60,15 @@ describe('the header', () => {
     expect(print({ logo: { contentType: 'image/png', bytes: png } })).toContain(`<img class="logo" src="data:image/png;base64,${Buffer.from(png).toString('base64')}"`);
     expect(print({ logo: { contentType: 'image/jpeg', bytes: jpeg } })).toContain('src="data:image/jpeg;base64,');
     expect(print({ logo: null })).not.toContain('<img');
+  });
+
+  // How the two Hlavičky look on paper is the PDF test of letterhead.test.ts; here is only that the header says which one it is.
+  test('is the header of the Hlavička the admin picked, with the logo in either', () => {
+    const logo = { contentType: 'image/png', bytes: png } as const;
+
+    expect(print({ letterhead: 'white', logo })).toContain('<header class="letterhead letterhead-white">');
+    expect(print({ letterhead: 'blackBar', logo })).toContain('<header class="letterhead letterhead-black-bar">');
+    for (const letterhead of ['white', 'blackBar'] as const) expect(print({ letterhead, logo }), letterhead).toContain('<img class="logo" src="data:image/png;base64,');
   });
 });
 
