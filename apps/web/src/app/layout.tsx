@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import { Outfit } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { productName } from '../product.ts';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: { default: 'Servisník', template: '%s – Servisník' },
+  title: { default: productName, template: `%s – ${productName}` },
 };
 
 // Outfit, the font of the customer's site, in the weights of the theme (--font-weight-* in globals.css: 400 text, 600 medium, 800
