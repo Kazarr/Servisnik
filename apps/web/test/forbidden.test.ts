@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import * as priceListActions from '../src/app/(app)/cennik/actions.ts';
 import { forbiddenMessage, orForbidden } from '../src/app/(app)/forbidden.ts';
+import * as joyRideActions from '../src/app/(app)/jazda-radosti/actions.ts';
 import * as settingsActions from '../src/app/(app)/nastavenia/actions.ts';
 import * as userActions from '../src/app/(app)/nastavenia/user-actions.ts';
 import * as vehicleActions from '../src/app/(app)/vozidla/actions.ts';
@@ -104,6 +105,21 @@ const actions = {
     answer: formRefused,
   },
   deleteFromPriceList: { call: () => priceListActions.deleteFromPriceList(null, form({ itemId: id })), answer: { error: forbiddenMessage } },
+  saveEditionAction: {
+    call: () => joyRideActions.saveEditionAction(null, form({ name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica', registrationDeadline: '2026-10-09T15:00' })),
+    answer: formRefused,
+  },
+  addRegistration: {
+    call: () =>
+      joyRideActions.addRegistration(null, form({ name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' })),
+    answer: formRefused,
+  },
+  editRegistration: {
+    call: () =>
+      joyRideActions.editRegistration(null, form({ id, name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' })),
+    answer: formRefused,
+  },
+  decideRegistration: { call: () => joyRideActions.decideRegistration(null, form({ registrationId: id, status: 'approved' })), answer: { error: forbiddenMessage } },
   changeStatus: { call: () => workOrderActions.changeStatus(null, form({ workOrderId: id, to: 'done' })), answer: { error: forbiddenMessage } },
   saveRatesAction: {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),

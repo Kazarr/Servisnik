@@ -1,6 +1,8 @@
+import type { EditionInput, RegistrationInput, RegistrationStatus } from '@servisnik/domain/joy-ride';
 import { localDate, type ItemInput, type WorkOrderStatus } from '@servisnik/domain/work-order';
 import type { WorkshopDetailsInput } from '@servisnik/domain/workshop';
 import { eq } from 'drizzle-orm';
+import { createRegistration, getEdition, listRegistrations, saveEdition, setRegistrationStatus } from './dal/joy-ride.ts';
 import { saveLogo } from './dal/logo.ts';
 import type { User } from './dal/user.ts';
 import { getWorkshopDetails, saveWorkshopDetails } from './dal/workshop.ts';
@@ -216,13 +218,61 @@ async function makeOrder(db: Database, order: DemoOrder, now: Date) {
   }
 }
 
+/** The Ročník 2026 of the Jazda radosti as the ticket (#153) and the invitation give it: 10. 10. 2026, the uzávierka the day before at 15:00. */
+const demoEdition: EditionInput = { name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' };
+
+type DemoRegistration = { registration: RegistrationInput; /** When it was made: an instant before the day of the Ročník. */ madeAt: string; status: RegistrationStatus };
+
+// Every exhibitor is made up, and so is every contact, since the repository is public: an e-mail at example.com, a phone that cannot be
+// real (no Slovak number begins with 0 after +421), and a ŠPZ in the 9xx series of the demo Zákazky. No exhibitor or car is taken from the posts of the customer.
+const exhibitor = (name: string, email: string, nth: number, vehicle: Pick<RegistrationInput, 'make' | 'model' | 'category'> & { licensePlate?: string; note?: string }): RegistrationInput => ({
+  name,
+  email: `${email}@example.com`,
+  phone: `+421 000 000 ${100 + nth}`,
+  ...vehicle,
+});
+
+const demoRegistrations: DemoRegistration[] = [
+  { registration: exhibitor('Dušan Ukážkový', 'dusan.ukazkovy', 1, { make: 'Nissan', model: 'GT-R', category: 'supersport' }), madeAt: '2026-09-14T09:12:00Z', status: 'approved' },
+  { registration: exhibitor('Marek Skúšobný', 'marek.skusobny', 2, { make: 'DeLorean', model: 'DMC-12', category: 'interesting', note: 'Auto je po generálke, rád by stál pri pódiu.' }), madeAt: '2026-09-21T11:05:00Z', status: 'approved' },
+  { registration: exhibitor('Zuzana Testovacia', 'zuzana.testovacia', 3, { make: 'Škoda', model: '110 R Coupé', licensePlate: 'PB 911 VE', category: 'veteran' }), madeAt: '2026-09-28T08:30:00Z', status: 'approved' },
+  { registration: exhibitor('Ivan Príkladný', 'ivan.prikladny', 4, { make: 'Tatra', model: '815', category: 'heavy', note: 'Príde s nákladným vozidlom, treba miesto na parkovisku.' }), madeAt: '2026-10-01T13:20:00Z', status: 'approved' },
+  { registration: exhibitor('Alena Vzorová', 'alena.vzorova', 5, { make: 'Amphicar', model: '770', category: 'other', note: 'Poslala len jednu fotku.' }), madeAt: '2026-10-02T15:25:00Z', status: 'rejected' },
+  { registration: exhibitor('Katarína Demová', 'katarina.demova', 6, { make: 'Chevrolet', model: 'Corvette C6', licensePlate: 'ZA 912 CV', category: 'supersport' }), madeAt: '2026-10-06T16:40:00Z', status: 'new' },
+  { registration: exhibitor('Helena Ukážková', 'helena.ukazkova', 7, { make: 'Trabant', model: '601', category: 'veteran' }), madeAt: '2026-10-07T19:10:00Z', status: 'new' },
+  { registration: exhibitor('Roman Vzorový', 'roman.vzorovy', 8, { make: 'Jawa', model: '350 typ 634', category: 'motorcycle' }), madeAt: '2026-10-08T10:45:00Z', status: 'new' },
+];
+
+/**
+ * The Jazda radosti of the demo: the Ročník 2026 when there is no Ročník, and the Registrácie that are not there yet, told by their e-mail,
+ * each as it was made (its day, its Stav). What is there is left as it is, so a Ročník the admin edited and a Registrácia he decided stay;
+ * `editionCreated` says which of the two happened to the Ročník.
+ */
+async function makeJoyRide(db: Database) {
+  const editionCreated = !(await getEdition(demo, db));
+  if (editionCreated) {
+    const saved = await saveEdition(demo, demoEdition, db);
+    if (!saved.ok) throw new Error(`The Ročník of the demo was refused: ${JSON.stringify(saved.errors)}`);
+  }
+  const known = new Set((await listRegistrations(demo, {}, db)).registrations.map(({ email }) => email));
+  let created = 0;
+  for (const { registration, madeAt, status } of demoRegistrations) {
+    if (known.has(registration.email)) continue;
+    const made = await createRegistration(demo, registration, db, new Date(madeAt));
+    if (!made.ok) throw new Error(`The demo Registrácia of ${registration.name} was refused: ${JSON.stringify(made.errors)}`);
+    if (status !== 'new') await setRegistrationStatus(demo, made.id, status, db);
+    created += 1;
+  }
+  return { editionCreated, registrationsCreated: created, registrationsExisting: demoRegistrations.length - created };
+}
+
 /**
  * Fills Údaje autoservisu with the register's and puts the logo in when it has one, then makes the Zákazky that are not there yet.
  * It can run any number of times, and every run sets the name, the address, the IČO, the DIČ, the IČ DPH and the e-mail back to the
  * register's and replaces the logo, so what the admin typed in those fields is lost. What the register does not have (the phone, the
  * IBAN, the entry of the register) is kept as the admin typed it in Nastavenia. A Zákazka is told by the VIN of its vehicle: one that
  * is not there is made, and one that is there is left as it is, except for its Termín, which every run sets from its own day, so the
- * run belongs on the morning of the demo.
+ * run belongs on the morning of the demo. The Jazda radosti is made last (`makeJoyRide`).
  *
  * ponytail: each Zákazka is made in several steps, not one transaction, so a run that dies in the middle of one leaves it
  * without some items; delete the demo data and run again. The demo is never anyone's real data.
@@ -248,5 +298,5 @@ export async function seedDemo(db: Database, { logo, now = new Date() }: { logo:
     // header of a Zákazka that is Hotová cannot be edited (`updateWorkOrderHeader`).
     await db.update(workOrder).set({ deadline: deadlineOf(order, now) }).where(eq(workOrder.vehicleId, known.id));
   }
-  return { created, existing: demoOrders.length - created, phoneMissing: saved.details.phone === null, logoSaved };
+  return { created, existing: demoOrders.length - created, phoneMissing: saved.details.phone === null, logoSaved, ...(await makeJoyRide(db)) };
 }
