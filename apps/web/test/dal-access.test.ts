@@ -129,6 +129,8 @@ const calls: Record<string, Call> = {
       { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
       db,
     ),
+  getLetterhead: (user, db) => workshopDetails.getLetterhead(user, db),
+  saveLetterhead: (user, db) => workshopDetails.saveLetterhead(user, 'blackBar', db),
   getLogo: (user, db) => logo.getLogo(user, db),
   getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
   saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
@@ -148,7 +150,7 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'getUnpricedWorkOrder', 'getJobSheet', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
+const mechanikMay = ['listWorkOrders', 'getUnpricedWorkOrder', 'getJobSheet', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType', 'getLetterhead'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = {

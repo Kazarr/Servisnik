@@ -317,7 +317,11 @@ test('the tokens of a printed form that the app has too have the same value, and
 
   expect(shared).toEqual(expect.arrayContaining(['--color-text', '--color-text-muted', '--font-weight-bold', '--line-height-base']));
   for (const name of shared.filter((token) => !demoThemed.includes(token))) expect(print[name], name).toBe(app[name]);
-  expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app))).toEqual([]);
+  // The one exception is the black bar of the Hlavička tlačív (ticket #150): `--color-letterhead-*` are the colours of the app's theme laid
+  // on paper, so each must be a colour the app has, under whatever name it has it.
+  const appColours = Object.entries(app).filter(([name]) => name.startsWith('--color-')).map(([, value]) => value);
+  const letterheadColour = (name: string) => name.startsWith('--color-letterhead-') && appColours.includes(print[name]!);
+  expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app) && !letterheadColour(name))).toEqual([]);
 });
 
 test('a printed form names its own fonts, and none of them is the font of the system', () => {

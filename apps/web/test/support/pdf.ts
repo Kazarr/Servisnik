@@ -65,6 +65,10 @@ function marginsOf(content: string, pageWidth: number, pageHeight: number) {
   return { top, left, right: pageWidth - left - width * factor, bottom: pageHeight - top - height * factor };
 }
 
+/** Whether the page fills a shape or text with the colour `rgb` (0 to 255 each), give or take the rounding of the PDF. */
+export const paintsWith = (page: PdfPage, rgb: [number, number, number]) =>
+  page.fills.some((fill) => fill.split(' ').every((unit, index) => Math.abs(Number(unit) * 255 - rgb[index]!) < 1));
+
 /** The fonts a PDF embeds, each once, by the name the font has itself: `ArialMT`, `LiberationSans-Bold`. */
 export const fontsOf = (bytes: Uint8Array) => [
   ...new Set([...Buffer.from(bytes).toString('latin1').matchAll(/\/BaseFont \/(?:[A-Z]{6}\+)?([\w-]+)/g)].map(([, name]) => name!)),
