@@ -3,8 +3,7 @@ import { readEnv } from '../src/env.ts';
 import { printError } from '../src/print-error.ts';
 import { seedAdmin } from '../src/seed.ts';
 
-// `pnpm db:seed`: when there is no admin, creates him from ADMIN_EMAIL and ADMIN_PASSWORD, or makes the user
-// with that e-mail an admin with that password; an existing admin is left as he is.
+// `pnpm db:seed`: runs `seedAdmin` with ADMIN_EMAIL and ADMIN_PASSWORD; what it does, and when it fails, is in its doc comment.
 try {
   const { DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD } = readEnv(process.env, ['DATABASE_URL', 'ADMIN_EMAIL', 'ADMIN_PASSWORD']);
   const db = createDb(DATABASE_URL);
