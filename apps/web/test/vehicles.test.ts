@@ -11,6 +11,7 @@ import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { truncateTables } from './support/reset.ts';
+import { savedInOrder } from './support/saved-in-order.ts';
 
 const vin = 'WVWZZZ1JZ3W386752';
 
@@ -163,8 +164,9 @@ test('two vehicles with the same ŠPZ are both saved, however it is typed', asyn
 
 test('vehicles are listed from the newest with VIN, ŠPZ and owner', async () => {
   const other = idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
-  idOf(await createVehicle(admin, golf(), ctx.db));
-  idOf(await createVehicle(admin, golf({ ownerId: other, vin: 'TMBZZZ5JZ3W000002', licensePlate: 'KE456CD' }), ctx.db));
+  const first = idOf(await createVehicle(admin, golf(), ctx.db));
+  const second = idOf(await createVehicle(admin, golf({ ownerId: other, vin: 'TMBZZZ5JZ3W000002', licensePlate: 'KE456CD' }), ctx.db));
+  await savedInOrder(ctx.db, 'vehicle', [first, second]);
 
   const list = await allVehicles();
 
