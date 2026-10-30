@@ -291,11 +291,17 @@ table,
   color: var(--color-danger);
 }
 
-/* What the admin should know about something that was done, which is no error. */
+/*
+ * What the admin should know about something that was done or is incomplete, which is no error (an error is the .error
+ * above, in the danger colour): the bar is the warning colour and the text says what is wrong, e.g. that the Marža of a
+ * Zákazka is incomplete or that its kilometres are lower than the Stav km of the Vozidlo.
+ */
 .notice {
   max-width: var(--form-width);
-  padding: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: var(--border-width-strong) solid var(--color-border);
+  border-left: var(--border-width-marker) solid var(--color-warning);
   border-radius: var(--radius);
 }
 
@@ -489,16 +495,6 @@ tfoot td {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-}
-
-/*
- * Added to the .notice above for every notice: the bar marks it as a warning and its text says what is wrong, e.g.
- * that the Marža of a Zákazka is incomplete or that its kilometres are lower than the Stav km of the Vozidlo.
- */
-.notice {
-  margin: 0 0 var(--space-4);
-  padding: var(--space-2) var(--space-3);
-  border-left: var(--border-width-strong) solid var(--color-danger);
 }
 
 /* The buttons of a form sit in the row of .actions as if the form were not there. */
