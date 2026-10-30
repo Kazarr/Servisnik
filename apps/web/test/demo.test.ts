@@ -1,4 +1,5 @@
 import { rowMark } from '@servisnik/domain/work-order';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { getLogo, saveLogo } from '../src/dal/logo.ts';
 import { getWorkshopDetails, saveWorkshopDetails } from '../src/dal/workshop.ts';
@@ -164,6 +165,62 @@ test('a second run makes nothing new: the same customers, vehicles, Zákazky and
   expect(first.created).toBe(afterFirst.workOrders);
   expect(first.existing).toBe(0);
   expect(second).toMatchObject({ created: 0, existing: afterFirst.workOrders });
+});
+
+// The Termíny of the demo are days from the day of the run, so that "Po termíne" shows one Zákazka late and the rest still ahead. A run
+// the day before the demo that left the Termíny of the Zákazky it made on an earlier day would show them all late.
+
+/** The Termín of every demo Zákazka by the VIN of its vehicle. */
+const deadlinesByVin = async () =>
+  Object.fromEntries((await ctx.db.select({ vin: vehicle.vin, deadline: workOrder.deadline }).from(workOrder).innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id))).map(({ vin, deadline }) => [vin, deadline]));
+
+const termsFromNow = {
+  WP0ZZZ99ZPS900101: '2026-11-05', // the 911 GT3, in 2 days
+  WUAZZZF2ZMN900102: '2026-11-08', // the RS6, in 5 days
+  WBSZZZ8Z0PC900103: '2026-11-02', // the M3, done a day after its Termín
+  ZHWZZZ4ZXLL900104: '2026-11-10', // the Huracán, in 7 days
+  W1KZZZ8Z0NA900105: '2026-11-01', // the AMG GT, 2 days over
+  WP0ZZZY1ZPS900106: null, // the Taycan has none
+  WUAZZZ4SZKN900107: '2026-11-04', // the R8, in a day
+  WBSZZZ8Z0MC900108: null, // the M5 has none
+};
+
+test('the Termín of a new Zákazka is days from the day of the run, and the ones that have none stay without', async () => {
+  await seedDemo(ctx.db, { logo: png, now });
+
+  expect(await deadlinesByVin()).toEqual(termsFromNow);
+});
+
+test('a later run sets the Termín of the Zákazky that are there already from its own day, and the one that was late is late again', async () => {
+  await seedDemo(ctx.db, { logo: png, now });
+  const morningOfTheDemo = new Date('2026-11-06T06:00:00Z');
+
+  const result = await seedDemo(ctx.db, { logo: png, now: morningOfTheDemo });
+
+  expect(result.created).toBe(0);
+  expect(await deadlinesByVin()).toEqual({
+    WP0ZZZ99ZPS900101: '2026-11-08',
+    WUAZZZF2ZMN900102: '2026-11-11',
+    WBSZZZ8Z0PC900103: '2026-11-05',
+    ZHWZZZ4ZXLL900104: '2026-11-13',
+    W1KZZZ8Z0NA900105: '2026-11-04',
+    WP0ZZZY1ZPS900106: null,
+    WUAZZZ4SZKN900107: '2026-11-07',
+    WBSZZZ8Z0MC900108: null,
+  });
+  const { orders } = await listWorkOrders(admin, { status: 'all' }, ctx.db);
+  const marks = orders.map(({ status, deadline }) => rowMark(status, deadline, morningOfTheDemo));
+  expect(marks.filter((mark) => mark === 'late')).toHaveLength(1);
+});
+
+test('a Termín that the admin changed or cleared in the demo is the one of the demo again after the next run', async () => {
+  await seedDemo(ctx.db, { logo: png, now });
+  await ctx.db.update(workOrder).set({ deadline: '2030-01-01' }).where(eq(workOrder.status, 'inProgress'));
+  await ctx.db.update(workOrder).set({ deadline: null }).where(eq(workOrder.status, 'received'));
+
+  await seedDemo(ctx.db, { logo: png, now });
+
+  expect(await deadlinesByVin()).toEqual(termsFromNow);
 });
 
 test('after the demo data was deleted the next run makes it again', async () => {
