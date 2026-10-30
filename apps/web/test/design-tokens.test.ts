@@ -4,6 +4,7 @@ import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { documentCss, footerTemplate, printTokens } from '../src/print/styles.ts';
+import { COMMENT, tokensOf } from './support/css-tokens.ts';
 
 const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
@@ -27,52 +28,104 @@ const NAMED_COLORS = `aliceblue antiquewhite aqua aquamarine azure beige bisque 
   steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen`.split(/\s+/);
 
 // Design values (frontend-design): every CSS file of the app and the CSS of the printed forms take colours,
-// lengths, percentages, font weights, line heights, mix ratios, durations, angles and grid tracks from the custom
-// properties of :root, so a value changes in one place. One rule per value type; this finds the raw ones
-// outside :root and outside comments. The percentage rule is also the one for the ratio of a color-mix(), and
-// the multiplier and divisor rules for calc(var(--x) * n) and calc(var(--x) / n), which are raw values in
-// disguise unless they define a token in :root.
+// lengths, percentages, font weights, line heights, mix ratios, durations, angles and the minmax() of a grid track
+// from the custom properties of :root, so a value changes in one place. One rule per value type; this finds the
+// raw ones outside :root and outside what cannot hold a var(). The percentage rule is also the one for the ratio
+// of a color-mix(), and the multiplier and divisor rules for calc(var(--x) * n) and calc(var(--x) / n), which are
+// raw values in disguise unless they define a token in :root.
+//
+// What the check does not read, so that no one takes its green for more:
+// - A fraction is layout, not a design value: `1fr 2fr` and `repeat(3, 1fr)` pass. Of the grid track functions only
+//   minmax() is read, and a minmax() whose two limits are a plain var() each is made of tokens already.
+// - Parentheses are read PARENS_DEPTH levels deep. A minmax() or a division with more levels inside is not seen, and
+//   a :root:not(...) with more is no block of tokens.
+// - The divisor is read inside calc(), min(), max() and clamp() and inside a bare ( ) group in them, as in
+//   `calc((var(--a) / 2) + 1px)`; a `/` directly in round(), mod() and the other math functions is not read.
+// - A custom property outside :root is read for the units and colours in its value like any other declaration, but
+//   not as a font shorthand: `--font: 700 var(--size) serif` has no weight to report, as nothing says that the
+//   property holds a shorthand.
+// - A colour name is no colour in animation-name and animation (`animation-name: navy` names a @keyframes). Any
+//   other place where an identifier can spell a colour (counter-reset, grid-area, font-family) is read as a colour.
+// - Not values, so not read (NOT_VALUES and what follows it): comments, strings, an unquoted url(), the blocks of
+//   :root, @font-face, @property and @page, the prelude of @media, @container, @supports and @import, the steps
+//   of a @keyframes. A declaration after the first margin box of an @page is read.
+// - A :root block is cut from `:root` to the first `}`. A selector list that ends in :root hides its other rules
+//   (`.a, :root { margin: 2px }`: not read), and so does a rule nested in the block (`:root { .x { margin: 2px } }`).
+//   A :root first in its list is no block of tokens, so `:root, .a { margin: 2px }` is read.
+
+// The parts several rules are made of. A number is `5`, `.5` or `0.55`; its sign belongs to the rules that take one.
+const NUMBER = String.raw`\d*\.?\d+`;
+// A number with one of the units, not the end of a longer word or class name (`.w-2px-x`, `.a2em`, `4vww`).
+const unit = (units: string) => new RegExp(String.raw`(?<![\w-])-?${NUMBER}(?:${units})\b`);
+// Text whose parentheses balance, nested to at most `depth` levels: `x(x(x))` is two.
+const nested = (depth: number): string => (depth === 0 ? String.raw`[^()]*` : String.raw`(?:[^()]|\(${nested(depth - 1)}\))*`);
+const PARENS_DEPTH = 3;
+const PARENS = nested(PARENS_DEPTH);
+// Everything of a `font:` declaration up to the point a rule looks at. A custom property (`--font:`) or a longer name
+// (`myfont:`) is none, and neither is font-variation-settings.
+const FONT = String.raw`(?<![\w-])font:[^;}]*`;
+// The start of an animation or animation-name declaration, where a colour name is the name of a @keyframes.
+const ANIMATION = String.raw`(?<![\w-])animation(?:-name)?:[^;}]*`;
+// A limit of a minmax() that is a token as it stands: var(--min), with or without a fallback.
+const VAR = String.raw`var\(${PARENS}\)`;
+
 const RULES = {
   opacity: /opacity:\s*[\d.]+/,
-  viewport: /(?<![\w.-])-?\d*\.?\d+(?:[sld]?v(?:[whib]|min|max)|cq(?:[whib]|min|max))\b/,
-  length: /(?<![\w.-])-?\d*\.?\d+(?:px|r?em|r?ex|r?ch|r?cap|r?ic|r?lh|pt|cm|mm|Q|in|pc)\b/,
-  percentage: /\d*\.?\d+%/,
+  viewport: unit('[sld]?v(?:[whib]|min|max)|cq(?:[whib]|min|max)'),
+  length: unit('px|r?em|r?ex|r?ch|r?cap|r?ic|r?lh|pt|cm|mm|Q|in|pc'),
+  percentage: new RegExp(`${NUMBER}%`),
   fontWeight: /font-weight:\s*(?:\d+|normal|bold|bolder|lighter)\b/,
   lineHeight: /line-height:\s*[\d.]+(?![\w.%])/,
   colorFunction: /(?<![\w-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^)]*\)/,
   // The weight and the line height in the shorthand `font: 700 1rem/1.5 serif`: the weight is a bare number or
-  // bold, bolder, lighter before the family, the line height a number after the slash. Only a `font:` counts,
-  // not font-variation-settings, and only up to its `;` or `}`.
-  fontShorthandWeight: /(?<=(?<![\w-])font:[^;}]*)(?<![\w.-])(?<!\/\s*)(?:\d+|bold|bolder|lighter)(?![\w.%-])/,
-  fontShorthandLineHeight: /(?<=(?<![\w-])font:[^;}]*\/\s*)\d*\.?\d+(?![\w.%])/,
+  // bold, bolder, lighter before the family, the line height a number after the slash.
+  fontShorthandWeight: new RegExp(String.raw`(?<=${FONT})(?<![\w.-])(?<!\/\s*)(?:\d+|bold|bolder|lighter)(?![\w.%-])`),
+  fontShorthandLineHeight: new RegExp(String.raw`(?<=${FONT}\/\s*)${NUMBER}(?![\w.%])`),
   // A sign is part of the number: calc(-1 * var(--x)). An identifier that ends in a number (.col-2 *) is not.
   multiplier: /(?<![\w-])-?[\d.]+\s*\*|\*\s*-?[\d.]+(?![\w.%])/,
-  // Only a number after the slash in a calc(): `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too.
-  divisor: /(?<=calc\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\/\s*-?[\d.]+(?![\w.%])/,
-  duration: /(?<![\w.-])-?\d*\.?\d+m?s\b/,
-  angle: /(?<![\w.-])-?\d*\.?\d+(?:deg|grad|rad|turn)\b/,
+  // Only a number after the slash inside calc(), min(), max(), clamp() or a bare ( ) group, as in `calc((var(--a) / 2) + 1px)`:
+  // `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too, and so has a custom function (`--max(1 / 2)`) whose name
+  // ends in one of the four, or any other function (`round(var(--a) / 2, 1px)`): a name of another kind starts no group.
+  divisor: new RegExp(String.raw`(?<=(?<![\w-])(?:calc|min|max|clamp)?\(${PARENS})\/\s*-?[\d.]+(?![\w.%])`),
+  duration: unit('m?s'),
+  angle: unit('deg|grad|rad|turn'),
   // A grid track function (`minmax(0, 1fr)`) is a token like any other value: --track-fill. A minmax() whose two
   // limits are both tokens (`minmax(var(--min), var(--max))`) is made of tokens already.
-  minmax: /minmax\((?!\s*var\([^()]*\)\s*,\s*var\([^()]*\)\s*\))(?:[^()]|\([^()]*\))*\)/,
+  minmax: new RegExp(String.raw`minmax\((?!\s*${VAR}\s*,\s*${VAR})${PARENS}\)`),
   // A colour name is a value, not a part of a longer word (white-space, red-alert, tan( ), nor an ID (#red) or
-  // a selector (`.red {`, `[data-tone=red] {`).
-  namedColor: new RegExp(`(?<![\\w#-])(?:${NAMED_COLORS.join('|')})(?![\\w(-])(?![^;{}]*\\{)`),
+  // a selector (`.red {`, `[data-tone=red] {`), nor the name of a @keyframes.
+  namedColor: new RegExp(String.raw`(?<![\w#-])(?<!${ANIMATION})(?:${NAMED_COLORS.join('|')})(?![\w(-])(?![^;}]*\{)`),
   // A hex colour is a value: an ID selector that spells one (#add, #cafe) has a `{` after it before any `;` or `}`.
-  hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;{}]*\{)/,
+  hex: /#[0-9a-f]{3,8}(?![\w-])(?![^;}]*\{)/,
 };
 type Rule = keyof typeof RULES;
 
-// What is not a value to turn into a token: comments, the :root blocks that define the tokens (also with an
-// attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`), the condition of a @media or
-// @container and the step of a @keyframes, none of which can hold a var().
-const COMMENT = /\/\*[\s\S]*?\*\//g;
-const ROOT_BLOCK = /:root(?:\[[^\]]*\]|:[\w-]+(?:\((?:[^()]|\([^()]*\))*\))?)*\s*\{[^}]*\}/g;
-const AT_RULE_CONDITION = /@(?:media|container)[^{]*/g;
+// What is not a value to turn into a token. No var() can stand in a comment, a string (the text of `content: "red"`,
+// the value of `[data-col="2px"]`), an unquoted url() (a quoted one is a string), the descriptors of @font-face and
+// @property, the prelude of a @media, @container, @supports or @import (a condition) and the step of a @keyframes (a
+// selector). An @page is not read either: its page context inherits from :root or, as an engine may do instead (CSS
+// Page 3, section 6), from the initial values, which carry no token. The :root blocks define the tokens (also with
+// an attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`).
+// An escaped character is neither a quote nor a parenthesis (`.it\'s`, `url(a\)b.png)`, a backslash before the newline
+// in a string), so it is read first, and as a pair inside a string and an url().
+const ESCAPE = String.raw`\\[\s\S]`;
+const NOT_VALUES = new RegExp(
+  [ESCAPE, COMMENT.source, String.raw`"(?:[^"\\]|${ESCAPE})*"`, String.raw`'(?:[^'\\]|${ESCAPE})*'`, String.raw`url\((?:[^)"'\\]|${ESCAPE})*\)`].join('|'),
+  'g',
+);
+const ROOT_BLOCK = new RegExp(String.raw`:root(?:\[[^\]]*\]|:[\w-]+(?:\(${PARENS}\))?)*\s*\{[^}]*\}`, 'g');
+const AT_RULE_BLOCK = /@(?:font-face|property|page)[^{]*\{[^}]*\}/g;
+const AT_RULE_PRELUDE = /@(?:media|container|supports)[^{]*|@import[^;]*/g;
 // A step list starts with a percentage: from and to hold no value, and only a percentage before them is lost.
-const KEYFRAMES_STEP = /\d*\.?\d+%(?:\s*,\s*(?:\d*\.?\d+%|from|to))*(?=\s*\{)/g;
+const KEYFRAMES_STEP = new RegExp(String.raw`${NUMBER}%(?:\s*,\s*(?:${NUMBER}%|from|to))*(?=\s*\{)`, 'g');
 
 const rawValues = (css: string, rules: Record<string, RegExp> = RULES) => {
-  const outside = css.replace(COMMENT, '').replace(ROOT_BLOCK, '').replace(AT_RULE_CONDITION, '').replace(KEYFRAMES_STEP, '');
+  const outside = css
+    .replace(NOT_VALUES, '')
+    .replace(ROOT_BLOCK, '')
+    .replace(AT_RULE_BLOCK, '')
+    .replace(AT_RULE_PRELUDE, '')
+    .replace(KEYFRAMES_STEP, '');
   const raw = new RegExp(Object.values(rules).map((rule) => rule.source).join('|'), 'gi');
   return outside.match(raw) ?? [];
 };
@@ -90,13 +143,13 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     raw: '.x { min-height: 100vh; width: .5vw; height: 50dvh 20svw 10lvh; margin: 1vi 2vb 3vmin 4vmax; padding: 5cqi 6cqh 7cqmax 8cqw 9cqb 10cqmin; top: 12.25svh; }',
     found: ['100vh', '.5vw', '50dvh', '20svw', '10lvh', '1vi', '2vb', '3vmin', '4vmax', '5cqi', '6cqh', '7cqmax', '8cqw', '9cqb', '10cqmin', '12.25svh'],
     token: '.x { min-height: var(--viewport-height); }',
-    miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; } .x { width: 4vww; height: 2cqiz; } .y { background: url(a.5vh.png); }',
+    miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; } .x { width: 4vww; height: 2cqiz; }',
   },
   length: {
-    raw: '.x { padding: 0.5rem 8px -1em; margin: 0; height: 2lh 3rlh; width: 4Q 5cap 6rcap; gap: 7ic 8ric 9ex 10rex 11ch 12rch; border-width: 13pt 14cm 15mm 16in 17pc; top: 0.25rem .75em; }',
-    found: ['0.5rem', '8px', '-1em', '2lh', '3rlh', '4Q', '5cap', '6rcap', '7ic', '8ric', '9ex', '10rex', '11ch', '12rch', '13pt', '14cm', '15mm', '16in', '17pc', '0.25rem', '.75em'],
+    raw: '.x { padding: 0.5rem 8px -1em; margin: 0; height: 2lh 3rlh; width: 4Q 5cap 6rcap; gap: 7ic 8ric 9ex 10rex 11ch 12rch; border-width: 13pt 14cm 15mm 16in 17pc; top: 0.25rem .75em; } .y { --gap: 2px; }',
+    found: ['0.5rem', '8px', '-1em', '2lh', '3rlh', '4Q', '5cap', '6rcap', '7ic', '8ric', '9ex', '10rex', '11ch', '12rch', '13pt', '14cm', '15mm', '16in', '17pc', '0.25rem', '.75em', '2px'],
     token: '.x { padding: var(--space-2) var(--space-3); margin: 0; grid-template-columns: var(--track-fill); }',
-    miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .y { background: url(icon.5px.png); } .x { margin: 2lhx; }',
+    miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .x { margin: 2lhx; } em { margin: 0; }',
   },
   percentage: {
     raw: '.x { width: 100%; background: color-mix(in srgb, var(--a) 40%, var(--b)); } .y { top: .5%; left: 33.33%; }',
@@ -152,6 +205,7 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: [
       '.a { font: 1rem/1.5rem serif; } .b { font: 1rem/150% serif; } .c { aspect-ratio: 16 / 9; grid-row: 1 / 3; }',
       '.d { font: inherit; grid-area: 1 / 2; } .e { font: inherit } .f { grid-row: 1 / 3 } .g { --font: 1rem/2 serif; } .h { myfont: 1rem/2 serif; }',
+      '.i { --font-ratio: 16 / 9; font-variant: normal; }',
     ].join(' '),
   },
   multiplier: {
@@ -161,44 +215,50 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: 'h1 * { margin: 0; } .col-2 * { margin: 0; } *.x { margin: 0; } .y { margin: calc(var(--a) * 1.5rem) calc(var(--a) * 50%); }',
   },
   divisor: {
-    raw: '.x { width: calc(var(--space-1) / 2); height: calc((100% - var(--gap)) / 3); margin: calc(var(--a)/4) calc(var(--a) / -2) calc(var(--a) / 12) calc(var(--a) / .5); }',
-    found: ['/ 2', '/ 3', '/4', '/ -2', '/ 12', '/ .5'],
+    raw: '.x { width: calc(var(--space-1) / 2); height: calc((100% - var(--gap)) / 3); margin: calc(var(--a)/4) calc(var(--a) / -2) calc(var(--a) / 12) calc(var(--a) / .5); } .y { width: min(var(--a) / 5, 1px); height: max(1px, var(--a) / 6); padding: clamp(1px, var(--a) / 7, 2px); } .z { margin: calc(max(var(--a, calc(1px)), 2px) / 8); } .p { width: calc((var(--a) / 10) + 1px); height: calc(var(--a) * (2 / 11)); }',
+    found: ['/ 2', '/ 3', '/4', '/ -2', '/ 12', '/ .5', '/ 5', '/ 6', '/ 7', '/ 8', '/ 10', '/ 11'],
     token: '.x { margin: var(--space-6); width: calc(var(--space-1) / var(--columns)); }',
-    miss: '.a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); } .e { width: calc(var(--a) / 1.5rem); } .f { width: calc(var(--a) / 50%); } .g { grid-row: calc(1 + (2 * (3))) / 4; } .h { grid-row: calc((1 + 2)) / 4; }',
+    miss: '.k { width: calc(max(var(--a, max(var(--b), 2px)), 3px) / 9); } .i { width: --max(var(--a) / 2); } .j { grid-template-columns: minmax(var(--a) / 2, 1fr); } .a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); } .e { width: calc(var(--a) / 1.5rem); } .f { width: calc(var(--a) / 50%); } .g { grid-row: calc(1 + (2 * (3))) / 4; } .h { grid-row: calc((1 + 2)) / 4; } .l { width: round(var(--a) / 2, 1px); }',
   },
   duration: {
     raw: '.x { transition: opacity 200ms ease-in; animation-duration: 0.3s; transition-delay: -1s .25s; animation-delay: 0.25s; }',
     found: ['200ms', '0.3s', '-1s', '.25s', '0.25s'],
     token: '.x { transition: opacity var(--duration-fast) ease-in; }',
-    miss: '.w-2s-x { margin: 0; } .a2s { margin: 0; } .y { background: url(icon.5s.png); } .x { margin: 3ss 2msx; }',
+    miss: '.w-2s-x { margin: 0; } .a2s { margin: 0; } .x { margin: 3ss 2msx; } s { margin: 0; }',
   },
   angle: {
     raw: '.x { transform: rotate(45deg) skew(-0.5turn); rotate: 1.5rad; background: conic-gradient(from 90grad, var(--a), var(--b)); } .y { rotate: .5turn 0.25turn; }',
     found: ['45deg', '-0.5turn', '1.5rad', '90grad', '.5turn', '0.25turn'],
     token: '.x { transform: rotate(var(--angle-open)); }',
-    miss: '.w-45deg-x { margin: 0; } .a90deg { margin: 0; } .y { background: url(icon.5turn.png); } .x { margin: 2radx 3degs; }',
+    miss: '.w-45deg-x { margin: 0; } .a90deg { margin: 0; } .x { margin: 2radx 3degs; }',
   },
   minmax: {
-    raw: '.x { grid-template-columns: max-content minmax(0, 1fr); } .y { grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr)); } .z { grid-template-columns: minmax(0, var(--max)); } .v { grid-template-columns: minmax(0, calc(1fr + 2px)); margin: calc(1px + 2px); } .u { grid-template-columns: repeat(auto-fill, minmax(0, 1fr)); margin: calc(1px + 2px); }',
-    found: ['minmax(0, 1fr)', 'minmax(var(--card-width), 1fr)', 'minmax(0, var(--max))', 'minmax(0, calc(1fr + 2px))', 'minmax(0, 1fr)'],
+    raw: '.x { grid-template-columns: max-content minmax(0, 1fr); } .y { grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr)); } .z { grid-template-columns: minmax(0, var(--max)); } .v { grid-template-columns: minmax(0, calc(1fr + 2px)); margin: calc(1px + 2px); } .u { grid-template-columns: repeat(auto-fill, minmax(0, 1fr)); margin: calc(1px + 2px); } .t { grid-template-columns: minmax(max(var(--a), var(--b)), 1fr); } .s { grid-template-columns: minmax(max(var(--a, calc(1px)), 2px), 1fr); } .r { grid-template-columns: minmax(max(var(--a), var(--b)), var(--c)); }',
+    found: ['minmax(0, 1fr)', 'minmax(var(--card-width), 1fr)', 'minmax(0, var(--max))', 'minmax(0, calc(1fr + 2px))', 'minmax(0, 1fr)', 'minmax(max(var(--a), var(--b)), 1fr)', 'minmax(max(var(--a, calc(1px)), 2px), 1fr)', 'minmax(max(var(--a), var(--b)), var(--c))'],
     token: '.x { grid-template-columns: max-content var(--track-fill); }',
-    miss: '.minmax-cell { margin: 0; } .x { grid-area: minmax; } .y { grid-template-columns: repeat(auto-fill, minmax(var(--min), var(--max))); } .z { grid-template-columns: minmax( var(--min) , var(--max) ); } .w { grid-template-columns: minmax(var(--min),var(--max)); }',
+    miss: [
+      '.minmax-cell { margin: 0; } .x { grid-area: minmax; } .y { grid-template-columns: repeat(auto-fill, minmax(var(--min), var(--max))); } .z { grid-template-columns: minmax( var(--min) , var(--max) ); } .w { grid-template-columns: minmax(var(--min),var(--max)); }',
+      '.a { grid-template-columns: minmax(var(--a, max(var(--b, calc(1px)), 2px)), var(--c, 1fr)); } .b { grid-template-columns: 1fr 2fr; } .c { grid-template-columns: repeat(3, 1fr); }',
+      // Four levels of parentheses inside the minmax() are one more than are read: not seen (see the header).
+      '.d { grid-template-columns: minmax(max(var(--a, max(var(--b), 2px)), 3px), 1fr); }',
+    ].join(' '),
   },
   namedColor: {
-    raw: '.x { color: red; .z { margin: 0; } background: RebeccaPurple; border: 1px solid black; box-shadow: 0 0 1px gray, 0 0 2px navy } .y { background: linear-gradient(white, var(--a)); }',
-    found: ['red', 'RebeccaPurple', 'black', 'gray', 'navy', 'white'],
+    raw: '.x { color: red; .z { margin: 0; } background: RebeccaPurple; border: 1px solid black; box-shadow: 0 0 1px gray, 0 0 2px navy } .y { background: linear-gradient(white, var(--a)); } .v { animation: spin 1s; background: tan; } .u { --animation: gold; } .t { animation-name: spin } .s { color: coral; } .r { myanimation: ivory; }',
+    found: ['red', 'RebeccaPurple', 'black', 'gray', 'navy', 'white', 'tan', 'gold', 'coral', 'ivory'],
     token: '.x { color: var(--color-text); outline: var(--border-width-strong) solid CanvasText; background: Canvas; color: ButtonText; border-color: transparent; fill: currentcolor; }',
     miss: [
       '.red { margin: 0; } #tan { margin: 0; } .x-red, .gold-x { margin: 0; } [data-tone=red] { margin: 0; } [data-tone="gold"] > .x { margin: 0; }',
-      '.a { color: var(--color-red); animation-name: red-alert; margin: 0 redundant; animation-name: scarred; white-space: nowrap; } .b { width: calc(var(--a) * tan(var(--angle))); }',
-      '@keyframes gold { to { margin: 0; } } .c { background: url(#red); }',
+      '.a { color: var(--color-red); grid-area: red-alert; margin: 0 redundant; will-change: scarred; white-space: nowrap; } .b { width: calc(var(--a) * tan(var(--angle))); }',
+      '@keyframes gold { to { margin: 0; } } .c { --target: #red; --other: #tan; }',
+      '.m { animation-name: navy; } .n { animation-name: spin, gold; } .o { animation: tan 1s ease, red 2s; }',
     ].join(' '),
   },
   hex: {
-    raw: '.x { color: #fff; .y { margin: 0; } background: #1D5FC4 } .z { margin: 0; } .w { color: #fffa; border-color: #ff000080; }',
-    found: ['#fff', '#1D5FC4', '#fffa', '#ff000080'],
+    raw: '.x { color: #fff; .y { margin: 0; } background: #1D5FC4 } .z { margin: 0; } .w { color: #fffa; border-color: #ff000080; } .v { color: #999; border-color: #990000; }',
+    found: ['#fff', '#1D5FC4', '#fffa', '#ff000080', '#999', '#990000'],
     token: '.x { color: var(--color-text); }',
-    miss: '#main { margin: 0; } #feedbag { margin: 0; } #add { margin: 0; } a:hover #cafe > .x, #fade { margin: 0; } .y { background: url(#add-btn); } .z { background: url(#badge); }',
+    miss: '#main { margin: 0; } #feedbag { margin: 0; } #add { margin: 0; } a:hover #cafe > .x, #fade { margin: 0; } .y { --target: #add-btn; --other: #badge; }',
   },
 };
 
@@ -215,6 +275,71 @@ test('the namedColor rule finds each of the 148 named colours of CSS Color 4', (
 
   expect(NAMED_COLORS).toHaveLength(148);
   for (const name of NAMED_COLORS) expect(rawValues(`.x { color: ${name}; }`, only), name).toEqual([name]);
+});
+
+// A minmax(), a division and a :root:not(...) read their parentheses with nested(): text whose parentheses balance, up
+// to a depth, and nothing else. `x(x)x` has one opening and one closing one; every pair of counts up to one level
+// more than the depth is tried, and only equal counts within the depth match.
+test('nested(depth) matches text whose parentheses balance to that depth, and nothing else', () => {
+  const reads = (depth: number, text: string) => new RegExp(`^${nested(depth)}$`).test(text);
+  const text = (open: number, close: number) => `x${'(x'.repeat(open)}${')x'.repeat(close)}`;
+
+  expect(PARENS).toBe(nested(PARENS_DEPTH));
+  for (let depth = 0; depth <= PARENS_DEPTH + 1; depth++) {
+    for (let open = 0; open <= depth + 1; open++) {
+      for (let close = 0; close <= depth + 1; close++) expect(reads(depth, text(open, close)), `${depth}: ${text(open, close)}`).toBe(open === close && open <= depth);
+    }
+  }
+  expect(reads(1, 'x(x)x(x)x')).toBe(true);
+  expect(reads(2, 'x(x(x)x(x)x)x(x)x')).toBe(true);
+  expect(reads(3, 'x(x(x(x)x(x)x)x)x')).toBe(true);
+});
+
+// Valid CSS in which a text that looks like a raw value is none, each with a raw value after it, which is still found:
+// where what is not read ends, the reading goes on. What comes after holds a `)` and a string of each kind, so a
+// string or an url() that ran on to the next quote or parenthesis would swallow the raw values before them.
+const LOOKS_RAW = {
+  '@page': '@page { margin: 15mm }',
+  '@font-face': '@font-face { font-family: X; font-weight: 100 900; }',
+  'two @font-face': '@font-face { font-weight: 400; } @font-face { font-weight: 700; }',
+  '@supports': '@supports (height: 100dvh) { .a { margin: 0; } }',
+  '@property': "@property --a { syntax: '<length>'; inherits: false; initial-value: 0px; }",
+  '@import': '@import "a.css" screen and (min-width: 40rem);',
+  '@import url()': '@import url(a.css) (min-width: 40rem);',
+  'a string': '.a { content: "red"; }',
+  'a string in single quotes': ".a { content: 'red'; }",
+  'a string with an escaped quote': '.a { content: "say \\"red\\" 2px"; }',
+  'a string in single quotes with an escaped quote': ".a { content: 'say \\'red\\' 2px'; }",
+  // An escaped character is no quote, no matter which: a quote that opens no string must not cut to the next real one.
+  'an escaped quote in a selector': ".it\\'s { margin: 0; }",
+  'an escaped double quote in a selector': '.it\\"s { margin: 0; }',
+  'an escaped quote in an identifier': ".a { font-family: Don\\'t; }",
+  'a string with an escaped newline': '.a { content: "x\\\ny"; }',
+  'a string in single quotes with an escaped newline': ".a { content: 'x\\\ny'; }",
+  'an attribute value': '[data-col="2px"] { margin: 0; }',
+  'an unquoted url()': '.a { background: url(/img/16px.png); }',
+  'a quoted url()': '.a { background: url("/img/16px.png"); }',
+  'a quoted url() with a parenthesis in it': '.a { background: url("/img/a)2px.png"); }',
+  'a url() in single quotes with a parenthesis in it': ".a { background: url('/img/a)2px.png'); }",
+  'an unquoted url() with an escaped parenthesis': '.a { background: url(a\\)b.png); }',
+  'an unquoted url() with an escaped parenthesis before a length': '.a { background: url(a\\)2px.png); }',
+  'the name of a @keyframes': '.a { animation-name: navy; }',
+  'the name in an animation': '.a { animation: tan var(--duration-fast) ease; }',
+};
+
+test.each(Object.entries(LOOKS_RAW))('%s holds no raw value, and what follows it is read', (_, valid) => {
+  expect(rawValues(valid)).toEqual([]);
+  expect(rawValues(`${valid} .z { margin: 2px; color: red; background: var(--a); content: "x"; font-family: 'y'; }`)).toEqual(['2px', 'red']);
+});
+
+// An @page ends at its first closing brace: a margin box of its own ends it too.
+test('an @page is read up to its first closing brace, so a declaration after a margin box is read', () => {
+  expect(rawValues('@page { margin: 15mm; @bottom-center { font-size: 8pt; } }')).toEqual([]);
+  expect(rawValues('@page { @bottom-center { font-size: 8pt; } margin: 15mm; }')).toEqual(['15mm']);
+});
+
+test('a comment holds no raw value, and a quote in it starts no string', () => {
+  expect(rawValues(`/* don't read 2px */ .a { margin: 3px; } /* "nor 4px */ .b { margin: 5px; content: "/* 6px */"; }`)).toEqual(['3px', '5px']);
 });
 
 test('raw values are fine where tokens are defined, in :root and in comments, and nowhere else', () => {
@@ -236,13 +361,25 @@ test('every :root block defines tokens, whatever attribute or pseudo-class it ca
     :root[data-theme='dark'] { --c: #000; --w: 2px; }
     :root:not([data-theme='light']) { --c: #000; }
     :root:not(:has([data-theme])) { --c: #000; }
+    :root:not(:has(:is(:where([data-theme])))) { --c: #000; }
     :root:first-child{ --f: #000; }
     @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --d: 2px; } }
     :root .x { margin: 4px; }
     :root > .y { margin: 5px; }
-    :rooted { margin: 6px; }`;
+    :rooted { margin: 6px; }
+    :root::before { margin: 7px; }
+    :root:not(:has(:is(:where(:is([data-theme]))))) { --g: 8px; }`;
 
-  expect(rawValues(css)).toEqual(['4px', '5px', '6px']);
+  // The last has four levels of parentheses in :not(), one more than are read (see the header): no block of tokens.
+  expect(rawValues(css)).toEqual(['4px', '5px', '6px', '7px', '8px']);
+});
+
+// The cut of a :root block runs from `:root` to the first closing brace (see the header): what a block shares with
+// another selector, or holds in a rule of its own, is cut with it and not read. A :root first in its list is read.
+test('a :root block is cut at its first closing brace, so a selector list that ends in :root and a nested rule are not read', () => {
+  expect(rawValues('.a, :root { margin: 2px }')).toEqual([]);
+  expect(rawValues(':root { .x { margin: 2px } }')).toEqual([]);
+  expect(rawValues(':root, .a { margin: 2px }')).toEqual(['2px']);
 });
 
 // var() does not work in the condition of an at-rule, so a width there cannot be a token.
@@ -300,11 +437,17 @@ test('icon.svg paints with the accent tokens of globals.css', () => {
 });
 
 // The printed forms are HTML that Chromium prints from a string, outside the page of the app, so they cannot
-// read globals.css: they carry a :root of their own (src/print/styles.ts), and it must be the app's. As with
-// icon.svg, what they share by name must equal the tokens, and a colour, weight or line height they have must
-// be one the app has too. The one thing a form takes from no token of the app is its font: the app's own is
-// `system-ui`, which is whatever the machine says, and the machine of the image says a Chinese font.
-const tokensOf = (css: string) => Object.fromEntries([...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name!, value!.trim()]));
+// read globals.css: they carry a :root of their own (src/print/styles.ts). As with icon.svg, what they share
+// by name with the app must equal the app's tokens, and a colour, weight or line height they have must be one
+// the app has too. Six tokens are the exception since the demo theme (below). A form takes its font from no token
+// of the app: the app's own is Outfit, with `system-ui` after it, which is whatever the machine says, and the
+// machine of the image says a Chinese font.
+
+// The demo theme (ticket #150) makes the app black and set in Outfit, while the paper stays white and set in Arial. These six
+// tokens keep their names in both and have other values on paper, so they are not held equal to the app's. What holds each on
+// paper: the first three are read against the white paper by test/theme-contrast.test.ts, and the other three are pinned here.
+const demoThemed = ['--color-text', '--color-text-muted', '--color-surface', '--color-border', '--font-weight-medium', '--font-weight-bold'];
+const paperValues = { '--color-border': '#d3d9e2', '--font-weight-medium': '500', '--font-weight-bold': '700' };
 
 test('the tokens of a printed form that the app has too have the same value, and a form invents no colour, weight or line height', () => {
   const app = tokensOf(read('globals.css'));
@@ -312,8 +455,13 @@ test('the tokens of a printed form that the app has too have the same value, and
   const shared = Object.keys(print).filter((name) => name in app);
 
   expect(shared).toEqual(expect.arrayContaining(['--color-text', '--color-text-muted', '--font-weight-bold', '--line-height-base']));
-  for (const name of shared) expect(print[name], name).toBe(app[name]);
-  expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app))).toEqual([]);
+  for (const name of shared.filter((token) => !demoThemed.includes(token))) expect(print[name], name).toBe(app[name]);
+  expect(print).toMatchObject(paperValues);
+  // The one exception is the black bar of the Hlavička tlačív (ticket #150): `--color-letterhead-*` are the colours of the app's theme laid
+  // on paper, so each must be a colour the app has, under whatever name it has it.
+  const appColours = Object.entries(app).filter(([name]) => name.startsWith('--color-')).map(([, value]) => value);
+  const letterheadColour = (name: string) => name.startsWith('--color-letterhead-') && appColours.includes(print[name]!);
+  expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app) && !letterheadColour(name))).toEqual([]);
 });
 
 test('a printed form names its own fonts, and none of them is the font of the system', () => {

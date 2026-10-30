@@ -20,6 +20,8 @@ export const capabilities = [
   'work-orders.handover',
   'price-list.read',
   'price-list.write',
+  'joy-ride.read',
+  'joy-ride.write',
   'password.change',
   'settings.read',
   'settings.write',

@@ -1,11 +1,13 @@
 import { roles } from '@servisnik/domain/access';
 import { customerTypes } from '@servisnik/domain/customer';
+import { registrationCategories, registrationStatuses } from '@servisnik/domain/joy-ride';
+import { defaultLetterhead, letterheads } from '@servisnik/domain/print';
 import type { LogoContentType } from '@servisnik/domain/settings';
 import { fuels } from '@servisnik/domain/vehicle';
 import { itemKinds, workOrderStatuses } from '@servisnik/domain/work-order';
 import { vatPayerTypes } from '@servisnik/domain/workshop';
 import { sql } from 'drizzle-orm';
-import { boolean, check, customType, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, customType, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 // Better Auth owns user, session, account and verification (docs/adr/0001-stack.md). Keys and
 // column types follow what its Drizzle adapter expects. `role` is an enum, not the plain text the
@@ -205,12 +207,16 @@ export const workOrder = pgTable(
 /** Platiteľ DPH: a platiteľ, a neplatiteľ or a registrovaný podľa §7 (packages/domain/src/workshop). */
 export const vatPayerType = pgEnum('vat_payer_type', vatPayerTypes);
 
+/** Hlavička tlačív: white or a black bar (packages/domain/src/print). */
+export const letterhead = pgEnum('letterhead', letterheads);
+
 /**
  * Autoservis: the one row of values for the whole workshop (GLOSSARY: Nastavenia). The migration
  * creates it and nothing inserts another: the primary key is always 1. Other parts of Nastavenia add
  * their columns here. Here are the rates (packages/domain/src/settings): the VAT rates with the default
  * one, the hourly rate in cents without VAT (null when none) and the markup on parts in whole percent;
- * and Údaje autoservisu (packages/domain/src/workshop). Of these only the name is required, and it is
+ * and Údaje autoservisu (packages/domain/src/workshop), and the Hlavička tlačív, which starts white.
+ * Of the details only the name is required, and it is
  * empty until the admin first saves them, as the migration cannot know it; the platiteľ DPH starts as
  * a platiteľ, which the domain lets be saved only with an IČ DPH, so no check of the database says so.
  */
@@ -234,6 +240,7 @@ export const workshop = pgTable(
     phone: text('phone'),
     email: text('email'),
     commercialRegister: text('commercial_register'),
+    letterhead: letterhead('letterhead').notNull().default(defaultLetterhead),
     ...timestamps,
   },
   (table) => [
@@ -297,6 +304,13 @@ export const workOrderItem = pgTable(
     purchasePriceCents: integer('purchase_price_cents'),
     salePriceCents: integer('unit_price_cents').notNull(),
     vatRate: integer('vat_rate').notNull(),
+    /**
+     * The place of the item in the order items were added, handed out by the database with every insert, so it does not
+     * depend on a clock: two items saved in one transaction or one millisecond have the same `created_at` and different places.
+     * It is global, not per Zákazka (the items of one Zákazka are added one after another, under its lock), and only the order of
+     * the reads uses it (dal/work-order-items.ts), which is why they do not return it.
+     */
+    addedSeq: bigint('added_seq', { mode: 'number' }).generatedAlwaysAsIdentity(),
     ...timestamps,
   },
   (table) => [
@@ -339,4 +353,49 @@ export const priceListItem = pgTable(
     check('price_list_item_unit_price_check', sql`${table.salePriceCents} >= 0`),
     check('price_list_item_vat_rate_check', sql`${table.vatRate} between 0 and 100`),
   ],
+);
+
+/**
+ * Ročník of the Jazda radosti: its name, its day, its place and the uzávierka registrácií. The uzávierka is a wall-clock time at the
+ * place (Europe/Bratislava), so it is a `timestamp` without a time zone, and no instant is made of it (packages/domain/src/joy-ride).
+ * The section edits the one with the latest day, the current Ročník; more than one is allowed so that the history needs no migration.
+ */
+export const joyRideEdition = pgTable('joy_ride_edition', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  date: date('date', { mode: 'string' }).notNull(),
+  place: text('place').notNull(),
+  registrationDeadline: timestamp('registration_deadline', { mode: 'string' }).notNull(),
+  ...timestamps,
+});
+
+/** Stav registrácie: Nová, Schválená or Zamietnutá. */
+export const registrationStatus = pgEnum('registration_status', registrationStatuses);
+
+/** Kategória of a Registrácia: superšport, zaujímavé auto, ťažká technika, veterán, motorka or iné. */
+export const registrationCategory = pgEnum('registration_category', registrationCategories);
+
+/**
+ * Registrácia on a Ročník: the exhibitor, who is no Zákazník, and the one vehicle he brings, which is no Vozidlo (it has no VIN, and the
+ * ŠPZ is optional). `createdAt` is the day it was registered, which the list shows. A Ročník with Registrácie is not deleted: `restrict`.
+ */
+export const joyRideRegistration = pgTable(
+  'joy_ride_registration',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    editionId: uuid('edition_id')
+      .notNull()
+      .references(() => joyRideEdition.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    phone: text('phone').notNull(),
+    email: text('email').notNull(),
+    make: text('make').notNull(),
+    model: text('model').notNull(),
+    licensePlate: text('license_plate'),
+    category: registrationCategory('category').notNull(),
+    note: text('note'),
+    status: registrationStatus('status').notNull().default('new'),
+    ...timestamps,
+  },
+  (table) => [index('joy_ride_registration_edition_id_idx').on(table.editionId)],
 );

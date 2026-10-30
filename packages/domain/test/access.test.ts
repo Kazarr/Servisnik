@@ -94,6 +94,15 @@ describe('Prístup', () => {
     }
   });
 
+  // The Jazda radosti is the admin's section: the Registrácie hold the names and contacts of people who are no Zákazníci (ticket #153, "Vidí ju admin, mechanik nie").
+  test('the mechanik may neither read nor write the Jazda radosti, the admin does both', () => {
+    for (const capability of ['joy-ride.read', 'joy-ride.write'] as const) {
+      expect(capabilities, capability).toContain(capability);
+      expect(can('admin', capability), capability).toBe(true);
+      expect(can('mechanik', capability), capability).toBe(false);
+    }
+  });
+
   // The Cenník is purchase prices, sale prices and VAT, the things a mechanik never gets.
   test('the mechanik may neither read nor write the Cenník, the admin does both', () => {
     for (const capability of ['price-list.read', 'price-list.write'] as const) {

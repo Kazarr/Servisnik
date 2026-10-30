@@ -21,7 +21,7 @@ import {
   type WorkOrderStatus,
   vatRatesKeeping,
 } from '@servisnik/domain/work-order';
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, priceListItem, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
@@ -32,6 +32,9 @@ import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 import { createVehicle, type ExistingVehicle, type VehicleSaveErrors } from './vehicles.ts';
 import { inOrderAdded, withAmounts } from './work-order-items.ts';
+
+/** The columns of an item that the detail of a Zákazka returns: all but `addedSeq`, its place, which only the order of a read uses. */
+const { addedSeq: _place, ...itemColumns } = getTableColumns(workOrderItem);
 
 /** The rows of `query`, or none when `id` is not a UUID: PostgreSQL would answer that with an error, not with no row. */
 const rowsIfUuid = async <Row>(id: string, query: PromiseLike<Row[]>): Promise<Row[]> => (isUuid(id) ? await query : []);
@@ -362,6 +365,9 @@ const selectListed = <More extends SelectedFields>(db: Database, more: More) =>
     .innerJoin(customer, eq(workOrder.customerId, customer.id))
     .innerJoin(vehicle, eq(workOrder.vehicleId, vehicle.id));
 
+/** The lists of Zákazky come newest first; the number, which is unique, breaks the tie of two made in the same instant, so a page never repeats or skips one. */
+const newestFirst = [desc(workOrder.createdAt), desc(workOrder.number)];
+
 /**
  * A page of the list of Zákazky with their customer, vehicle and Termín, newest first. `status`, `from`
  * and `to` are the filter as the address carries it (the domain's parseListFilter reads them, and the
@@ -387,7 +393,7 @@ export async function listWorkOrders(
   const [counted] = await db.select({ total: count() }).from(workOrder).where(matching);
   const orderCount = counted!.total;
   const { page: current, pageCount, limit, offset } = pageWindow(orderCount, page);
-  const orders = await selectListed(db, {}).where(matching).orderBy(desc(workOrder.createdAt), desc(workOrder.number)).limit(limit).offset(offset);
+  const orders = await selectListed(db, {}).where(matching).orderBy(...newestFirst).limit(limit).offset(offset);
   return { orders, page: current, pageCount, orderCount, filter };
 }
 
@@ -397,7 +403,7 @@ export async function listWorkOrders(
  */
 export async function listWorkOrdersOfVehicle(user: User | null, vehicleId: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
-  return rowsIfUuid(vehicleId, selectListed(db, {}).where(eq(workOrder.vehicleId, vehicleId)).orderBy(desc(workOrder.createdAt)));
+  return rowsIfUuid(vehicleId, selectListed(db, {}).where(eq(workOrder.vehicleId, vehicleId)).orderBy(...newestFirst));
 }
 
 /**
@@ -408,7 +414,7 @@ export async function listWorkOrdersOfVehicle(user: User | null, vehicleId: stri
 export async function listWorkOrdersOfCustomer(user: User | null, customerId: string, db: Database = getDb()) {
   assertCan(user, 'work-orders.read');
   if (!isUuid(customerId)) return [];
-  return selectListed(db, {}).where(eq(workOrder.customerId, customerId)).orderBy(desc(workOrder.createdAt));
+  return selectListed(db, {}).where(eq(workOrder.customerId, customerId)).orderBy(...newestFirst);
 }
 
 /** One Zákazka with its items, the amounts of each, the totals and the Marža, or null when there is none with this id. */
@@ -422,6 +428,6 @@ export async function getWorkOrder(user: User | null, id: string, db: Database =
     note: workOrder.note,
   }).where(eq(workOrder.id, id));
   if (!found) return null;
-  const items = await db.select().from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(...inOrderAdded);
+  const items = await db.select(itemColumns).from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(...inOrderAdded);
   return { ...found, ...withAmounts(items), margin: marginOf(items) };
 }

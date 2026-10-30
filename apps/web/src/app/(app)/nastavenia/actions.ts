@@ -5,7 +5,7 @@ import type { WorkshopDetailsInput } from '@servisnik/domain/workshop';
 import { revalidatePath } from 'next/cache';
 import { currentUser } from '../../../dal/current-user.ts';
 import { saveRates } from '../../../dal/settings.ts';
-import { saveWorkshopDetails } from '../../../dal/workshop.ts';
+import { saveLetterhead, saveWorkshopDetails } from '../../../dal/workshop.ts';
 import { formatMessages } from '../format-messages.ts';
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import { ratesToFields } from './rates-fields.ts';
@@ -62,6 +62,26 @@ export async function saveRatesAction(_state: RatesFormState, formData: FormData
   }
   revalidatePath('/nastavenia');
   return { values: ratesToFields(result.rates), errors: {}, saved: true };
+}
+
+export type LetterheadFormState = {
+  /** What the select shows next: the one saved, or the one that was refused. */
+  letterhead: string;
+  error?: string;
+  /** The Hlavička was saved. */
+  saved?: true;
+} | null;
+
+/** Server Action of the form for the Hlavička tlačív; like every action it checks the session and the Rola itself, in the DAL. */
+export async function saveLetterheadAction(_state: LetterheadFormState, formData: FormData): Promise<LetterheadFormState> {
+  const user = await currentUser();
+  const typed = String(formData.get('letterhead') ?? '');
+
+  const result = await orForbidden(saveLetterhead(user, typed));
+  if (result === 'forbidden') return { letterhead: typed, error: forbiddenMessage };
+  if (!result.ok) return { letterhead: typed, error: 'Vyberte Hlavičku tlačív: Biela alebo Čierny pruh' };
+  revalidatePath('/nastavenia');
+  return { letterhead: result.letterhead, saved: true };
 }
 
 export type WorkshopFormState = {

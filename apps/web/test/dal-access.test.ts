@@ -2,11 +2,13 @@ import { readdirSync } from 'node:fs';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { createAuth } from '../src/auth.ts';
 import * as attemptLimit from '../src/dal/attempt-limit.ts';
+import * as branding from '../src/dal/branding.ts';
 import * as constraintModule from '../src/dal/constraint.ts';
 import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
 import * as formHeader from '../src/dal/form-header.ts';
 import * as jobSheet from '../src/dal/job-sheet.ts';
+import * as joyRide from '../src/dal/joy-ride.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
@@ -18,6 +20,7 @@ import * as userModule from '../src/dal/user.ts';
 import { ForbiddenError, UnauthenticatedError, type User } from '../src/dal/user.ts';
 import * as users from '../src/dal/users.ts';
 import * as uuidModule from '../src/dal/uuid.ts';
+import * as vehicleOrder from '../src/dal/vehicle-order.ts';
 import * as vehicles from '../src/dal/vehicles.ts';
 import * as workOrderItems from '../src/dal/work-order-items.ts';
 import * as workOrders from '../src/dal/work-orders.ts';
@@ -26,6 +29,8 @@ import type { Database } from '../src/db/index.ts';
 import {
   account,
   customer,
+  joyRideEdition,
+  joyRideRegistration,
   priceListItem,
   user as userTable,
   vehicle,
@@ -54,6 +59,7 @@ let idleVehicleId: string;
 let orderId: string;
 let itemId: string;
 let priceListItemId: string;
+let registrationId: string;
 beforeAll(async () => {
   ctx = await createTestDb();
   auth = createAuth({ db: ctx.db, secret: 'test-secret-test-secret-test-secret-0123' }); // on the real db, so that building it is not a touch of the watched one
@@ -65,6 +71,8 @@ beforeAll(async () => {
   orderId = idOf(await workOrders.createWorkOrder(admin, { vehicleId, mileageKm: '123 456', customerRequest: 'Výmena oleja' }, ctx.db));
   itemId = idOf(await workOrders.addItem(admin, orderId, { kind: 'labour', name: 'Výmena oleja', quantity: '1,5', salePrice: '40', vatRate: '23' }, ctx.db));
   priceListItemId = idOf(await priceList.createPriceListItem(admin, { kind: 'part', code: 'FIL-1', name: 'Olejový filter', purchasePrice: '5', salePrice: '9' }, ctx.db));
+  await joyRide.saveEdition(admin, { name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' }, ctx.db);
+  registrationId = idOf(await joyRide.createRegistration(admin, { name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, ctx.db));
   await logo.saveLogo(admin, png, ctx.db); // there is a logo for the mechanik to try to read past his capability, replace or remove
 });
 afterAll(() => ctx.close());
@@ -110,6 +118,16 @@ const calls: Record<string, Call> = {
   deletePriceListItem: (user, db) => priceList.deletePriceListItem(user, priceListItemId, db),
   searchPriceList: (user, db) => priceList.searchPriceList(user, { query: 'filter' }, db),
   getPriceListItem: (user, db) => priceList.getPriceListItem(user, priceListItemId, db),
+  getEdition: (user, db) => joyRide.getEdition(user, db),
+  saveEdition: (user, db) =>
+    joyRide.saveEdition(user, { name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' }, db),
+  createRegistration: (user, db) =>
+    joyRide.createRegistration(user, { name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, db),
+  listRegistrations: (user, db) => joyRide.listRegistrations(user, { category: 'veteran', status: 'new' }, db),
+  getRegistration: (user, db) => joyRide.getRegistration(user, registrationId, db),
+  updateRegistration: (user, db) =>
+    joyRide.updateRegistration(user, registrationId, { name: 'Eva Premenovaná', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, db),
+  setRegistrationStatus: (user, db) => joyRide.setRegistrationStatus(user, registrationId, 'approved', db),
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
@@ -129,6 +147,8 @@ const calls: Record<string, Call> = {
       { name: 'Autoservis Novák', street: '', city: '', postalCode: '', ico: '', dic: '', icDph: '', vatPayerType: 'nonPayer', iban: '', phone: '', email: '', commercialRegister: '' },
       db,
     ),
+  getLetterhead: (user, db) => workshopDetails.getLetterhead(user, db),
+  saveLetterhead: (user, db) => workshopDetails.saveLetterhead(user, 'blackBar', db),
   getLogo: (user, db) => logo.getLogo(user, db),
   getLogoInfo: (user, db) => logo.getLogoInfo(user, db),
   saveLogo: (user, db) => logo.saveLogo(user, jpeg, db),
@@ -148,12 +168,13 @@ const calls: Record<string, Call> = {
 };
 
 /** The functions on the mechanik's list of capabilities; every other one is forbidden to him. */
-const mechanikMay = ['listWorkOrders', 'getUnpricedWorkOrder', 'getJobSheet', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType'];
+const mechanikMay = ['listWorkOrders', 'getUnpricedWorkOrder', 'getJobSheet', 'changeOwnPassword', 'getLogo', 'getWorkshopDetails', 'getVatPayerType', 'getLetterhead'];
 
 /** The files of src/dal that read and write data: each of their exports, a function or not, has a row in `calls`. */
 const dataAccess = {
   'customers.ts': customers,
   'job-sheet.ts': jobSheet,
+  'joy-ride.ts': joyRide,
   'logo.ts': logo,
   'password.ts': password,
   'price-list.ts': priceList,
@@ -168,23 +189,28 @@ const dataAccess = {
 /**
  * The files of src/dal that hold no data access, with their exports pinned by name: the limit of
  * the attempts to check a password, the refused constraint, the user of the pages (current-user),
- * the order and the amounts of the items of a Zákazka (work-order-items, which reads nothing), the paging of the
- * lists, the user and the id check. An export added to one of them fails
+ * the order and the amounts of the items of a Zákazka (work-order-items, which reads nothing), the order of the
+ * Vozidlá (vehicle-order), the paging of the lists, the user and the id check. An export added to one of them fails
  * the test below, so whoever adds it decides: a function that reads or writes data goes in a data
  * access file and in `calls`, anything else goes in this list.
  *
  * One exception: `readFormHeader` of form-header.ts does read data, without asking a capability. Only job-sheet.ts
  * and print-forms.ts call it, each after its own `assertCan`. It is pinned here, not in `calls`, because it takes no
  * user; the functions that call it are in `calls`, so one that forgets its `assertCan` fails there.
+ *
+ * The other exception is on purpose: branding.ts reads the logo of the autoservis for the login page, which is shown to
+ * somebody who is not signed in. `getLogo` of logo.ts asks the capability and then reads through it.
  */
 const helpers = {
   'attempt-limit.ts': { module: attemptLimit, exports: ['tooManyAttemptsMessage', 'withinAttemptLimit'] },
+  'branding.ts': { module: branding, exports: ['readLogo', 'readLogoVersion'] },
   'constraint.ts': { module: constraintModule, exports: ['blockedByLink', 'violates'] },
   'current-user.ts': { module: currentUserModule, exports: ['currentUser', 'currentUserWith'] },
   'form-header.ts': { module: formHeader, exports: ['readFormHeader'] },
   'paging.ts': { module: paging, exports: ['contains', 'pageSize', 'pageWindow'] },
   'user.ts': { module: userModule, exports: ['ForbiddenError', 'UnauthenticatedError', 'assertCan', 'homePage', 'requireUser'] },
   'uuid.ts': { module: uuidModule, exports: ['isUuid'] },
+  'vehicle-order.ts': { module: vehicleOrder, exports: ['newestVehiclesFirst'] },
   'work-order-items.ts': { module: workOrderItems, exports: ['inOrderAdded', 'withAmounts'] },
 };
 
@@ -214,6 +240,8 @@ const everything = async () => ({
   workOrders: await ctx.db.select().from(workOrder),
   items: await ctx.db.select().from(workOrderItem),
   priceListItems: await ctx.db.select().from(priceListItem),
+  joyRideEditions: await ctx.db.select().from(joyRideEdition),
+  joyRideRegistrations: await ctx.db.select().from(joyRideRegistration),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
   workshopLogo: await ctx.db.select().from(workshopLogo),

@@ -39,6 +39,32 @@ test('the console rule reports a console error with its text', () => {
   expect(problems).toEqual(['console.error: something']);
 });
 
+// Recorded from a real run: Chromium's console error for an image that is gone names no address, its location does.
+const notFound = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
+const logToConsoleFrom = (page: EventEmitter, text: string, url: string) => page.emit('console', { type: () => 'error', text: () => text, location: () => ({ url }) });
+
+test('the console rule lets the 404 of the image of the logo pass, which logo.spec.ts causes by removing it', () => {
+  const page = new EventEmitter();
+  const problems = watchPage(page as unknown as Page);
+
+  logToConsoleFrom(page, notFound, 'http://127.0.0.1:3100/api/logo?v=1793380325898');
+
+  expect(problems).toEqual([]);
+});
+
+test.each([
+  ['a 404 of any other address', notFound, 'http://127.0.0.1:3100/api/logos'],
+  ['a 404 of an address that only mentions the logo', notFound, 'http://127.0.0.1:3100/zakazky?next=/api/logo'],
+  ['another error of the image of the logo', 'Failed to load resource: the server responded with a status of 403 (Forbidden)', 'http://127.0.0.1:3100/api/logo'],
+])('the console rule reports %s', (_what, text, url) => {
+  const page = new EventEmitter();
+  const problems = watchPage(page as unknown as Page);
+
+  logToConsoleFrom(page, text, url);
+
+  expect(problems).toEqual([`console.error: ${text}`]);
+});
+
 // Playwright's names for the other levels of console.*.
 test.each(['log', 'info', 'debug', 'warning'])('the console rule lets console %s pass', (type) => {
   const page = new EventEmitter();

@@ -1,3 +1,4 @@
+import type { Letterhead } from '@servisnik/domain/print';
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import { describe, expect, test } from 'vitest';
 import type { JobSheet } from '../src/dal/job-sheet.ts';
@@ -17,12 +18,15 @@ const sheet: JobSheet = {
   customerRequest: 'Výmena oleja\nKontrola bŕzd',
 };
 
-const print = (overrides: { sheet?: JobSheet; workshop?: WorkshopDetails; logo?: Parameters<typeof jobSheetDocument>[0]['logo'] } = {}) =>
-  jobSheetDocument({ sheet, workshop, logo: null, printedOn: '2026-10-28', ...overrides });
+const print = (overrides: { sheet?: JobSheet; workshop?: WorkshopDetails; logo?: Parameters<typeof jobSheetDocument>[0]['logo']; letterhead?: Letterhead } = {}) =>
+  jobSheetDocument({ sheet, workshop, logo: null, letterhead: 'white', printedOn: '2026-10-28', ...overrides });
+
+/** The document as its text reads, a no-break space as a space. */
+const read = (document: string) => document.replace(/\p{Zs}/gu, ' ');
 
 describe('the header', () => {
   test('carries the name, address, identifiers and contacts of the autoservis, the number of the Zákazka and the day of the print', () => {
-    const document = print();
+    const document = read(print());
 
     for (const line of [
       'Autoservis Novák',
@@ -43,10 +47,25 @@ describe('the header', () => {
   });
 
   test('prints only what the autoservis filled in: a detail left out leaves no label behind', () => {
-    const document = print({ workshop: onlyName });
+    const document = read(print({ workshop: onlyName }));
 
     expect(document).toContain('Autoservis Novák');
     for (const label of ['IČO', 'DIČ', 'IČ DPH', 'Tel.', 'E-mail', 'IBAN']) expect(document, label).not.toContain(label);
+  });
+
+  // A column of the header can be narrower than a line of details; it then wraps between details (at " · "), never inside one (ticket #148).
+  test('keeps each labelled detail in one piece with no-break spaces: the label, its value and the two words of the IČ DPH', () => {
+    const document = print();
+
+    for (const detail of [
+      'IČO:\u00a012345678',
+      'DIČ:\u00a02012345678',
+      'IČ\u00a0DPH:\u00a0SK2012345678',
+      'Tel.:\u00a0+421\u00a0900\u00a0123\u00a0456',
+      'E-mail:\u00a0servis@novak.sk',
+      'IBAN:\u00a0SK3112000000198742637541',
+    ])
+      expect(document, detail).toContain(detail);
   });
 
   test('puts the street and the town together as far as they are known', () => {
@@ -59,6 +78,15 @@ describe('the header', () => {
     expect(print({ logo: { contentType: 'image/png', bytes: png } })).toContain(`<img class="logo" src="data:image/png;base64,${Buffer.from(png).toString('base64')}"`);
     expect(print({ logo: { contentType: 'image/jpeg', bytes: jpeg } })).toContain('src="data:image/jpeg;base64,');
     expect(print({ logo: null })).not.toContain('<img');
+  });
+
+  // How the two Hlavičky look on paper is the PDF test of letterhead.test.ts; here is only that the header says which one it is.
+  test('is the header of the Hlavička the admin picked, with the logo in either', () => {
+    const logo = { contentType: 'image/png', bytes: png } as const;
+
+    expect(print({ letterhead: 'white', logo })).toContain('<header class="letterhead letterhead-white">');
+    expect(print({ letterhead: 'blackBar', logo })).toContain('<header class="letterhead letterhead-black-bar">');
+    for (const letterhead of ['white', 'blackBar'] as const) expect(print({ letterhead, logo }), letterhead).toContain('<img class="logo" src="data:image/png;base64,');
   });
 });
 

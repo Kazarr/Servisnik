@@ -28,6 +28,7 @@ import { idOf } from './support/id-of.ts';
 import { untilLockWaits } from './support/lock-waits.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 import { truncateTables } from './support/reset.ts';
+import { savedInOrder } from './support/saved-in-order.ts';
 
 const summer = new Date('2026-07-15T10:00:00Z');
 
@@ -593,6 +594,7 @@ test('a vehicle lists all its Zákazky from the newest with their customer, in e
   for (const status of workOrderStatuses) oldestFirst.push({ id: await workOrderIn(status), status, customer: 'Firma s.r.o.' });
   oldestFirst.push({ id: await newWorkOrderId({ customerId: other }), status: 'received', customer: 'Ján Novák' });
   await newWorkOrderId({ vehicleId: otherVehicle });
+  await savedInOrder(ctx.db, 'work_order', oldestFirst.map(({ id }) => id));
 
   const history = await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db);
 
@@ -617,6 +619,7 @@ test('a customer lists every Zákazka they are the customer of, from the newest,
   await move(done, 'done');
   const invoiced = await workOrderIn('invoiced'); // Uzavretá, and still listed
   await newWorkOrderId({ customerId: other }); // on a vehicle of the owner, but for someone else
+  await savedInOrder(ctx.db, 'work_order', [received, done, invoiced]);
 
   const orders = await listWorkOrdersOfCustomer(admin, ownerId, ctx.db);
 
@@ -840,6 +843,16 @@ test('the database refuses a Práca with a Nákupná cena and a Nákupná cena b
   await expect(insert('labour', 100)).rejects.toMatchObject({ cause: { constraint: 'work_order_item_purchase_price_kind_check' } });
   await expect(insert('part', -1)).rejects.toMatchObject({ cause: { constraint: 'work_order_item_purchase_price_check' } });
   await expect(insert('part', 0)).resolves.toBeDefined();
+});
+
+test('the detail of a Zákazka returns the items without their place (added_seq), which only the order of a read uses (#160)', async () => {
+  const id = await newWorkOrderId();
+  idOf(await addItem(admin, id, oilChange, ctx.db));
+
+  const items = (await getWorkOrder(admin, id, ctx.db))?.items;
+
+  expect(items).toHaveLength(1);
+  expect(items![0]).not.toHaveProperty('addedSeq');
 });
 
 test('an item is changed: its code, name, quantity, unit, prices and VAT rate, and the amounts follow, where its kind and its place stay', async () => {

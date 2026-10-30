@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { currentUserWith } from '../../../dal/current-user.ts';
+import { LetterheadSection } from './letterhead-section.tsx';
 import { LogoSection } from './logo-section.tsx';
 import { RatesSection } from './rates-section.tsx';
 import { UsersSection } from './users-section.tsx';
@@ -19,6 +20,7 @@ export default async function SettingsPage() {
       <h1>Nastavenia</h1>
       <WorkshopSection user={user} />
       <LogoSection user={user} />
+      <LetterheadSection user={user} />
       <RatesSection user={user} />
       <UsersSection user={user} />
     </>

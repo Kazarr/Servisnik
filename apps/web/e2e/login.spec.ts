@@ -1,6 +1,6 @@
 import { endSessionBehindThePage, expect, signIn, submitLogin, test } from './fixtures.ts';
 
-const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky', 'Cenník', 'Nastavenia'];
+const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky', 'Cenník', 'Jazda radosti', 'Nastavenia'];
 
 for (const path of ['/', '/zakaznici', '/vozidla', '/zakazky', '/nastavenia']) {
   test(`without a session ${path} leads to the login page`, async ({ page }) => {
@@ -56,6 +56,20 @@ test('the admin signs in, sees the menu on the left and signs out', async ({ pag
   await context.addCookies(signedInCookies);
   await page.goto('/zakazky');
   await expect(page).toHaveURL(/\/login$/);
+});
+
+// The app is shown as Garage24Hub (ticket #156): in the title of every page, and as a quiet "powered by" on the login page and at the
+// bottom of the menu (the logo spec checks the line in the menu while a logo is set).
+test('the title, the login page and the menu name Garage24Hub', async ({ page }) => {
+  await page.goto('/login');
+  await expect(page).toHaveTitle('Prihlásenie – Garage24Hub');
+  await expect(page.locator('main .powered-by')).toHaveText('powered by Garage24Hub');
+  await expect(page.locator('body')).not.toContainText('Servisník');
+
+  await signIn(page);
+  await expect(page).toHaveTitle('Zákazky – Garage24Hub');
+  await expect(page.locator('.sidebar .powered-by')).toHaveText('powered by Garage24Hub');
+  await expect(page.locator('.sidebar')).not.toContainText('Servisník');
 });
 
 // Forced colors replace the background that marks the current item, so something else must mark it.

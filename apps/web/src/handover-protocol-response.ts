@@ -23,7 +23,7 @@ export const handoverProtocolResponse = (user: User | null, workOrderId: string,
         const protocol = await getHandoverProtocol(readBy, id, readFrom);
         return protocol === 'wrong-status' ? failure(wrongStatusMessage, 409) : protocol;
       },
-      document: ({ data: protocol, workshop, logo, printedOn }) => handoverProtocolDocument({ protocol, workshop, logo, printedOn }),
+      document: ({ data: protocol, ...rest }) => handoverProtocolDocument({ protocol, ...rest }),
     },
     user,
     workOrderId,

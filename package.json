@@ -15,6 +15,7 @@
     "dev": "pnpm --filter @servisnik/web dev",
     "db:migrate": "pnpm --filter @servisnik/web db:migrate",
     "db:seed": "pnpm --filter @servisnik/web db:seed",
+    "db:demo": "pnpm --filter @servisnik/web db:demo",
     "e2e": "pnpm --filter @servisnik/web e2e",
     "e2e:install": "pnpm --filter @servisnik/web exec playwright install chromium",
     "services:up": "docker compose up -d --wait",

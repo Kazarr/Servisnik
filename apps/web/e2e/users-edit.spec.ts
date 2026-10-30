@@ -51,7 +51,7 @@ test('the admin changes a user, gives him a new password and sees it in the list
 
   // The Rola counts from his next page, with the sign-in he already has.
   await mechanikPage.goto('/zakazky');
-  await expect(mechanikPage.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link')).toHaveText(['Zákazníci', 'Vozidlá', 'Zákazky', 'Cenník', 'Nastavenia']);
+  await expect(mechanikPage.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link')).toHaveText(['Zákazníci', 'Vozidlá', 'Zákazky', 'Cenník', 'Jazda radosti', 'Nastavenia']);
 
   // The new password ends his sign-in; he signs in again with it.
   const password = page.getByRole('region', { name: 'Nové heslo' });

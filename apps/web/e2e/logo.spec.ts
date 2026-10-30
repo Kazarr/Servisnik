@@ -2,6 +2,7 @@ import { maxLogoBytes } from '@servisnik/domain/settings';
 import { test, type Page } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
 import { removeLogo } from '../src/dal/logo.ts';
+import { workshop } from '../src/db/schema.ts';
 import { jpeg, padded, png, textNamedPng } from '../test/support/logo-files.ts';
 import { seedUser } from '../test/support/users.ts';
 import { expect, runTag, signIn, signInAs } from './fixtures.ts';
@@ -53,9 +54,27 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   await page.reload();
   await expect(preview).toHaveJSProperty('naturalWidth', 1);
 
+  // The logo and the name of the autoservis stand in the menu in place of "Garage24Hub", on every page of the app (ticket #150): the
+  // logo is cut to its box and its black square blends into the menu. The name is the one of Údaje autoservisu, which another spec
+  // writes, so it is read from the database when it is compared, and the menu shows none while the name is empty.
+  const brand = page.locator('.sidebar .brand');
+  const brandLogo = brand.locator('img.brand-logo');
+  await expect(brandLogo).toHaveAttribute('src', /^\/api\/logo\?v=\d+$/);
+  await expect(brandLogo).toHaveJSProperty('naturalWidth', 1);
+  await expect(brandLogo).toHaveCSS('object-fit', 'cover');
+  await expect(brandLogo).toHaveCSS('mix-blend-mode', 'screen');
+  await expect(brand.getByText('Garage24Hub', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.sidebar .powered-by')).toHaveText('powered by Garage24Hub'); // the product stays at the bottom of the menu beside the logo
+  await expect(async () => {
+    const [row] = await db.select({ name: workshop.name }).from(workshop);
+    if (row!.name) await expect(brand.locator('.brand-name')).toHaveText(row!.name, { timeout: 1000 });
+    else await expect(brand.locator('.brand-name')).toHaveCount(0, { timeout: 1000 });
+  }).toPass();
+
   // The mechanik does not see Nastavenia, but the image he prints is served to him, and he cannot touch it.
   const elsewhere = await browser.newContext({ baseURL });
   const mechanikPage = await elsewhere.newPage();
+  const mechanikProblems = watchPage(mechanikPage);
   await signInAs(mechanikPage, mechanik);
   const shown = await mechanikPage.request.get('/api/logo');
   expect(shown.status()).toBe(200);
@@ -69,20 +88,35 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   const removed = await mechanikPage.request.delete('/api/logo');
   expect(removed.status()).toBe(403);
   expect(await removed.json()).toEqual(forbidden);
+  // The mechanik has the logo in his menu too.
+  await mechanikPage.reload();
+  await expect(mechanikPage.locator('.sidebar .brand img.brand-logo')).toHaveJSProperty('naturalWidth', 1);
   await elsewhere.close();
-  // Nobody signed in, or with a cookie that is no session, is told so by the route itself (the proxy does not
-  // cover /api/logo, see proxy.ts): not sent to the login page, and the image is not shown.
+  // Nobody signed in, or with a cookie that is no session, may not change it: the route itself says so (the proxy does not
+  // cover /api/logo, see proxy.ts), and does not send them to the login page. The image is theirs to see, as the login page shows it.
   const notSignedIn = { error: 'Nie ste prihlásený.' };
   const withoutSession: Record<string, string>[] = [{}, { cookie: 'better-auth.session_token=fake.cookie' }];
   for (const headers of withoutSession) {
     const read = await request.get('/api/logo', { headers, maxRedirects: 0 });
-    expect(read.status()).toBe(401);
-    expect(await read.json()).toEqual(notSignedIn);
+    expect(read.status()).toBe(200);
+    expect(new Uint8Array(await read.body())).toEqual(png);
     const written = await request.put('/api/logo', { headers, data: Buffer.from(png), maxRedirects: 0 });
     expect(written.status()).toBe(401);
     expect(await written.json()).toEqual(notSignedIn);
   }
   expect(new Uint8Array(await (await page.request.get('/api/logo')).body())).toEqual(png); // nobody changed anything
+
+  // The login page, for somebody who is not signed in, has the logo above the form and the slogan of the customer under it.
+  const visitor = await browser.newContext({ baseURL });
+  const loginPage = await visitor.newPage();
+  const visitorProblems = watchPage(loginPage); // the pages of a second context are watched where they are made, as no fixture sees them
+  await loginPage.goto('/login');
+  const loginBrand = loginPage.locator('main .login-brand');
+  await expect(loginBrand.locator('img.login-logo')).toHaveJSProperty('naturalWidth', 1);
+  await expect(loginBrand.locator('img.login-logo')).toHaveCSS('object-fit', 'cover');
+  await expect(loginBrand.getByText('Kvalita nepozná kompromis', { exact: true })).toBeVisible();
+  expect(await loginPage.evaluate(() => document.querySelector('.login-logo + .login-slogan') !== null)).toBe(true); // the slogan is under the logo
+  await expect(loginPage.locator('main .powered-by')).toHaveText('powered by Garage24Hub'); // and the product is named under the form, not as the logo
 
   // A replacement: the same PNG with bytes after its end, which a browser ignores, so only the size tells them apart.
   const replacement = padded(png, png.length + 30);
@@ -109,5 +143,15 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   await expect(preview).toHaveCount(0);
   await expect(main.getByRole('button', { name: 'Odstrániť logo' })).toHaveCount(0);
   expect((await page.request.get('/api/logo')).status()).toBe(404);
+  // Without a logo the menu says "Garage24Hub" again, and the login page has neither the logo nor the slogan.
+  await expect(brand.getByText('Garage24Hub', { exact: true })).toBeVisible();
+  await expect(brand.locator('img')).toHaveCount(0);
+  await loginPage.reload();
+  await expect(loginPage.locator('main h1')).toHaveText('Prihlásenie');
+  await expect(loginPage.locator('main img')).toHaveCount(0);
+  await expect(loginPage.getByText('Kvalita nepozná kompromis')).toHaveCount(0);
+  await visitor.close();
   expect(problems).toEqual([expect.stringMatching(/status of 415/), expect.stringMatching(/status of 413/)]);
+  expect(mechanikProblems).toEqual([]);
+  expect(visitorProblems).toEqual([]);
 });
