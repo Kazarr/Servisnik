@@ -113,6 +113,11 @@ const actions = {
     call: () => settingsActions.saveWorkshopDetailsAction(null, form({ name: 'Autoservis Novák', vatPayerType: 'nonPayer' })),
     answer: formRefused,
   },
+  // The select of the Hlavička tlačív shows what was sent, so the refusal carries it next to the message.
+  saveLetterheadAction: {
+    call: () => settingsActions.saveLetterheadAction(null, form({ letterhead: 'blackBar' })),
+    answer: { letterhead: 'blackBar', error: forbiddenMessage },
+  },
   createUserAction: {
     call: () =>
       userActions.createUserAction(null, form({ newUserName: 'Nový Mechanik', newUserEmail: 'novy@autoservis.test', newUserRole: 'mechanik', newUserPassword: 'pociatocne-heslo-1234' })),
