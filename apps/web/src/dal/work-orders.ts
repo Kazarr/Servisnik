@@ -21,7 +21,7 @@ import {
   type WorkOrderStatus,
   vatRatesKeeping,
 } from '@servisnik/domain/work-order';
-import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import type { SelectedFields } from 'drizzle-orm/pg-core';
 import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, priceListItem, vehicle, workOrder, workOrderCounter, workOrderItem } from '../db/schema.ts';
@@ -32,6 +32,9 @@ import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
 import { createVehicle, type ExistingVehicle, type VehicleSaveErrors } from './vehicles.ts';
 import { inOrderAdded, withAmounts } from './work-order-items.ts';
+
+/** The columns of an item that the detail of a Zákazka returns: all but `addedSeq`, its place, which only the order of a read uses. */
+const { addedSeq: _place, ...itemColumns } = getTableColumns(workOrderItem);
 
 /** The rows of `query`, or none when `id` is not a UUID: PostgreSQL would answer that with an error, not with no row. */
 const rowsIfUuid = async <Row>(id: string, query: PromiseLike<Row[]>): Promise<Row[]> => (isUuid(id) ? await query : []);
@@ -422,6 +425,6 @@ export async function getWorkOrder(user: User | null, id: string, db: Database =
     note: workOrder.note,
   }).where(eq(workOrder.id, id));
   if (!found) return null;
-  const items = await db.select().from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(...inOrderAdded);
+  const items = await db.select(itemColumns).from(workOrderItem).where(eq(workOrderItem.workOrderId, id)).orderBy(...inOrderAdded);
   return { ...found, ...withAmounts(items), margin: marginOf(items) };
 }
