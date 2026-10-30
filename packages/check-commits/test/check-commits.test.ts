@@ -9,15 +9,24 @@ const commit = (sha: string, subject: string, files: string[] = [], merge?: true
   ...(merge && { merge }),
 });
 
+// A commit that created all its files: git prints them with the status A, parseGitLog lists them in `added`.
+// Not typed as Commit on purpose, so a commit that lists only the files it changed stays one.
+const adding = (c: Commit, ...added: string[]) => ({ ...c, added });
+const created = (sha: string, subject: string, ...files: string[]) => adding(commit(sha, subject, files), ...files);
+
 const NO_TEST = 'feat without a test commit since the previous feat or the branch base';
+const MANY_PACKAGES = (...packages: string[]) => `commit changes more than one package: ${packages.join(', ')}`;
+const SAME_TICKET = (...files: string[]) =>
+  `fix changes only files added earlier in this range, so it is a feat of the same ticket: ${files.join(', ')}`;
 
 test('a branch that keeps test before feat and feat/fix free of test files passes', () => {
   expect(
     checkCommits([
       commit('a1', 'docs: describe the check', ['README.md']),
       commit('b2', 'test: totals add up', ['packages/domain/test/totals.test.ts']),
-      commit('c3', 'feat(domain): totals add up', ['packages/domain/src/totals.ts']),
-      commit('d4', 'fix: round totals', ['packages/domain/src/totals.ts']),
+      created('c3', 'feat(domain): totals add up', 'packages/domain/src/totals.ts'),
+      // a file that was already on the base
+      commit('d4', 'fix: round totals', ['packages/domain/src/rounding.ts']),
       commit('e5', 'test(web): login page', ['apps/web/e2e/login.spec.ts']),
       commit('f6', 'feat!: drop old login', ['apps/web/src/login.ts']),
     ]),
@@ -169,4 +178,165 @@ test('rule 1 holds only feat and fix, rule 2 only feat, rule 3 only test', () =>
       commit('e5', 'Feature: test files in a looks-like feat', ['test/y.test.ts']),
     ]),
   ).toEqual([]);
+});
+
+test('rule 4: a commit that stays in one package passes, whatever it changes outside the packages', () => {
+  expect(
+    checkCommits([
+      // folders and depths of one package, production and config files side by side
+      commit('a1', 'docs: one package', ['packages/domain/src/a.ts', 'packages/domain/src/deep/er/b.ts', 'packages/domain/package.json']),
+      commit('b2', 'test(web): one app', ['apps/web/test/a.test.ts', 'apps/web/e2e/b.spec.ts', 'apps/web/test/support/db.ts']),
+      // the root, docs/ and tools/ belong to no package, so they add none
+      commit('c3', 'chore: root files next to one package', ['pnpm-lock.yaml', 'docs/adr/0002.md', 'tools/vendor.sh', 'apps/web/src/a.ts']),
+      commit('d4', 'docs: only files outside the packages', ['AGENTS.md', 'docs/runs/x.md']),
+      // near-misses: packages/ and apps/ folders that are not at the root, and files directly in packages/ or apps/
+      commit('e5', 'docs: look-alikes', ['tools/packages/a/b.ts', 'docs/apps/web/x.md', 'packages/README.md', 'apps/notes.txt']),
+      commit('f6', 'chore: look-alikes next to one package', ['packages/README.md', 'apps/notes.txt', 'packages/domain/src/a.ts']),
+      commit('g7', 'docs: nothing changed'),
+    ]),
+  ).toEqual([]);
+});
+
+test('rule 4: lists the packages of a commit that changes two or more, in order of appearance, whatever its type', () => {
+  expect(
+    checkCommits([
+      commit('a1', 'test: domain and web', ['packages/domain/test/a.test.ts', 'apps/web/test/b.test.ts']),
+      commit('b2', 'docs: three, one of them twice', ['apps/web/a.md', 'packages/domain/a.md', 'packages/check-commits/a.md', 'apps/web/b.md']),
+      commit('c3', 'not a conventional subject', ['packages/domain/a.ts', 'apps/web/b.ts']),
+      // the same name under packages/ and apps/ is two packages
+      commit('d4', 'refactor: same name', ['packages/web/a.ts', 'apps/web/b.ts']),
+      // a move between packages reads as delete + add, so both packages are named
+      commit('e5', 'refactor: move a file', ['apps/web/src/a.ts', 'packages/domain/src/a.ts']),
+      // a feat after its test breaks only rule 4
+      commit('f6', 'test: split', ['packages/domain/test/f.test.ts']),
+      commit('g7', 'feat: split', ['packages/domain/src/f.ts', 'apps/web/src/f.ts']),
+    ]),
+  ).toEqual([
+    `a1 test: domain and web: ${MANY_PACKAGES('packages/domain', 'apps/web')}`,
+    `b2 docs: three, one of them twice: ${MANY_PACKAGES('apps/web', 'packages/domain', 'packages/check-commits')}`,
+    `c3 not a conventional subject: ${MANY_PACKAGES('packages/domain', 'apps/web')}`,
+    `d4 refactor: same name: ${MANY_PACKAGES('packages/web', 'apps/web')}`,
+    `e5 refactor: move a file: ${MANY_PACKAGES('apps/web', 'packages/domain')}`,
+    `g7 feat: split: ${MANY_PACKAGES('packages/domain', 'apps/web')}`,
+  ]);
+});
+
+test('rule 4 skips merge commits and allowlisted commits', () => {
+  expect(
+    checkCommits(
+      [
+        commit('a1', 'Merge ticket into run', ['packages/domain/a.ts', 'apps/web/b.ts'], true),
+        commit('old', 'chore: predates the rule', ['packages/domain/a.ts', 'apps/web/b.ts']),
+        commit('b2', 'chore: next', ['packages/domain/c.ts', 'apps/web/d.ts']),
+      ],
+      new Set(['old']),
+    ),
+  ).toEqual([`b2 chore: next: ${MANY_PACKAGES('packages/domain', 'apps/web')}`]);
+});
+
+test('rule 5: a fix that changes only files added earlier in the range is a feat of the same ticket', () => {
+  expect(
+    checkCommits([
+      commit('a1', 'test: totals', ['test/totals.test.ts']),
+      created('b2', 'feat: totals', 'src/totals.ts', 'src/round.ts'),
+      // the files of any earlier commit count, not only those of a feat
+      created('c3', 'chore: config', 'config/app.json'),
+      commit('d4', 'fix: round totals', ['src/totals.ts']),
+      commit('e5', 'fix(domain)!: both files', ['src/round.ts', 'src/totals.ts']),
+      // a fix that deletes a file added earlier changes nothing of the base either
+      commit('f6', 'fix: drop the config', ['config/app.json']),
+    ]),
+  ).toEqual([
+    `d4 fix: round totals: ${SAME_TICKET('src/totals.ts')}`,
+    `e5 fix(domain)!: both files: ${SAME_TICKET('src/round.ts', 'src/totals.ts')}`,
+    `f6 fix: drop the config: ${SAME_TICKET('config/app.json')}`,
+  ]);
+});
+
+test('rule 5: a fix passes when a file it changes is from the base, when it adds a file itself, or when it changes none', () => {
+  expect(
+    checkCommits([
+      commit('a1', 'test: a', ['test/a.test.ts']),
+      created('b2', 'feat: a', 'src/a.ts'),
+      commit('c3', 'fix: a and a file of the base', ['src/a.ts', 'src/base.ts']),
+      // helper.ts is new in this very commit, not added earlier
+      adding(commit('d4', 'fix: a and a new file', ['src/a.ts', 'src/helper.ts']), 'src/helper.ts'),
+      commit('e5', 'fix: no files'),
+    ]),
+  ).toEqual([]);
+});
+
+test('rule 5 holds only fix: any other type may change files added earlier', () => {
+  expect(
+    checkCommits([
+      commit('a1', 'test: a', ['test/a.test.ts']),
+      created('b2', 'feat: a', 'src/a.ts'),
+      commit('c3', 'refactor: tidy a', ['src/a.ts']),
+      commit('d4', 'docs: a', ['src/a.ts']),
+      commit('e5', 'Fix: capitalised is not a type', ['src/a.ts']),
+      commit('f6', 'fixes: plural is not a type', ['src/a.ts']),
+      commit('g7', 'test: more a', ['test/a.test.ts']),
+      commit('h8', 'feat: more a', ['src/a.ts']),
+    ]),
+  ).toEqual([]);
+});
+
+// Rule 5 follows first parents like rule 2: a commit starts from what the line of its first parent added.
+test('rule 5: a fix of a file that another line added passes (run -> main shape: ticket B fixes what ticket A merged)', () => {
+  expect(
+    checkCommits([
+      on('base', commit('x1', 'test: x', ['test/x.test.ts'])),
+      on('x1', created('x2', 'feat: x', 'src/x.ts')),
+      on('base', commit('y1', 'fix: x from another ticket', ['src/x.ts'])),
+    ]),
+  ).toEqual([]);
+});
+
+test('rule 5: files that reach a branch only through a merge are not its own', () => {
+  expect(
+    checkCommits([
+      on('base', created('a1', 'chore: a', 'src/a.ts')),
+      on('base', commit('b1', 'docs: b', ['README.md'])),
+      on('b1', commit('mB', 'Merge run into B', [], true)),
+      on('mB', commit('b2', 'fix: a', ['src/a.ts'])),
+    ]),
+  ).toEqual([]);
+});
+
+test('rule 5: a ticket branch that merges its base mid-branch still owns the files it added', () => {
+  expect(
+    checkCommits([
+      on('base', commit('b1', 'test: b', ['test/b.test.ts'])),
+      on('b1', created('b2', 'feat: b', 'src/b.ts')),
+      on('b2', commit('mB', 'Merge run into B', [], true)),
+      on('mB', commit('b3', 'fix: b', ['src/b.ts'])),
+    ]),
+  ).toEqual([`b3 fix: b: ${SAME_TICKET('src/b.ts')}`]);
+});
+
+test('rule 5: merge commits and allowlisted commits add no file', () => {
+  expect(
+    checkCommits(
+      [
+        adding(commit('m1', 'Merge x', ['src/m.ts'], true), 'src/m.ts'),
+        commit('f1', 'fix: m', ['src/m.ts']),
+        created('old', 'feat: predates the check', 'src/old.ts'),
+        commit('f2', 'fix: old', ['src/old.ts']),
+      ],
+      new Set(['old']),
+    ),
+  ).toEqual([]);
+});
+
+test('one commit that breaks rules 4 and 5 lists rule 4 first', () => {
+  expect(
+    checkCommits([
+      created('a1', 'chore: both', 'packages/domain/src/a.ts', 'apps/web/src/b.ts'),
+      commit('b2', 'fix: both', ['packages/domain/src/a.ts', 'apps/web/src/b.ts']),
+    ]),
+  ).toEqual([
+    `a1 chore: both: ${MANY_PACKAGES('packages/domain', 'apps/web')}`,
+    `b2 fix: both: ${MANY_PACKAGES('packages/domain', 'apps/web')}`,
+    `b2 fix: both: ${SAME_TICKET('packages/domain/src/a.ts', 'apps/web/src/b.ts')}`,
+  ]);
 });
