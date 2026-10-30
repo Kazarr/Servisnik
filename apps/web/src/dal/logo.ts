@@ -2,6 +2,7 @@ import { checkLogo, type LogoContentType, type LogoError } from '@servisnik/doma
 import { sql } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { workshopLogo } from '../db/schema.ts';
+import { readLogo } from './branding.ts';
 import { assertCan, type User } from './user.ts';
 
 // The logo of the Autoservis lives in the one row of `workshop_logo` (src/db/schema.ts), apart from the
@@ -17,8 +18,7 @@ export type SaveLogoResult = { ok: true } | { ok: false; error: LogoError };
  */
 export async function getLogo(user: User | null, db: Database = getDb()): Promise<Logo | null> {
   assertCan(user, 'workshop.read');
-  const [row] = await db.select({ contentType: workshopLogo.contentType, bytes: workshopLogo.data }).from(workshopLogo);
-  return row ?? null;
+  return readLogo(db);
 }
 
 /** What Nastavenia shows about the logo, without the image itself; null when there is none. */

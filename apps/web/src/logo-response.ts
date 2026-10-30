@@ -1,5 +1,6 @@
 import { maxLogoBytes } from '@servisnik/domain/settings';
-import { getLogo, removeLogo, saveLogo } from './dal/logo.ts';
+import { readLogo } from './dal/branding.ts';
+import { removeLogo, saveLogo } from './dal/logo.ts';
 import { assertCan, type User } from './dal/user.ts';
 import type { Database } from './db/index.ts';
 import { failure, guarded } from './route-guard.ts';
@@ -42,10 +43,13 @@ async function readBody(request: Request, limit: number) {
   }
 }
 
-/** The image, with the type the domain read from its content and `nosniff`, so a browser never takes it for anything else. */
-export const getLogoResponse = (user: User | null, db: Database) =>
+/**
+ * The image, with the type the domain read from its content and `nosniff`, so a browser never takes it for anything else. Anybody
+ * may have it, signed in or not: the login page shows it (src/dal/branding.ts).
+ */
+export const getLogoResponse = (db: Database) =>
   guarded(async () => {
-    const logo = await getLogo(user, db);
+    const logo = await readLogo(db);
     if (!logo) return failure('Logo nie je nahrané.', 404);
     // `no-cache`: a replaced logo is shown at once, and `private` keeps it out of shared caches.
     return new Response(logo.bytes as Uint8Array<ArrayBuffer>, {
