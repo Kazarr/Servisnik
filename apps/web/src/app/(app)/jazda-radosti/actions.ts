@@ -8,6 +8,7 @@ import { createRegistration, saveEdition, setRegistrationStatus, updateRegistrat
 import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import {
   editionMessages,
+  field,
   readEdition,
   readRegistration,
   registrationMessages,
@@ -16,8 +17,6 @@ import {
   type RegistrationFormErrors,
   type RegistrationFormValues,
 } from './joy-ride-input.ts';
-
-const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 export type EditionFormState = { values: EditionFormValues; errors: EditionFormErrors & { form?: string } } | null;
 

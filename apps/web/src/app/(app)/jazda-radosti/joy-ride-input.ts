@@ -4,14 +4,15 @@ import { formatMessages } from '../format-messages.ts';
 // What the forms of the Jazda radosti send and what they are told back: the form of the Ročník and the form of a Registrácia, new or edited.
 // Not a 'use server' file: those export nothing but Server Actions.
 
-const text = (formData: FormData, name: string) => String(formData.get(name) ?? '');
+/** The value of a field of a form as typed: an empty string for a field that was not sent. */
+export const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
 const editionFields = ['name', 'date', 'place', 'registrationDeadline'] as const;
 export type EditionFormValues = Record<(typeof editionFields)[number], string>;
 export type EditionFormErrors = Partial<Record<(typeof editionFields)[number], string>>;
 
 /** The Ročník from a form. */
-export const readEdition = (formData: FormData) => Object.fromEntries(editionFields.map((name) => [name, text(formData, name)])) as EditionFormValues;
+export const readEdition = (formData: FormData) => Object.fromEntries(editionFields.map((name) => [name, field(formData, name)])) as EditionFormValues;
 
 /** The message of each field the domain refused. */
 export const editionMessages = ({ name, date, place, registrationDeadline }: EditionErrors): EditionFormErrors => ({
@@ -26,7 +27,7 @@ export type RegistrationFormValues = Record<(typeof registrationFields)[number],
 export type RegistrationFormErrors = Partial<Record<(typeof registrationFields)[number], string>>;
 
 /** The Registrácia from a form. */
-export const readRegistration = (formData: FormData) => Object.fromEntries(registrationFields.map((name) => [name, text(formData, name)])) as RegistrationFormValues;
+export const readRegistration = (formData: FormData) => Object.fromEntries(registrationFields.map((name) => [name, field(formData, name)])) as RegistrationFormValues;
 
 /** The message of each field the domain refused. */
 export const registrationMessages = ({ name, phone, email, make, model, category }: RegistrationErrors): RegistrationFormErrors => ({

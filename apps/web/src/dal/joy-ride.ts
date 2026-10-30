@@ -21,8 +21,8 @@ import { isUuid } from './uuid.ts';
 
 export type SaveEditionResult = { ok: true; id: string } | { ok: false; errors: EditionErrors };
 
-/** What the section shows of a Ročník. */
-const shownFields = {
+/** The columns of a Ročník the section shows. */
+const editionColumns = {
   id: joyRideEdition.id,
   name: joyRideEdition.name,
   date: joyRideEdition.date,
@@ -35,7 +35,7 @@ const asField = (stamp: string) => stamp.replace(' ', 'T').slice(0, 16);
 
 /** The current Ročník: the one with the latest day (the later made one, for two on the same day), or undefined when there is none. */
 async function currentEdition(db: Database) {
-  const [found] = await db.select(shownFields).from(joyRideEdition).orderBy(desc(joyRideEdition.date), desc(joyRideEdition.createdAt)).limit(1);
+  const [found] = await db.select(editionColumns).from(joyRideEdition).orderBy(desc(joyRideEdition.date), desc(joyRideEdition.createdAt)).limit(1);
   return found && { ...found, registrationDeadline: asField(found.registrationDeadline) };
 }
 
@@ -69,8 +69,8 @@ export async function saveEdition(user: User | null, input: EditionInput, db: Da
 export type RegistrationSaveErrors = RegistrationErrors & { edition?: 'missing' };
 export type CreateRegistrationResult = { ok: true; id: string } | { ok: false; errors: RegistrationSaveErrors };
 
-/** What the list shows of a Registrácia; `createdOn` is the day it was made, in Europe/Bratislava. */
-const registrationFields = {
+/** The columns of a Registrácia the list shows; `shown` turns `createdAt` into `createdOn`, the day it was made, in Europe/Bratislava. */
+const registrationColumns = {
   id: joyRideRegistration.id,
   name: joyRideRegistration.name,
   phone: joyRideRegistration.phone,
@@ -84,7 +84,7 @@ const registrationFields = {
   createdAt: joyRideRegistration.createdAt,
 };
 
-/** A row of `registrationFields` as the section has it: the day it was made instead of the instant. */
+/** A row of `registrationColumns` as the section has it: the day it was made instead of the instant. */
 const shown = <Row extends { createdAt: Date }>({ createdAt, ...registration }: Row) => ({ ...registration, createdOn: localDate(createdAt) });
 
 /**
@@ -117,7 +117,7 @@ export async function listRegistrations(user: User | null, typedFilter: { catego
     counts[status] = total;
   }
   const rows = await db
-    .select(registrationFields)
+    .select(registrationColumns)
     .from(joyRideRegistration)
     .where(and(ofEdition, filter.category ? eq(joyRideRegistration.category, filter.category) : undefined, filter.status ? eq(joyRideRegistration.status, filter.status) : undefined))
     .orderBy(desc(joyRideRegistration.createdAt), desc(joyRideRegistration.id));
@@ -128,7 +128,7 @@ export async function listRegistrations(user: User | null, typedFilter: { catego
 export async function getRegistration(user: User | null, id: string, db: Database = getDb()) {
   assertCan(user, 'joy-ride.read');
   if (!isUuid(id)) return null;
-  const [found] = await db.select(registrationFields).from(joyRideRegistration).where(eq(joyRideRegistration.id, id));
+  const [found] = await db.select(registrationColumns).from(joyRideRegistration).where(eq(joyRideRegistration.id, id));
   return found ? shown(found) : null;
 }
 
