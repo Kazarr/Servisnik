@@ -6,6 +6,7 @@ import { changeWorkOrderStatus, createWorkOrder, getWorkOrder } from '../src/dal
 import type { Database } from '../src/db/index.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { digestOf } from './support/digest-of.ts';
 import { form } from './support/form-data.ts';
 import { idOf } from './support/id-of.ts';
 
@@ -27,16 +28,6 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 
 const header = { mileageKm: '150000', customerRequest: 'Výmena brzdových kotúčov', deadline: '2026-08-01', note: 'Zákazník príde po 16:00' };
-
-/** The digest Next puts on the error that `redirect()` and `notFound()` throw. */
-const digestOf = async (call: Promise<unknown>) => {
-  try {
-    await call;
-  } catch (error) {
-    return (error as { digest?: string }).digest;
-  }
-  return undefined;
-};
 
 async function newOrder() {
   return idOf(await createWorkOrder(admin, { vehicleId, mileageKm: '1000', customerRequest: 'Výmena oleja' }, ctx.db));

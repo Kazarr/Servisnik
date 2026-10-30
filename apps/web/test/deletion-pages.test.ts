@@ -2,10 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import VehiclePage from '../src/app/(app)/vozidla/[id]/page.tsx';
 import CustomerPage from '../src/app/(app)/zakaznici/[id]/page.tsx';
-import { createWorkOrder } from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
 import { savedIn, vin } from './support/customer-vehicle.ts';
-import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { truncateTables } from './support/reset.ts';
 
@@ -32,12 +30,7 @@ beforeEach(async () => {
   await truncateTables(ctx.db, 'customer');
 });
 
-const { person, vehicleOf } = savedIn(() => ctx.db);
-const orderOn = async (vehicleId: string, customerId?: string) => {
-  const created = await createWorkOrder(admin, { vehicleId, customerId, mileageKm: '1000', customerRequest: 'Výmena oleja' }, ctx.db);
-  if (!created.ok) throw new Error('The record was expected to be saved.');
-  return created.number;
-};
+const { person, vehicleOf, orderOn } = savedIn(() => ctx.db);
 
 const customerPage = async (id: string) => renderToStaticMarkup(await CustomerPage({ params: Promise.resolve({ id }) }));
 const vehiclePage = async (id: string) => renderToStaticMarkup(await VehiclePage({ params: Promise.resolve({ id }) }));
@@ -63,7 +56,7 @@ test('a Zákazník who is the Majiteľ of a Vozidlo has no button to delete him,
 test('a Zákazník with a Zákazka and no Vozidlo has no button to delete him, and his page lists the Zákazka', async () => {
   const owner = await person('Majiteľ');
   const id = await person();
-  const number = await orderOn(await vehicleOf(owner), id);
+  const { number } = await orderOn(await vehicleOf(owner), id);
 
   const html = await customerPage(id);
 
@@ -80,7 +73,7 @@ test('a Vozidlo with no Zákazka has the button to delete it', async () => {
 
 test('a Vozidlo with a Zákazka has no button to delete it, and its page lists the Zákazka', async () => {
   const id = await vehicleOf(await person());
-  const number = await orderOn(id);
+  const { number } = await orderOn(id);
 
   const html = await vehiclePage(id);
 

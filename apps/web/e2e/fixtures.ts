@@ -189,9 +189,6 @@ async function searchList(page: Page, label: string, text: string) {
   await page.waitForURL((url) => url.searchParams.get('q') === text);
 }
 
-/** Searches the list of customers for `text` (see searchList). */
-export const searchCustomers = (page: Page, text: string) => searchList(page, 'Hľadať zákazníka', text);
-
 /** On a page that picks a Majiteľ (the new vehicle, a Prepis): searches the customers for `text` (see searchList). */
 export const searchOwners = (page: Page, text: string) => searchList(page, 'Hľadať majiteľa', text);
 

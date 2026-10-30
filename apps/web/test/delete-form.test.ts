@@ -2,14 +2,14 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, test, vi } from 'vitest';
 import { DeleteForm, type DeleteState } from '../src/app/(app)/delete-form.tsx';
+import { answered } from './support/action-state.ts';
 
 // Mazanie (spec #67), the question on a detail page: when "Potvrdiť zmazanie" was refused, the page says why. useActionState holds the answer of the action in the browser, and renderToStaticMarkup does not run it, so
 // the hook is handed the answer a refused delete leaves, and the state DeleteForm started it with when nobody answered (test/deletion-actions.test.ts has the action's own answers).
 
-const { answered } = vi.hoisted(() => ({ answered: { state: null as DeleteState } }));
 vi.mock('react', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react')>()),
-  useActionState: (action: unknown, initial: unknown) => [answered.state ?? initial, action, false],
+  useActionState: (await import('./support/action-state.ts')).useActionState,
 }));
 
 const render = (state: DeleteState) => {
