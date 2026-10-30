@@ -27,7 +27,7 @@ const letterheadClasses: Record<Letterhead, string> = { white: 'letterhead lette
 const joined = (parts: (string | null)[], separator: string) => parts.filter(Boolean).join(separator);
 
 /** A detail with its label, in one piece: no-break spaces, so that a narrow column wraps between two details and not inside one ("IČ DPH:" apart from its number). */
-const detail = (label: string, value: string | null) => value && `${label}: ${value}`.replace(/ /g, ' ');
+const detail = (label: string, value: string | null) => value && `${label}: ${value}`.replace(/ /g, '\xa0');
 
 /** The lines under the name of the autoservis: the address, the identifiers, the contacts, the IBAN and the register; none for what is not filled in. */
 function workshopLines({ street, city, postalCode, ico, dic, icDph, phone, email, iban, commercialRegister }: WorkshopDetails) {
