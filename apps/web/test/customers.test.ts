@@ -6,6 +6,7 @@ import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { truncateTables } from './support/reset.ts';
+import { savedInOrder } from './support/saved-in-order.ts';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => {
@@ -118,9 +119,11 @@ test('two customers with the same name are both saved', async () => {
 });
 
 test('customers are listed from the newest', async () => {
+  const ids: string[] = [];
   for (const name of ['Prvý', 'Druhý', 'Tretí']) {
-    idOf(await createCustomer(admin, { type: 'person', name }, ctx.db));
+    ids.push(idOf(await createCustomer(admin, { type: 'person', name }, ctx.db)));
   }
+  await savedInOrder(ctx.db, 'customer', ids);
 
   expect((await listCustomers(admin, ctx.db)).map((customer) => customer.name)).toEqual(['Tretí', 'Druhý', 'Prvý']);
 });
