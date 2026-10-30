@@ -14,7 +14,8 @@ export const metadata: Metadata = { title: 'Jazda radosti' };
 /** The uzávierka as the page shows it: the day, and the hour. */
 const formatDeadline = (deadline: string) => `${formatDate(deadline.slice(0, 10))} ${deadline.slice(11)}`;
 
-// ponytail: the list has no paging; the Ročník of 2026 had a few dozen exhibitors. Page it like the Cenník (pageWindow) if a Ročník outgrows a screen.
+// ponytail: the list has no paging, so every Registrácia of the Ročník is read and drawn at once and a long list is a long page. The demo has 8; how many
+// exhibitors a Ročník has is an open question of the customer (ledger #43, item 24). Page it like the Cenník (pageWindow) when a Ročník has more than a few screens of rows.
 export default async function JoyRidePage({ searchParams }: { searchParams: Promise<{ kategoria?: string | string[]; stav?: string | string[] }> }) {
   const { kategoria, stav } = await searchParams;
   const user = await currentUserWith('joy-ride.read');
