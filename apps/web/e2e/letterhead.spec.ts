@@ -34,8 +34,8 @@ test('the admin switches the Hlavička tlačív in Nastavenia and the next PDF h
   expect(paintsWith(await printed(), bar)).toBe(false);
 
   await letterhead.selectOption('Čierny pruh');
-  await main.getByRole('button', { name: 'Uložiť tlačivá' }).click();
-  await expect(main.getByRole('status')).toHaveText('Tlačivá sú uložené.');
+  await main.getByRole('button', { name: 'Uložiť hlavičku tlačív' }).click();
+  await expect(main.getByRole('status')).toHaveText('Hlavička tlačív je uložená.');
   await page.reload();
   await expect(letterhead).toHaveValue('blackBar');
   const withBar = await printed();
@@ -44,8 +44,8 @@ test('the admin switches the Hlavička tlačív in Nastavenia and the next PDF h
   expect(withBar.text).toContain(order.number);
 
   await letterhead.selectOption('Biela');
-  await main.getByRole('button', { name: 'Uložiť tlačivá' }).click();
-  await expect(main.getByRole('status')).toHaveText('Tlačivá sú uložené.');
+  await main.getByRole('button', { name: 'Uložiť hlavičku tlačív' }).click();
+  await expect(main.getByRole('status')).toHaveText('Hlavička tlačív je uložená.');
   await page.reload();
   await expect(letterhead).toHaveValue('white');
   expect(paintsWith(await printed(), bar)).toBe(false);
