@@ -8,6 +8,7 @@ import { addItem, createWorkOrder, getWorkOrder } from '../src/dal/work-orders.t
 import type { Database } from '../src/db/index.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { digestOf } from './support/digest-of.ts';
 import { form } from './support/form-data.ts';
 import { idOf } from './support/id-of.ts';
 
@@ -38,16 +39,6 @@ const sentPart = { kind: 'part', code: '', name: 'Brzdové doštičky', quantity
 const part = (overrides: Record<string, string> = {}) => ({ ...sentPart, workOrderId: orderId, ...overrides });
 
 const itemsOf = async (id: string) => (await getWorkOrder(admin, id, ctx.db))!.items;
-
-/** The digest Next puts on the error that `redirect()` throws. */
-const digestOf = async (call: Promise<unknown>) => {
-  try {
-    await call;
-  } catch (error) {
-    return (error as { digest?: string }).digest;
-  }
-  return undefined;
-};
 
 const notAMarkup = 'Prirážka musí byť číslo od -100, najviac na 1 desatinné miesto';
 const notFittingPrices = 'Prirážka nesedí s cenami. Upravte prirážku alebo predajnú cenu';

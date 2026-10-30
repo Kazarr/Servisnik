@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { removeVehicle } from '../src/app/(app)/vozidla/actions.ts';
 import { removeCustomer } from '../src/app/(app)/zakaznici/actions.ts';
-import { createCustomer, getCustomer } from '../src/dal/customers.ts';
-import { createVehicle, getVehicle } from '../src/dal/vehicles.ts';
+import { getCustomer } from '../src/dal/customers.ts';
+import { getVehicle } from '../src/dal/vehicles.ts';
 import { createWorkOrder } from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
+import { savedIn } from './support/customer-vehicle.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
+import { digestOf } from './support/digest-of.ts';
 import { form } from './support/form-data.ts';
 import { idOf } from './support/id-of.ts';
 import { truncateTables } from './support/reset.ts';
@@ -30,19 +32,7 @@ beforeEach(async () => {
   await truncateTables(ctx.db, 'customer');
 });
 
-const person = async () => idOf(await createCustomer(admin, { type: 'person', name: 'Ján Novák' }, ctx.db));
-const vehicleOf = async (ownerId: string, vin = 'WVWZZZ1JZ3W386752') =>
-  idOf(await createVehicle(admin, { ownerId, vin, licensePlate: '', make: 'Volkswagen', model: 'Golf' }, ctx.db));
-
-/** The digest Next puts on the error that `notFound()` throws. */
-const digestOf = async (call: Promise<unknown>) => {
-  try {
-    await call;
-  } catch (error) {
-    return (error as { digest?: string }).digest;
-  }
-  return undefined;
-};
+const { person, vehicleOf } = savedIn(() => ctx.db);
 
 const unknownId = '3f0c8c1e-6a52-4a39-9c52-0d4a4b6c1f10';
 
