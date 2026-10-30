@@ -10,6 +10,7 @@ import { areaValue, input, labelOf, options, valueOf } from './support/form-mark
 import { detailsOf, hrefOf, linksIn, rowsOf } from './support/page-markup.ts';
 import { renderPage } from './support/render-page.ts';
 import { truncateTables } from './support/reset.ts';
+import { savedInOrder } from './support/saved-in-order.ts';
 
 // Zákazníci a vozidlá (spec #67), the pages of the Vozidlá: the list with its search and its pages, the detail, the form of a
 // new Vozidlo, which comes after the search for its Majiteľ, and the form that edits it. The pages are async Server Components;
@@ -48,7 +49,8 @@ test('the list shows each vehicle with its VIN, ŠPZ, značka, model and owner, 
   const novak = await person('Ján Novák');
   const kovac = await person('Peter Kováč');
   const golf = await vehicleOf(novak, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' });
-  await vehicleOf(kovac, { vin: 'VF1ZZZ5JZ3W000003', licensePlate: '', make: 'Renault', model: 'Clio' });
+  const clio = await vehicleOf(kovac, { vin: 'VF1ZZZ5JZ3W000003', licensePlate: '', make: 'Renault', model: 'Clio' });
+  await savedInOrder(ctx.db, 'vehicle', [golf, clio]);
 
   const html = await listPage();
 
@@ -88,8 +90,10 @@ test('the list opens the page of a new vehicle, which starts with the search for
 async function pagerVehicles() {
   const owner = await person('Pager Majiteľ');
   const vins = Array.from({ length: 26 }, (_, i) => `WVWZZZ1JZ3W3867${String(i + 1).padStart(2, '0')}`);
-  for (const each of vins) await vehicleOf(owner, { vin: each });
-  await vehicleOf(await person('Iný majiteľ'), { vin: 'WVWZZZ1JZ3W386799' });
+  const ids: string[] = [];
+  for (const each of vins) ids.push(await vehicleOf(owner, { vin: each }));
+  ids.push(await vehicleOf(await person('Iný majiteľ'), { vin: 'WVWZZZ1JZ3W386799' }));
+  await savedInOrder(ctx.db, 'vehicle', ids);
   return [...vins].reverse();
 }
 const vinsOf = (html: string) => rowsOf(html).map(([each]) => each);
