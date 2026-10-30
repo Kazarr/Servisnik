@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs';
 
 export const appCss = readFileSync(new URL('../../src/app/globals.css', import.meta.url), 'utf8');
 
+/** A CSS comment; a rule is read without it. */
+export const COMMENT = /\/\*[\s\S]*?\*\//g;
+
 /** The custom properties a CSS text defines, by name. A token that is not there is not a key. */
 export const tokensOf = (css: string): Record<string, string> =>
   Object.fromEntries([...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name!, value!.trim()]));
@@ -51,3 +54,8 @@ export const hue = ([r, g, b]: Rgb) => {
 
 /** The colour as the browser writes a computed colour: `rgb(5, 5, 5)`. */
 export const cssRgb = ([r, g, b]: Rgb) => `rgb(${r}, ${g}, ${b})`;
+
+const tokens = tokensOf(appCss);
+
+/** A colour token of globals.css as the browser writes it once computed, for `toHaveCSS`; the first colour when a token has several. */
+export const colour = (name: string) => cssRgb(hexesOf(tokens[name]!)[0]!);
