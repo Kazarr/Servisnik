@@ -73,6 +73,7 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   // The mechanik does not see Nastavenia, but the image he prints is served to him, and he cannot touch it.
   const elsewhere = await browser.newContext({ baseURL });
   const mechanikPage = await elsewhere.newPage();
+  const mechanikProblems = watchPage(mechanikPage);
   await signInAs(mechanikPage, mechanik);
   const shown = await mechanikPage.request.get('/api/logo');
   expect(shown.status()).toBe(200);
@@ -107,6 +108,7 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   // The login page, for somebody who is not signed in, has the logo above the form and the slogan of the customer under it.
   const visitor = await browser.newContext({ baseURL });
   const loginPage = await visitor.newPage();
+  const visitorProblems = watchPage(loginPage); // the pages of a second context are watched where they are made, as no fixture sees them
   await loginPage.goto('/login');
   const loginBrand = loginPage.locator('main .login-brand');
   await expect(loginBrand.locator('img.login-logo')).toHaveJSProperty('naturalWidth', 1);
@@ -148,4 +150,6 @@ test('the admin uploads the logo, sees it, has a wrong file refused, replaces an
   await expect(loginPage.getByText('Kvalita nepozná kompromis')).toHaveCount(0);
   await visitor.close();
   expect(problems).toEqual([expect.stringMatching(/status of 415/), expect.stringMatching(/status of 413/)]);
+  expect(mechanikProblems).toEqual([]);
+  expect(visitorProblems).toEqual([]);
 });
