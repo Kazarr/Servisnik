@@ -4,6 +4,7 @@ import {
   parseRegistration,
   parseRegistrationFilter,
   registrationCategories,
+  registrationDecisions,
   registrationStatuses,
   type EditionInput,
   type RegistrationInput,
@@ -47,6 +48,10 @@ describe('Ročník', () => {
     expect(parseEdition({ ...edition, registrationDeadline })).toEqual({ ok: false, errors: { registrationDeadline: 'invalid' } });
   });
 
+  test('the uzávierka is stored with the T the field sends, built from the day and the hour, whatever space came with it', () => {
+    expect(parseEdition({ ...edition, registrationDeadline: '2026-10-09 T15:00' })).toEqual({ ok: true, edition });
+  });
+
   test('the hour of the uzávierka may be midnight or the last minute of the day', () => {
     for (const registrationDeadline of ['2026-10-09T00:00', '2026-10-09T23:59']) {
       expect(parseEdition({ ...edition, registrationDeadline }), registrationDeadline).toEqual({ ok: true, edition: { ...edition, registrationDeadline } });
@@ -69,6 +74,12 @@ describe('Registrácia', () => {
   test('the Stavy registrácie are Nová, Schválená and Zamietnutá, and the Kategórie are the six the invitation names', () => {
     expect([...registrationStatuses]).toEqual(['new', 'approved', 'rejected']);
     expect([...registrationCategories]).toEqual(['supersport', 'interesting', 'heavy', 'veteran', 'motorcycle', 'other']);
+  });
+
+  test('the admin decides a Registrácia as Schválená or Zamietnutá, and a decision never makes it Nová again', () => {
+    expect([...registrationDecisions]).toEqual(['approved', 'rejected']);
+    expect(registrationStatuses).toEqual(expect.arrayContaining([...registrationDecisions]));
+    expect(registrationDecisions).not.toContain('new');
   });
 
   test('a Registrácia keeps what was typed, with the ŠPZ the way a Vozidlo has it: capitals, no spaces', () => {
