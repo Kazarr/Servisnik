@@ -117,6 +117,16 @@ button:disabled {
   cursor: progress;
 }
 
+/* The surfaces, as the gloss makes them: the colour of the surface with a gradient over it and a light edge on top. */
+.sidebar,
+.notice,
+table,
+.logo-preview {
+  background-color: var(--color-surface);
+  background-image: var(--gloss-surface);
+  box-shadow: var(--gloss-highlight);
+}
+
 /* Layout: menu on the left, content on the right. */
 .shell {
   display: grid;
@@ -130,9 +140,6 @@ button:disabled {
   gap: var(--space-4);
   padding: var(--space-4) var(--space-3);
   border-right: var(--border-width) solid var(--color-border);
-  background-color: var(--color-surface);
-  background-image: var(--gloss-surface);
-  box-shadow: var(--gloss-highlight);
 }
 
 /* The name of the app, or the logo of the autoservis with its name under it. */
@@ -281,9 +288,6 @@ button:disabled {
   padding: var(--space-3);
   border: var(--border-width-strong) solid var(--color-border);
   border-radius: var(--radius);
-  background-color: var(--color-surface);
-  background-image: var(--gloss-surface);
-  box-shadow: var(--gloss-highlight);
 }
 
 .notice p {
@@ -392,9 +396,6 @@ button:disabled {
 table {
   width: var(--width-full);
   border-collapse: collapse;
-  background-color: var(--color-surface);
-  background-image: var(--gloss-surface);
-  box-shadow: var(--gloss-highlight);
 }
 
 th,
@@ -476,9 +477,6 @@ tfoot td {
   margin: 0 0 var(--space-4);
   padding: var(--space-2) var(--space-3);
   border-left: var(--border-width-strong) solid var(--color-danger);
-  background-color: var(--color-surface);
-  background-image: var(--gloss-surface);
-  box-shadow: var(--gloss-highlight);
 }
 
 /* The buttons of a form sit in the row of .actions as if the form were not there. */
@@ -508,9 +506,6 @@ tfoot td {
   padding: var(--space-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
-  background-color: var(--color-surface);
-  background-image: var(--gloss-surface);
-  box-shadow: var(--gloss-highlight);
 }
 
 .logo-preview img {
