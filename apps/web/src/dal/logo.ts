@@ -2,13 +2,13 @@ import { checkLogo, type LogoContentType, type LogoError } from '@servisnik/doma
 import { sql } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { workshopLogo } from '../db/schema.ts';
-import { readLogo } from './branding.ts';
+import { readLogo, type Logo } from './branding.ts';
 import { assertCan, type User } from './user.ts';
 
 // The logo of the Autoservis lives in the one row of `workshop_logo` (src/db/schema.ts), apart from the
 // other values of Nastavenia so that reading those never loads the image.
 
-export type Logo = { contentType: LogoContentType; bytes: Uint8Array };
+export type { Logo };
 export type LogoInfo = { contentType: LogoContentType; sizeBytes: number; updatedAt: Date };
 export type SaveLogoResult = { ok: true } | { ok: false; error: LogoError };
 

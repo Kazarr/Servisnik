@@ -1,10 +1,13 @@
+import type { LogoContentType } from '@servisnik/domain/settings';
 import { getDb, type Database } from '../db/index.ts';
 import { workshopLogo } from '../db/schema.ts';
-import type { Logo } from './logo.ts';
 
 // What the login page and the menu show of the autoservis (ticket #150). The login page is for somebody who is not
 // signed in, so these reads ask for no user and no capability: the logo is the one thing of the autoservis that is public.
-// `getLogo` of logo.ts asks the capability and reads through `readLogo`.
+// `getLogo` of logo.ts asks the capability and reads through `readLogo`. The type `Logo` is defined here, and logo.ts
+// re-exports it, so that logo.ts imports branding.ts and branding.ts imports nothing from logo.ts.
+
+export type Logo = { contentType: LogoContentType; bytes: Uint8Array };
 
 /** The logo, or null when there is none. */
 export async function readLogo(db: Database = getDb()): Promise<Logo | null> {
