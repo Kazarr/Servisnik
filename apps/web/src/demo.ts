@@ -15,6 +15,15 @@ import { vehicle } from './db/schema.ts';
 /** The one who makes the demo data: the DAL asks for a user with the Rola of the admin, as the specs do (e2e/records.ts). */
 const demo: User = { id: 'demo', email: 'demo@autoservis.test', name: 'Demo', role: 'admin' };
 
+/**
+ * What `pnpm db:demo` says instead of running, or null when it was told to with DEMO=1. The script replaces the details of the
+ * autoservis and the logo, so against the database of a real autoservis it would overwrite what the admin typed there.
+ */
+export const demoRefusal = (env: Record<string, string | undefined>): string | null =>
+  env.DEMO === '1'
+    ? null
+    : "Skript db:demo prepíše údaje autoservisu a logo, preto beží len s DEMO=1, aby omylom neprepísal ostrú databázu. Spustite ho proti databáze ukážky: $env:DEMO='1'; pnpm db:demo (PowerShell)";
+
 /** The logo of the customer, white on a black square, from the site of the customer (ticket #150). The repository is public, so it keeps no copy. */
 export const demoLogoUrl = 'https://www.jmautocentrum.sk/wp-content/uploads/2023/04/Untitled-2.jpeg';
 
