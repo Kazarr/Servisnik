@@ -1,6 +1,6 @@
-import type { EditionInput, RegistrationInput } from '@servisnik/domain/joy-ride';
+import type { EditionInput, RegistrationDecision, RegistrationInput } from '@servisnik/domain/joy-ride';
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, expectTypeOf, test } from 'vitest';
 import { createRegistration, getEdition, getRegistration, listRegistrations, saveEdition, setRegistrationStatus, updateRegistration } from '../src/dal/joy-ride.ts';
 import { joyRideEdition, joyRideRegistration } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
@@ -230,6 +230,10 @@ test('the admin approves a Registrácia, rejects it, and takes either back, and 
   expect(await statusOf(evaId)).toBe('approved');
   expect(await statusOf(borisId)).toBe('new');
   expect((await listRegistrations(admin, {}, ctx.db)).counts).toEqual({ new: 1, approved: 1, rejected: 0 });
+});
+
+test('the DAL sets only a decision of the domain: a Registrácia cannot be set back to Nová (checked by `pnpm typecheck`, as the type is all there is to run)', () => {
+  expectTypeOf(setRegistrationStatus).parameter(2).toEqualTypeOf<RegistrationDecision>();
 });
 
 test('a Registrácia that is not there cannot be approved, and nothing is changed', async () => {
