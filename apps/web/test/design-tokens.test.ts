@@ -306,13 +306,17 @@ test('icon.svg paints with the accent tokens of globals.css', () => {
 // `system-ui`, which is whatever the machine says, and the machine of the image says a Chinese font.
 const tokensOf = (css: string) => Object.fromEntries([...css.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map(([, name, value]) => [name!, value!.trim()]));
 
+// The demo theme (ticket #150) makes the app black and set in Outfit, while the paper stays white and set in Arial. The
+// tokens of that look keep their names in both, and only their values differ: those are not held equal. #144 reworks this check.
+const demoThemed = ['--color-text', '--color-text-muted', '--color-border', '--color-surface', '--font-weight-medium', '--font-weight-bold'];
+
 test('the tokens of a printed form that the app has too have the same value, and a form invents no colour, weight or line height', () => {
   const app = tokensOf(read('globals.css'));
   const print = tokensOf(printTokens);
   const shared = Object.keys(print).filter((name) => name in app);
 
   expect(shared).toEqual(expect.arrayContaining(['--color-text', '--color-text-muted', '--font-weight-bold', '--line-height-base']));
-  for (const name of shared) expect(print[name], name).toBe(app[name]);
+  for (const name of shared.filter((token) => !demoThemed.includes(token))) expect(print[name], name).toBe(app[name]);
   expect(Object.keys(print).filter((name) => /^--(color|font-weight|line-height)/.test(name) && !(name in app))).toEqual([]);
 });
 
