@@ -83,7 +83,7 @@ test('rule 3: a test commit that changes only test files, helpers included, pass
 test('rule 3: lists every non-test file of a test commit, a moved production file included', () => {
   expect(
     checkCommits([
-      // the shape of #71: a test commit that also moved a production file (a rename reads as delete + add)
+      // the shape of #71: a test commit that also moved a production file (a move lists the old and the new path)
       commit('a1', 'test(web): vehicle form', [
         'apps/web/src/vozidla/novy/vehicle-form.tsx',
         'apps/web/src/vozidla/vehicle-form.tsx',
@@ -218,7 +218,7 @@ test('rule 4: lists the packages of a commit that changes two or more, in order 
       commit('c3', 'not a conventional subject', ['packages/domain/a.ts', 'apps/web/b.ts']),
       // the same name under packages/ and apps/ is two packages
       commit('d4', 'refactor: same name', ['packages/web/a.ts', 'apps/web/b.ts']),
-      // a move between packages reads as delete + add, so both packages are named
+      // a move between packages lists the old and the new path, so both packages are named
       commit('e5', 'refactor: move a file', ['apps/web/src/a.ts', 'packages/domain/src/a.ts']),
       // a feat after its test breaks only rule 4
       commit('f6', 'test: split', ['packages/domain/test/f.test.ts']),

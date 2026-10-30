@@ -122,6 +122,8 @@ test.each([
   ['two paths after a plain status', 'A\told.ts\tnew.ts'],
   ['a letter in front of a move', 'AR100\told.ts\tnew.ts'],
   ['a move with one path', 'R100\told.ts'],
+  ['a move with a space for the first tab', 'R100 old.ts\tnew.ts'],
+  ['a move with a space for the second tab', 'R100\told.ts new.ts'],
   ['a move with an empty new path', 'R100\told.ts\t'],
   ['a move with an empty old path', 'R100\t\tnew.ts'],
   ['a move with three paths', 'R100\ta.ts\tb.ts\tc.ts'],
