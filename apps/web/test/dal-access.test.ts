@@ -8,6 +8,7 @@ import * as currentUserModule from '../src/dal/current-user.ts';
 import * as customers from '../src/dal/customers.ts';
 import * as formHeader from '../src/dal/form-header.ts';
 import * as jobSheet from '../src/dal/job-sheet.ts';
+import * as joyRide from '../src/dal/joy-ride.ts';
 import * as logo from '../src/dal/logo.ts';
 import * as paging from '../src/dal/paging.ts';
 import * as password from '../src/dal/password.ts';
@@ -27,6 +28,7 @@ import type { Database } from '../src/db/index.ts';
 import {
   account,
   customer,
+  joyRideEdition,
   priceListItem,
   user as userTable,
   vehicle,
@@ -111,6 +113,9 @@ const calls: Record<string, Call> = {
   deletePriceListItem: (user, db) => priceList.deletePriceListItem(user, priceListItemId, db),
   searchPriceList: (user, db) => priceList.searchPriceList(user, { query: 'filter' }, db),
   getPriceListItem: (user, db) => priceList.getPriceListItem(user, priceListItemId, db),
+  getEdition: (user, db) => joyRide.getEdition(user, db),
+  saveEdition: (user, db) =>
+    joyRide.saveEdition(user, { name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' }, db),
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
@@ -157,6 +162,7 @@ const mechanikMay = ['listWorkOrders', 'getUnpricedWorkOrder', 'getJobSheet', 'c
 const dataAccess = {
   'customers.ts': customers,
   'job-sheet.ts': jobSheet,
+  'joy-ride.ts': joyRide,
   'logo.ts': logo,
   'password.ts': password,
   'price-list.ts': priceList,
@@ -221,6 +227,7 @@ const everything = async () => ({
   workOrders: await ctx.db.select().from(workOrder),
   items: await ctx.db.select().from(workOrderItem),
   priceListItems: await ctx.db.select().from(priceListItem),
+  joyRideEditions: await ctx.db.select().from(joyRideEdition),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
   workshopLogo: await ctx.db.select().from(workshopLogo),
