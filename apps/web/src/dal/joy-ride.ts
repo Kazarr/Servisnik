@@ -1,7 +1,17 @@
-import { parseEdition, type EditionErrors, type EditionInput } from '@servisnik/domain/joy-ride';
-import { desc, eq } from 'drizzle-orm';
+import {
+  parseEdition,
+  parseRegistration,
+  parseRegistrationFilter,
+  type EditionErrors,
+  type EditionInput,
+  type RegistrationErrors,
+  type RegistrationInput,
+  type RegistrationStatus,
+} from '@servisnik/domain/joy-ride';
+import { localDate } from '@servisnik/domain/work-order';
+import { and, count, desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
-import { joyRideEdition } from '../db/schema.ts';
+import { joyRideEdition, joyRideRegistration } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
 
 // The Jazda radosti is the admin's alone: every function here asks for `joy-ride.read` or `joy-ride.write`, which the mechanik does not have.
@@ -51,4 +61,60 @@ export async function saveEdition(user: User | null, input: EditionInput, db: Da
   }
   const [saved] = await db.insert(joyRideEdition).values(parsed.edition).returning({ id: joyRideEdition.id });
   return { ok: true, id: saved!.id };
+}
+
+/** What the domain finds wrong, or that there is no Ročník to register on. */
+export type RegistrationSaveErrors = RegistrationErrors & { edition?: 'missing' };
+export type CreateRegistrationResult = { ok: true; id: string } | { ok: false; errors: RegistrationSaveErrors };
+
+/** What the list shows of a Registrácia; `createdOn` is the day it was made, in Europe/Bratislava. */
+const registrationFields = {
+  id: joyRideRegistration.id,
+  name: joyRideRegistration.name,
+  phone: joyRideRegistration.phone,
+  email: joyRideRegistration.email,
+  make: joyRideRegistration.make,
+  model: joyRideRegistration.model,
+  licensePlate: joyRideRegistration.licensePlate,
+  category: joyRideRegistration.category,
+  note: joyRideRegistration.note,
+  status: joyRideRegistration.status,
+  createdAt: joyRideRegistration.createdAt,
+};
+
+/**
+ * Saves a Registrácia on the current Ročník as Nová, as typed in from an e-mail. The domain decides what is stored
+ * (packages/domain/src/joy-ride); with no Ročník there is nothing to register on. `now` is the day it was made.
+ */
+export async function createRegistration(user: User | null, input: RegistrationInput, db: Database = getDb(), now = new Date()): Promise<CreateRegistrationResult> {
+  assertCan(user, 'joy-ride.write');
+  const edition = await currentEdition(db);
+  if (!edition) return { ok: false, errors: { edition: 'missing' } };
+  const parsed = parseRegistration(input);
+  if (!parsed.ok) return parsed;
+  const [saved] = await db.insert(joyRideRegistration).values({ ...parsed.registration, editionId: edition.id, createdAt: now }).returning({ id: joyRideRegistration.id });
+  return { ok: true, id: saved!.id };
+}
+
+/**
+ * The Registrácie of the current Ročník that pass the filter, the newest first, and how many of the whole Ročník have each Stav, whatever
+ * the filter is (they are the counts above the list). The filter is what the address carries; what is no Kategória or Stav is left out.
+ */
+export async function listRegistrations(user: User | null, typedFilter: { category?: string; status?: string } = {}, db: Database = getDb()) {
+  assertCan(user, 'joy-ride.read');
+  const filter = parseRegistrationFilter(typedFilter);
+  const counts: Record<RegistrationStatus, number> = { new: 0, approved: 0, rejected: 0 };
+  const edition = await currentEdition(db);
+  if (!edition) return { filter, counts, registrations: [] };
+
+  const ofEdition = eq(joyRideRegistration.editionId, edition.id);
+  for (const { status, total } of await db.select({ status: joyRideRegistration.status, total: count() }).from(joyRideRegistration).where(ofEdition).groupBy(joyRideRegistration.status)) {
+    counts[status] = total;
+  }
+  const rows = await db
+    .select(registrationFields)
+    .from(joyRideRegistration)
+    .where(and(ofEdition, filter.category ? eq(joyRideRegistration.category, filter.category) : undefined, filter.status ? eq(joyRideRegistration.status, filter.status) : undefined))
+    .orderBy(desc(joyRideRegistration.createdAt), desc(joyRideRegistration.id));
+  return { filter, counts, registrations: rows.map(({ createdAt, ...registration }) => ({ ...registration, createdOn: localDate(createdAt) })) };
 }
