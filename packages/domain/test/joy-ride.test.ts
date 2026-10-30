@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { parseEdition, type EditionInput } from '../src/joy-ride/index.ts';
+import {
+  parseEdition,
+  parseRegistration,
+  parseRegistrationFilter,
+  registrationCategories,
+  registrationStatuses,
+  type EditionInput,
+  type RegistrationInput,
+} from '../src/joy-ride/index.ts';
 
 // Jazda radosti (GLOSSARY): the Ročník, its Registrácie. The ticket (#153) gives the example: the Ročník of 2026 was on 10. 10. 2026 in Považská Bystrica and registering closed the day before at 15:00.
 
@@ -43,5 +51,67 @@ describe('Ročník', () => {
     for (const registrationDeadline of ['2026-10-09T00:00', '2026-10-09T23:59']) {
       expect(parseEdition({ ...edition, registrationDeadline }), registrationDeadline).toEqual({ ok: true, edition: { ...edition, registrationDeadline } });
     }
+  });
+});
+
+describe('Registrácia', () => {
+  const registration: RegistrationInput = {
+    name: 'Eva Vzorová',
+    phone: '+421 000 000 101',
+    email: 'eva.vzorova@example.com',
+    make: 'Škoda',
+    model: '110 R',
+    licensePlate: 'PB 123 AB',
+    category: 'veteran',
+    note: 'Príde s prívesom.',
+  };
+
+  test('the Stavy registrácie are Nová, Schválená and Zamietnutá, and the Kategórie are the six the invitation names', () => {
+    expect([...registrationStatuses]).toEqual(['new', 'approved', 'rejected']);
+    expect([...registrationCategories]).toEqual(['supersport', 'interesting', 'heavy', 'veteran', 'motorcycle', 'other']);
+  });
+
+  test('a Registrácia keeps what was typed, with the ŠPZ the way a Vozidlo has it: capitals, no spaces', () => {
+    expect(parseRegistration(registration)).toEqual({ ok: true, registration: { ...registration, licensePlate: 'PB123AB' } });
+  });
+
+  test('the ŠPZ and the poznámka are optional, and blank is none', () => {
+    expect(parseRegistration({ ...registration, licensePlate: ' ', note: '  ' })).toEqual({
+      ok: true,
+      registration: { ...registration, licensePlate: null, note: null },
+    });
+    const { licensePlate: _licensePlate, note: _note, ...withoutThem } = registration;
+    expect(parseRegistration(withoutThem)).toMatchObject({ ok: true, registration: { licensePlate: null, note: null } });
+  });
+
+  test('the text is trimmed', () => {
+    const typed = { ...registration, name: ' Eva Vzorová ', phone: ' +421 000 000 101', email: ' eva.vzorova@example.com ', make: ' Škoda', model: '110 R ' };
+
+    expect(parseRegistration(typed)).toMatchObject({
+      ok: true,
+      registration: { name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R' },
+    });
+  });
+
+  test('the name, phone, e-mail, Značka vozidla, Model and Kategória are required, and each missing one is reported', () => {
+    expect(parseRegistration({ name: '', phone: ' ', email: '', make: '', model: '  ', licensePlate: '', category: '', note: '' })).toEqual({
+      ok: false,
+      errors: { name: 'required', phone: 'required', email: 'required', make: 'required', model: 'required', category: 'required' },
+    });
+  });
+
+  test('an e-mail in the wrong shape is reported, by the rule every other e-mail of Servisník has', () => {
+    expect(parseRegistration({ ...registration, email: 'eva.vzorova@example' })).toEqual({ ok: false, errors: { email: 'format' } });
+  });
+
+  test('a Kategória that is none of the six is as good as none', () => {
+    expect(parseRegistration({ ...registration, category: 'sedan' })).toEqual({ ok: false, errors: { category: 'required' } });
+  });
+
+  test('the filter of the list takes a Kategória and a Stav registrácie, and leaves out what is none', () => {
+    expect(parseRegistrationFilter({ category: 'motorcycle', status: 'approved' })).toEqual({ category: 'motorcycle', status: 'approved' });
+    expect(parseRegistrationFilter({ category: 'sedan', status: 'maybe' })).toEqual({ category: null, status: null });
+    expect(parseRegistrationFilter({ category: '', status: undefined })).toEqual({ category: null, status: null });
+    expect(parseRegistrationFilter({})).toEqual({ category: null, status: null });
   });
 });
