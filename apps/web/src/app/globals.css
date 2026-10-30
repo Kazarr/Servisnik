@@ -461,6 +461,19 @@ th {
   white-space: nowrap;
 }
 
+/*
+ * The items table of a Zákazka has nine columns, ten (Akcie) when the Zákazka can be edited, and fits from 1366 px
+ * (ticket #148): the headings of the amount columns may wrap onto more lines, although .amount keeps the cells of
+ * those columns on one line, and the Kód column never wraps, so that a code is read whole.
+ */
+.work-order-items th.amount {
+  white-space: normal;
+}
+
+.work-order-items td.code {
+  white-space: nowrap;
+}
+
 tfoot th,
 tfoot td {
   border-top: var(--border-width-strong) solid var(--color-border);
