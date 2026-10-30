@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import CustomerPage from '../src/app/(app)/zakaznici/[id]/page.tsx';
 import EditCustomerPage from '../src/app/(app)/zakaznici/[id]/upravit/page.tsx';
+import NewCustomerPage from '../src/app/(app)/zakaznici/novy/page.tsx';
 import CustomersPage from '../src/app/(app)/zakaznici/page.tsx';
 import type { Database } from '../src/db/index.ts';
 import { savedIn, vin } from './support/customer-vehicle.ts';
 import { createTestDb } from './support/db.ts';
-import { input, valueOf } from './support/form-markup.ts';
+import { areaValue, input, labelOf, valueOf } from './support/form-markup.ts';
 import { detailsOf, hrefOf, linksIn, rowsOf } from './support/page-markup.ts';
 import { renderPage } from './support/render-page.ts';
 import { truncateTables } from './support/reset.ts';
@@ -38,6 +39,13 @@ const { person, company, vehicleOf, orderOn } = savedIn(() => ctx.db);
 const listPage = async (searchParams: { q?: string; strana?: string } = {}) => renderPage(await CustomersPage({ searchParams: Promise.resolve(searchParams) }));
 const detailPage = async (id: string) => renderPage(await CustomerPage({ params: Promise.resolve({ id }) }));
 const editPage = async (id: string) => renderPage(await EditCustomerPage({ params: Promise.resolve({ id }) }));
+const newPage = async () => renderPage(await NewCustomerPage());
+
+/** The label of each field of a Zákazník that every type has, by the name of the field, and the fields only a firma has. */
+const personFields = { name: 'Názov (pri osobe meno a priezvisko)', street: 'Ulica', city: 'Mesto', postalCode: 'PSČ', phone: 'Telefón', email: 'E-mail', note: 'Poznámka' };
+const companyFields = { ico: 'IČO', dic: 'DIČ', icDph: 'IČ DPH' };
+/** What labels each of these fields on the page, by the name of the field. */
+const labelsOn = (html: string, names: string[]) => Object.fromEntries(names.map((name) => [name, labelOf(html, name)]));
 
 /** The `value` of each radio of the type of a Zákazník that is checked. */
 const checkedTypes = (html: string) =>
@@ -72,9 +80,23 @@ test('the search is a form that sends what is typed as ?q= to the list, in a fie
   const html = await listPage();
 
   expect(html).toMatch(/<form[^>]*\srole="search"[^>]*\saction="\/zakaznici"/);
-  expect(html).toContain('<label for="q">Hľadať zákazníka</label>');
+  expect(labelOf(html, 'q')).toBe('Hľadať zákazníka');
   expect(input(html, 'q')).toContain('type="search"');
   expect(html).toContain('>Hľadať</button>');
+});
+
+test('the list opens the form of a new customer', async () => {
+  expect(hrefOf(await listPage(), 'Pridať zákazníka')).toBe('/zakaznici/novy');
+});
+
+test('the page of a new customer is headed so, and its form starts as an osoba, with the fields an osoba has', async () => {
+  const html = await newPage();
+
+  expect(html).toContain('<h1>Nový zákazník</h1>');
+  expect(checkedTypes(html)).toEqual(['person']);
+  expect(input(html, 'id')).toBeNull();
+  expect(labelsOn(html, Object.keys(personFields))).toEqual(personFields);
+  for (const name of Object.keys(companyFields)) expect(input(html, name), name).toBeNull();
 });
 
 /** 26 customers named "Pager 01" to "Pager 26", saved in neither the order of the list nor its reverse, and one that no search of "pager" finds. */
@@ -182,7 +204,8 @@ test("the detail lists the Zákazky made for the customer, and a Zákazka of ano
   const owners = await detailPage(ownerId);
   const others = await detailPage(otherId);
 
-  // The Majiteľ has the Vozidlo and the Zákazka made for him; the one made for the other customer on his Vozidlo is not on his detail.
+  // The Majiteľ has the Vozidlo and the Zákazka made for him, under the heading of the Zákazky; the one made for the other customer on his Vozidlo is not on his detail.
+  expect(owners).toContain('<h2>Zákazky</h2>');
   expect(rowsOf(owners)).toEqual([
     [vin, 'BA123AB', 'Volkswagen', 'Golf'],
     [own.number, 'Ján Novák', `Volkswagen Golf, ${vin}`, 'Prijatá', ''],
@@ -225,7 +248,9 @@ test('the form that edits a firma starts from every field it has saved, and name
     ['phone', '0905 123 456'],
     ['email', 'info@kovac.sk'],
   ]);
-  expect(html).toMatch(/<textarea[^>]*\sname="note"[^>]*>Platí v hotovosti<\/textarea>/);
+  expect(areaValue(html, 'note')).toBe('Platí v hotovosti');
+  // Each field has a label of its own, the one the admin reads.
+  expect(labelsOn(html, [...Object.keys(personFields), ...Object.keys(companyFields)])).toEqual({ ...personFields, ...companyFields });
 });
 
 test('the form that edits an osoba starts as an osoba, with no field of a firma', async () => {

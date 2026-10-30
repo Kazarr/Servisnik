@@ -6,7 +6,7 @@ import VehiclesPage from '../src/app/(app)/vozidla/page.tsx';
 import type { Database } from '../src/db/index.ts';
 import { savedIn } from './support/customer-vehicle.ts';
 import { createTestDb } from './support/db.ts';
-import { input, options, valueOf } from './support/form-markup.ts';
+import { areaValue, input, labelOf, options, valueOf } from './support/form-markup.ts';
 import { detailsOf, hrefOf, linksIn, rowsOf } from './support/page-markup.ts';
 import { renderPage } from './support/render-page.ts';
 import { truncateTables } from './support/reset.ts';
@@ -75,9 +75,13 @@ test('the search is a form that sends what is typed as ?q= to the list, in a fie
   const html = await listPage();
 
   expect(html).toMatch(/<form[^>]*\srole="search"[^>]*\saction="\/vozidla"/);
-  expect(html).toContain('<label for="q">Hľadať vozidlo</label>');
+  expect(labelOf(html, 'q')).toBe('Hľadať vozidlo');
   expect(input(html, 'q')).toContain('type="search"');
   expect(html).toContain('>Hľadať</button>');
+});
+
+test('the list opens the page of a new vehicle, which starts with the search for its owner', async () => {
+  expect(hrefOf(await listPage(), 'Pridať vozidlo')).toBe('/vozidla/novy');
 });
 
 /** 26 vehicles of one owner, saved in the order of their VINs, and a newer one of another owner that no search of the first owner's name finds. */
@@ -168,8 +172,9 @@ test('the form of a new vehicle comes after its owner: without one it has no VIN
 
   expect(html).toContain('<h1>Nové vozidlo</h1>');
   expect(input(html, 'vin')).toBeNull();
-  expect(html).toContain('<label for="q">Hľadať majiteľa</label>');
+  expect(labelOf(html, 'q')).toBe('Hľadať majiteľa');
   expect(html).toMatch(/<form[^>]*\srole="search"[^>]*\saction="\/vozidla\/novy"/);
+  expect(html).toContain('>Hľadať</button>');
   expect(valueOf(html, 'q')).toBe('majitel');
   // Every customer the search finds, alphabetically, and no other.
   expect(rowsOf(html)).toEqual([
@@ -228,7 +233,20 @@ test('the form that edits a vehicle starts from every field it has saved, names 
     ['mileageKm', '123456'],
   ]);
   expect(options(html, 'fuel').selected).toEqual(['diesel']);
-  expect(html).toMatch(/<textarea[^>]*\sname="note"[^>]*>Nová spojka<\/textarea>/);
+  expect(areaValue(html, 'note')).toBe('Nová spojka');
+  // Each field has a label of its own, the one the admin reads, and the fuels are offered by the names the admin reads.
+  const names = ['vin', 'licensePlate', 'make', 'model', 'year', 'fuel', 'mileageKm', 'note'];
+  expect(names.map((name) => [name, labelOf(html, name)])).toEqual([
+    ['vin', 'VIN'],
+    ['licensePlate', 'ŠPZ'],
+    ['make', 'Značka'],
+    ['model', 'Model'],
+    ['year', 'Rok výroby'],
+    ['fuel', 'Palivo'],
+    ['mileageKm', 'Stav km'],
+    ['note', 'Poznámka'],
+  ]);
+  expect(options(html, 'fuel').labels).toEqual(['—', 'Benzín', 'Nafta', 'Hybrid', 'Elektro', 'LPG', 'CNG', 'Iné']);
 });
 
 test('the form that edits a vehicle without a ŠPZ, a year or a note starts with those empty, not with "null"', async () => {
