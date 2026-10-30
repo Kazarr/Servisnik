@@ -54,3 +54,8 @@ export const hue = ([r, g, b]: Rgb) => {
 
 /** The colour as the browser writes a computed colour: `rgb(5, 5, 5)`. */
 export const cssRgb = ([r, g, b]: Rgb) => `rgb(${r}, ${g}, ${b})`;
+
+const tokens = tokensOf(appCss);
+
+/** A colour token of globals.css as the browser writes it once computed, for `toHaveCSS`; the first colour when a token has several. */
+export const colour = (name: string) => cssRgb(hexesOf(tokens[name]!)[0]!);
