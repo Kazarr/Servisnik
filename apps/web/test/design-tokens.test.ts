@@ -39,8 +39,8 @@ const NAMED_COLORS = `aliceblue antiquewhite aqua aquamarine azure beige bisque 
 //   minmax() is read, and a minmax() whose two limits are a plain var() each is made of tokens already.
 // - Parentheses are read PARENS_DEPTH levels deep. A minmax() or a division with more levels inside is not seen, and
 //   a :root:not(...) with more is no block of tokens.
-// - The divisor is read inside calc(), min(), max() and clamp(), the places where a `/` divides; round(), mod() and
-//   the other math functions are not read.
+// - The divisor is read inside calc(), min(), max() and clamp() and inside a bare ( ) group in them, as in
+//   `calc((var(--a) / 2) + 1px)`; a `/` directly in round(), mod() and the other math functions is not read.
 // - A custom property outside :root is read for the units and colours in its value like any other declaration, but
 //   not as a font shorthand: `--font: 700 var(--size) serif` has no weight to report, as nothing says that the
 //   property holds a shorthand.
@@ -49,6 +49,9 @@ const NAMED_COLORS = `aliceblue antiquewhite aqua aquamarine azure beige bisque 
 // - Not values, so not read (NOT_VALUES and what follows it): comments, strings, an unquoted url(), the blocks of
 //   :root, @font-face, @property and @page, the prelude of @media, @container, @supports and @import, the steps
 //   of a @keyframes. A declaration after the first margin box of an @page is read.
+// - A :root block is cut from `:root` to the first `}`. A selector list that ends in :root hides its other rules
+//   (`.a, :root { margin: 2px }`: not read), and so does a rule nested in the block (`:root { .x { margin: 2px } }`).
+//   A :root first in its list is no block of tokens, so `:root, .a { margin: 2px }` is read.
 
 // The parts several rules are made of. A number is `5`, `.5` or `0.55`; its sign belongs to the rules that take one.
 const NUMBER = String.raw`\d*\.?\d+`;
@@ -80,9 +83,10 @@ const RULES = {
   fontShorthandLineHeight: new RegExp(String.raw`(?<=${FONT}\/\s*)${NUMBER}(?![\w.%])`),
   // A sign is part of the number: calc(-1 * var(--x)). An identifier that ends in a number (.col-2 *) is not.
   multiplier: /(?<![\w-])-?[\d.]+\s*\*|\*\s*-?[\d.]+(?![\w.%])/,
-  // Only a number after the slash in a math function: `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too,
-  // and so has a custom function (`--max(1 / 2)`) whose name ends in one of the four.
-  divisor: new RegExp(String.raw`(?<=(?<![\w-])(?:calc|min|max|clamp)\(${PARENS})\/\s*-?[\d.]+(?![\w.%])`),
+  // Only a number after the slash inside calc(), min(), max(), clamp() or a bare ( ) group, as in `calc((var(--a) / 2) + 1px)`:
+  // `font: 1rem/1.5` and `grid-row: 1 / 3` have a slash too, and so has a custom function (`--max(1 / 2)`) whose name
+  // ends in one of the four, or any other function (`round(var(--a) / 2, 1px)`): a name of another kind starts no group.
+  divisor: new RegExp(String.raw`(?<=(?<![\w-])(?:calc|min|max|clamp)?\(${PARENS})\/\s*-?[\d.]+(?![\w.%])`),
   duration: unit('m?s'),
   angle: unit('deg|grad|rad|turn'),
   // A grid track function (`minmax(0, 1fr)`) is a token like any other value: --track-fill. A minmax() whose two
@@ -102,7 +106,13 @@ type Rule = keyof typeof RULES;
 // selector). An @page is not read either: its page context inherits from :root or, as an engine may do instead (CSS
 // Page 3, section 6), from the initial values, which carry no token. The :root blocks define the tokens (also with
 // an attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`).
-const NOT_VALUES = new RegExp([COMMENT.source, String.raw`"(?:[^"\\]|\\.)*"`, String.raw`'(?:[^'\\]|\\.)*'`, String.raw`url\([^)"']*\)`].join('|'), 'g');
+// An escaped character is neither a quote nor a parenthesis (`.it\'s`, `url(a\)b.png)`, a backslash before the newline
+// in a string), so it is read first, and as a pair inside a string and an url().
+const ESCAPE = String.raw`\\[\s\S]`;
+const NOT_VALUES = new RegExp(
+  [ESCAPE, COMMENT.source, String.raw`"(?:[^"\\]|${ESCAPE})*"`, String.raw`'(?:[^'\\]|${ESCAPE})*'`, String.raw`url\((?:[^)"'\\]|${ESCAPE})*\)`].join('|'),
+  'g',
+);
 const ROOT_BLOCK = new RegExp(String.raw`:root(?:\[[^\]]*\]|:[\w-]+(?:\(${PARENS}\))?)*\s*\{[^}]*\}`, 'g');
 const AT_RULE_BLOCK = /@(?:font-face|property|page)[^{]*\{[^}]*\}/g;
 const AT_RULE_PRELUDE = /@(?:media|container|supports)[^{]*|@import[^;]*/g;
@@ -136,8 +146,8 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: '.w-2vh-x { margin: 0; } .a2vw { margin: 0; } .x { width: 4vww; height: 2cqiz; }',
   },
   length: {
-    raw: '.x { padding: 0.5rem 8px -1em; margin: 0; height: 2lh 3rlh; width: 4Q 5cap 6rcap; gap: 7ic 8ric 9ex 10rex 11ch 12rch; border-width: 13pt 14cm 15mm 16in 17pc; top: 0.25rem .75em; }',
-    found: ['0.5rem', '8px', '-1em', '2lh', '3rlh', '4Q', '5cap', '6rcap', '7ic', '8ric', '9ex', '10rex', '11ch', '12rch', '13pt', '14cm', '15mm', '16in', '17pc', '0.25rem', '.75em'],
+    raw: '.x { padding: 0.5rem 8px -1em; margin: 0; height: 2lh 3rlh; width: 4Q 5cap 6rcap; gap: 7ic 8ric 9ex 10rex 11ch 12rch; border-width: 13pt 14cm 15mm 16in 17pc; top: 0.25rem .75em; } .y { --gap: 2px; }',
+    found: ['0.5rem', '8px', '-1em', '2lh', '3rlh', '4Q', '5cap', '6rcap', '7ic', '8ric', '9ex', '10rex', '11ch', '12rch', '13pt', '14cm', '15mm', '16in', '17pc', '0.25rem', '.75em', '2px'],
     token: '.x { padding: var(--space-2) var(--space-3); margin: 0; grid-template-columns: var(--track-fill); }',
     miss: '.w-2px-x { margin: 0; } .a2em { margin: 0; } .x { margin: 2lhx; } em { margin: 0; }',
   },
@@ -205,10 +215,10 @@ const CASES: Record<Rule, { raw: string; found: string[]; token: string; miss?: 
     miss: 'h1 * { margin: 0; } .col-2 * { margin: 0; } *.x { margin: 0; } .y { margin: calc(var(--a) * 1.5rem) calc(var(--a) * 50%); }',
   },
   divisor: {
-    raw: '.x { width: calc(var(--space-1) / 2); height: calc((100% - var(--gap)) / 3); margin: calc(var(--a)/4) calc(var(--a) / -2) calc(var(--a) / 12) calc(var(--a) / .5); } .y { width: min(var(--a) / 5, 1px); height: max(1px, var(--a) / 6); padding: clamp(1px, var(--a) / 7, 2px); } .z { margin: calc(max(var(--a, calc(1px)), 2px) / 8); }',
-    found: ['/ 2', '/ 3', '/4', '/ -2', '/ 12', '/ .5', '/ 5', '/ 6', '/ 7', '/ 8'],
+    raw: '.x { width: calc(var(--space-1) / 2); height: calc((100% - var(--gap)) / 3); margin: calc(var(--a)/4) calc(var(--a) / -2) calc(var(--a) / 12) calc(var(--a) / .5); } .y { width: min(var(--a) / 5, 1px); height: max(1px, var(--a) / 6); padding: clamp(1px, var(--a) / 7, 2px); } .z { margin: calc(max(var(--a, calc(1px)), 2px) / 8); } .p { width: calc((var(--a) / 10) + 1px); height: calc(var(--a) * (2 / 11)); }',
+    found: ['/ 2', '/ 3', '/4', '/ -2', '/ 12', '/ .5', '/ 5', '/ 6', '/ 7', '/ 8', '/ 10', '/ 11'],
     token: '.x { margin: var(--space-6); width: calc(var(--space-1) / var(--columns)); }',
-    miss: '.k { width: calc(max(var(--a, max(var(--b), 2px)), 3px) / 9); } .i { width: --max(var(--a) / 2); } .j { grid-template-columns: minmax(var(--a) / 2, 1fr); } .a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); } .e { width: calc(var(--a) / 1.5rem); } .f { width: calc(var(--a) / 50%); } .g { grid-row: calc(1 + (2 * (3))) / 4; } .h { grid-row: calc((1 + 2)) / 4; }',
+    miss: '.k { width: calc(max(var(--a, max(var(--b), 2px)), 3px) / 9); } .i { width: --max(var(--a) / 2); } .j { grid-template-columns: minmax(var(--a) / 2, 1fr); } .a { font: 1rem/1.5 serif; } .b { aspect-ratio: 16 / 9; grid-row: 1 / 3; } .c { grid-row: calc(var(--n)) / 3; } .d { width: calc(var(--a) / 2rem); } .e { width: calc(var(--a) / 1.5rem); } .f { width: calc(var(--a) / 50%); } .g { grid-row: calc(1 + (2 * (3))) / 4; } .h { grid-row: calc((1 + 2)) / 4; } .l { width: round(var(--a) / 2, 1px); }',
   },
   duration: {
     raw: '.x { transition: opacity 200ms ease-in; animation-duration: 0.3s; transition-delay: -1s .25s; animation-delay: 0.25s; }',
@@ -300,11 +310,19 @@ const LOOKS_RAW = {
   'a string in single quotes': ".a { content: 'red'; }",
   'a string with an escaped quote': '.a { content: "say \\"red\\" 2px"; }',
   'a string in single quotes with an escaped quote': ".a { content: 'say \\'red\\' 2px'; }",
+  // An escaped character is no quote, no matter which: a quote that opens no string must not cut to the next real one.
+  'an escaped quote in a selector': ".it\\'s { margin: 0; }",
+  'an escaped double quote in a selector': '.it\\"s { margin: 0; }',
+  'an escaped quote in an identifier': ".a { font-family: Don\\'t; }",
+  'a string with an escaped newline': '.a { content: "x\\\ny"; }',
+  'a string in single quotes with an escaped newline': ".a { content: 'x\\\ny'; }",
   'an attribute value': '[data-col="2px"] { margin: 0; }',
   'an unquoted url()': '.a { background: url(/img/16px.png); }',
   'a quoted url()': '.a { background: url("/img/16px.png"); }',
   'a quoted url() with a parenthesis in it': '.a { background: url("/img/a)2px.png"); }',
   'a url() in single quotes with a parenthesis in it': ".a { background: url('/img/a)2px.png'); }",
+  'an unquoted url() with an escaped parenthesis': '.a { background: url(a\\)b.png); }',
+  'an unquoted url() with an escaped parenthesis before a length': '.a { background: url(a\\)2px.png); }',
   'the name of a @keyframes': '.a { animation-name: navy; }',
   'the name in an animation': '.a { animation: tan var(--duration-fast) ease; }',
 };
@@ -336,12 +354,6 @@ test('raw values are fine where tokens are defined, in :root and in comments, an
   expect(rawValues(css)).toEqual(['2px', '3px', '4px']);
 });
 
-// Below :root a custom property is a declaration like any other: the units and colours in it are read (a token has
-// its value in :root), but it is no font shorthand, as nothing says that it holds one (see the header).
-test('a custom property outside :root is read for its units and colours, but not as a font shorthand', () => {
-  expect(rawValues('.x { --gap: 2px; --tone: #fff; --font: 700 var(--size) serif; }')).toEqual(['2px', '#fff']);
-});
-
 // A block of tokens is any rule whose selector is :root with attributes or pseudo-classes: a dark theme is
 // `:root[data-theme='dark']` or `:root:not([data-theme='light'])`. A rule that merely starts with :root is not.
 test('every :root block defines tokens, whatever attribute or pseudo-class it carries, and a rule below :root does not', () => {
@@ -360,6 +372,14 @@ test('every :root block defines tokens, whatever attribute or pseudo-class it ca
 
   // The last has four levels of parentheses in :not(), one more than are read (see the header): no block of tokens.
   expect(rawValues(css)).toEqual(['4px', '5px', '6px', '7px', '8px']);
+});
+
+// The cut of a :root block runs from `:root` to the first closing brace (see the header): what a block shares with
+// another selector, or holds in a rule of its own, is cut with it and not read. A :root first in its list is read.
+test('a :root block is cut at its first closing brace, so a selector list that ends in :root and a nested rule are not read', () => {
+  expect(rawValues('.a, :root { margin: 2px }')).toEqual([]);
+  expect(rawValues(':root { .x { margin: 2px } }')).toEqual([]);
+  expect(rawValues(':root, .a { margin: 2px }')).toEqual(['2px']);
 });
 
 // var() does not work in the condition of an at-rule, so a width there cannot be a token.
