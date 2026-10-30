@@ -109,7 +109,7 @@ export default async function WorkOrderPage({
       ) : (
         <>
           <div className="table-wrap">
-            <table aria-label="Položky zákazky" className="items">
+            <table aria-label="Položky zákazky" className="work-order-items">
               <thead>
                 <tr>
                   <th scope="col">Kód</th>
@@ -127,7 +127,7 @@ export default async function WorkOrderPage({
               <tbody>
                 {order.items.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.code}</td>
+                    <td className="code">{item.code}</td>
                     <td>{item.name}</td>
                     <td className="amount">
                       {formatQuantity(item.quantityHundredths)} {item.unit}
