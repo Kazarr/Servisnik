@@ -1,7 +1,7 @@
 import type { EditionInput, RegistrationInput } from '@servisnik/domain/joy-ride';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { createRegistration, getEdition, listRegistrations, saveEdition } from '../src/dal/joy-ride.ts';
+import { createRegistration, getEdition, getRegistration, listRegistrations, saveEdition, setRegistrationStatus, updateRegistration } from '../src/dal/joy-ride.ts';
 import { joyRideEdition, joyRideRegistration } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
@@ -192,4 +192,81 @@ test('a filter that names no Kategória or Stav shows the whole list', async () 
   await register(boris, new Date('2026-10-02T08:00:00Z'));
 
   expect(await namesOf({ category: 'sedan', status: 'maybe' })).toEqual(['Boris Ukážkový', 'Eva Vzorová']);
+});
+
+const statusOf = async (id: string) => (await getRegistration(admin, id, ctx.db))?.status;
+
+test('a Registrácia is read by its id with all it holds, and an id that is none, or no id at all, is null', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  const id = await register(eva, new Date('2026-10-01T08:00:00Z'));
+
+  expect(await getRegistration(admin, id, ctx.db)).toEqual({
+    id,
+    name: 'Eva Vzorová',
+    phone: '+421 000 000 101',
+    email: 'eva.vzorova@example.com',
+    make: 'Škoda',
+    model: '110 R',
+    licensePlate: 'PB123AB',
+    category: 'veteran',
+    note: 'Príde s prívesom.',
+    status: 'new',
+    createdOn: '2026-10-01',
+  });
+  expect(await getRegistration(admin, '3f0c8c1e-6a52-4a39-9c52-0d4a4b6c1f10', ctx.db)).toBeNull();
+  expect(await getRegistration(admin, 'not-an-id', ctx.db)).toBeNull();
+});
+
+test('the admin approves a Registrácia, rejects it, and takes either back, and the others keep their Stav', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  const evaId = await register(eva);
+  const borisId = await register(boris);
+
+  expect(await setRegistrationStatus(admin, evaId, 'approved', ctx.db)).toEqual({ ok: true });
+  expect(await statusOf(evaId)).toBe('approved');
+  expect(await setRegistrationStatus(admin, evaId, 'rejected', ctx.db)).toEqual({ ok: true });
+  expect(await statusOf(evaId)).toBe('rejected');
+  expect(await setRegistrationStatus(admin, evaId, 'approved', ctx.db)).toEqual({ ok: true });
+  expect(await statusOf(evaId)).toBe('approved');
+  expect(await statusOf(borisId)).toBe('new');
+  expect((await listRegistrations(admin, {}, ctx.db)).counts).toEqual({ new: 1, approved: 1, rejected: 0 });
+});
+
+test('a Registrácia that is not there cannot be approved, and nothing is changed', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  const id = await register(eva);
+
+  expect(await setRegistrationStatus(admin, '3f0c8c1e-6a52-4a39-9c52-0d4a4b6c1f10', 'approved', ctx.db)).toEqual({ ok: false, error: 'unknown' });
+  expect(await setRegistrationStatus(admin, 'not-an-id', 'approved', ctx.db)).toEqual({ ok: false, error: 'unknown' });
+  expect(await statusOf(id)).toBe('new');
+});
+
+test('the admin changes what was typed in a Registrácia, and its Stav, its Ročník and its day stay', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  const id = await register(eva, new Date('2026-10-01T08:00:00Z'));
+  await setRegistrationStatus(admin, id, 'approved', ctx.db);
+
+  const result = await updateRegistration(admin, id, { ...eva, name: ' Eva Vzorová-Nová ', model: '110 LS', licensePlate: '', note: '' }, ctx.db);
+
+  expect(result).toEqual({ ok: true });
+  expect(await getRegistration(admin, id, ctx.db)).toMatchObject({ name: 'Eva Vzorová-Nová', model: '110 LS', licensePlate: null, note: null, status: 'approved', createdOn: '2026-10-01' });
+  expect((await listRegistrations(admin, {}, ctx.db)).registrations).toHaveLength(1);
+});
+
+test('a change the domain refuses comes back with its reasons and leaves the Registrácia as it was', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  const id = await register(eva);
+
+  const result = await updateRegistration(admin, id, { ...eva, phone: '', email: 'eva' }, ctx.db);
+
+  expect(result).toEqual({ ok: false, errors: { phone: 'required', email: 'format' } });
+  expect(await getRegistration(admin, id, ctx.db)).toMatchObject({ phone: '+421 000 000 101', email: 'eva.vzorova@example.com' });
+});
+
+test('a Registrácia that is not there cannot be changed', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+
+  expect(await updateRegistration(admin, '3f0c8c1e-6a52-4a39-9c52-0d4a4b6c1f10', eva, ctx.db)).toEqual({ ok: false, errors: { registration: 'unknown' } });
+  expect(await updateRegistration(admin, 'not-an-id', eva, ctx.db)).toEqual({ ok: false, errors: { registration: 'unknown' } });
+  expect(await ctx.db.$count(joyRideRegistration)).toBe(0);
 });
