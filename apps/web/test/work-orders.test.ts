@@ -845,6 +845,16 @@ test('the database refuses a Práca with a Nákupná cena and a Nákupná cena b
   await expect(insert('part', 0)).resolves.toBeDefined();
 });
 
+test('the detail of a Zákazka returns the items without their place (added_seq), which only the order of a read uses (#160)', async () => {
+  const id = await newWorkOrderId();
+  idOf(await addItem(admin, id, oilChange, ctx.db));
+
+  const items = (await getWorkOrder(admin, id, ctx.db))?.items;
+
+  expect(items).toHaveLength(1);
+  expect(items![0]).not.toHaveProperty('addedSeq');
+});
+
 test('an item is changed: its code, name, quantity, unit, prices and VAT rate, and the amounts follow, where its kind and its place stay', async () => {
   const id = await newWorkOrderId();
   idOf(await addItem(admin, id, oilChange, ctx.db));

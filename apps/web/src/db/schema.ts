@@ -7,7 +7,7 @@ import { fuels } from '@servisnik/domain/vehicle';
 import { itemKinds, workOrderStatuses } from '@servisnik/domain/work-order';
 import { vatPayerTypes } from '@servisnik/domain/workshop';
 import { sql } from 'drizzle-orm';
-import { boolean, check, customType, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, customType, date, index, integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 // Better Auth owns user, session, account and verification (docs/adr/0001-stack.md). Keys and
 // column types follow what its Drizzle adapter expects. `role` is an enum, not the plain text the
@@ -304,6 +304,13 @@ export const workOrderItem = pgTable(
     purchasePriceCents: integer('purchase_price_cents'),
     salePriceCents: integer('unit_price_cents').notNull(),
     vatRate: integer('vat_rate').notNull(),
+    /**
+     * The place of the item in the order items were added, handed out by the database with every insert, so it does not
+     * depend on a clock: two items saved in one transaction or one millisecond have the same `created_at` and different places.
+     * It is global, not per Zákazka (the items of one Zákazka are added one after another, under its lock), and only the order of
+     * the reads uses it (dal/work-order-items.ts), which is why they do not return it.
+     */
+    addedSeq: bigint('added_seq', { mode: 'number' }).generatedAlwaysAsIdentity(),
     ...timestamps,
   },
   (table) => [
