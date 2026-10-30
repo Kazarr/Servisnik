@@ -2,9 +2,9 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { removeLogo, saveLogo } from '../src/dal/logo.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
-import { getLetterhead, saveLetterhead } from '../src/dal/workshop.ts';
+import { getLetterhead, saveLetterhead, saveWorkshopDetails } from '../src/dal/workshop.ts';
 import { changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.ts';
-import { workshop } from '../src/db/schema.ts';
+import { workOrderCounter, workshop } from '../src/db/schema.ts';
 import { handoverProtocolResponse } from '../src/handover-protocol-response.ts';
 import { jobSheetResponse } from '../src/job-sheet-response.ts';
 import { quoteResponse } from '../src/quote-response.ts';
@@ -88,4 +88,45 @@ test.each([
   expect(paintsWith(page, theme.text)).toBe(true);
   expect(page.text).toContain('Autocentrum Slovensko s. r. o.');
   expect(page.text).toContain('Číslo zákazky');
+});
+
+// The right column of the header and the identifiers of the autoservis (ticket #148): a number, a day and a labelled identifier
+// are each printed on one line, however long the details of the autoservis are. The name, the address and the identifiers are the
+// demo's; the e-mail, the phone, the IBAN and the entry of the register are made long so that the details column is wide. The
+// counter is set so that the number is the long one, `Z2026-123456`.
+const printedOn = new Date('2026-10-29T09:00:00Z');
+test.each(
+  (['white', 'blackBar'] as const).flatMap((letterhead) => [
+    [letterhead, 'zákazkový list', (id: string) => jobSheetResponse(admin, id, ctx.db, printedOn)] as const,
+    [letterhead, 'cenová ponuka', (id: string) => quoteResponse(admin, id, ctx.db, printedOn)] as const,
+    [letterhead, 'odovzdávací protokol', async (id: string) => handoverProtocolResponse(admin, await handedOver(id), ctx.db, printedOn)] as const,
+  ]),
+)('on the %s Hlavička the %s keeps the number of the Zákazka, the day of the print and the IČ DPH each on one line', async (letterhead, _form, print) => {
+  await saveWorkshopDetails(
+    admin,
+    {
+      name: 'Autocentrum Slovensko s. r. o.',
+      street: 'Rozkvet 2055/118',
+      city: 'Považská Bystrica',
+      postalCode: '017 01',
+      ico: '54436079',
+      dic: '2121662114',
+      icDph: 'SK2121662114',
+      vatPayerType: 'payer',
+      iban: 'SK3112000000198742637541',
+      phone: '+421 900 123 456',
+      email: 'autocentrum.slovensko.servis@jmautocentrum.sk',
+      commercialRegister: 'Obchodný register Okresného súdu Trenčín, oddiel: Sro, vložka č.: 12345/R',
+    },
+    ctx.db,
+  );
+  await saveLetterhead(admin, letterhead, ctx.db);
+  await saveLogo(admin, png, ctx.db);
+  await ctx.db.insert(workOrderCounter).values({ year: 2026, lastSequence: 123_455 });
+  const id = idOf(await createWorkOrder(admin, { vehicleId, mileageKm: '12 345', customerRequest: 'Výmena oleja' }, ctx.db, new Date('2026-07-15T10:00:00Z')));
+
+  const lines = (await firstPage(await print(id))).text.split('\n');
+
+  const broken = ['Z2026-123456', '29. 10. 2026', 'IČ DPH: SK2121662114'].filter((whole) => !lines.some((line) => line.includes(whole)));
+  expect(broken, `broken across lines in ${JSON.stringify(lines.slice(0, 14))}`).toEqual([]);
 });

@@ -130,7 +130,9 @@ dd {
   font-weight: var(--font-weight-bold);
 }
 
+/* The column keeps the width of its content and the details of the autoservis give way: the number and the day are never broken. */
 .identity {
+  flex: none;
   text-align: right;
 }
 
@@ -141,6 +143,7 @@ dd {
 .identity .facts {
   justify-content: end;
   margin-top: var(--space-2);
+  white-space: nowrap;
 }
 
 /* A term and its value on one row, the terms aligned: the number of the order, the VIN, the kilometres. */

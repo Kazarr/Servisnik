@@ -4,7 +4,7 @@ import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { documentCss, footerTemplate, printTokens } from '../src/print/styles.ts';
-import { tokensOf } from './support/css-tokens.ts';
+import { COMMENT, tokensOf } from './support/css-tokens.ts';
 
 const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
 const read = (file: string) => readFileSync(new URL(`../src/app/${file}`, import.meta.url), 'utf8');
@@ -102,7 +102,7 @@ type Rule = keyof typeof RULES;
 // selector). An @page is not read either: its page context inherits from :root or, as an engine may do instead (CSS
 // Page 3, section 6), from the initial values, which carry no token. The :root blocks define the tokens (also with
 // an attribute or a pseudo-class: `:root[data-theme='dark']`, `:root:not(...)`).
-const NOT_VALUES = /\/\*[\s\S]*?\*\/|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|url\([^)"']*\)/g;
+const NOT_VALUES = new RegExp([COMMENT.source, String.raw`"(?:[^"\\]|\\.)*"`, String.raw`'(?:[^'\\]|\\.)*'`, String.raw`url\([^)"']*\)`].join('|'), 'g');
 const ROOT_BLOCK = new RegExp(String.raw`:root(?:\[[^\]]*\]|:[\w-]+(?:\(${PARENS}\))?)*\s*\{[^}]*\}`, 'g');
 const AT_RULE_BLOCK = /@(?:font-face|property|page)[^{]*\{[^}]*\}/g;
 const AT_RULE_PRELUDE = /@(?:media|container|supports)[^{]*|@import[^;]*/g;
