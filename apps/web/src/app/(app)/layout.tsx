@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { readLogoVersion } from '../../dal/branding.ts';
 import { currentUser } from '../../dal/current-user.ts';
 import { getWorkshopDetails } from '../../dal/workshop.ts';
+import { productName } from '../../product.ts';
+import { PoweredBy } from '../powered-by.tsx';
 import { signOut } from './actions.ts';
 import { menuFor, ownPassword } from './menu.ts';
 import { NavLink } from './nav-link.tsx';
@@ -17,7 +19,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <aside className="sidebar">
         <div className="brand">
           {logoVersion === null ? (
-            <p className="brand-text">Servisník</p>
+            <p className="brand-text">{productName}</p>
           ) : (
             <>
               {/* The time of the change is in the address, so that a replaced logo is not shown from the browser's cache. */}
@@ -49,6 +51,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <button type="submit">Odhlásiť sa</button>
           </form>
         </div>
+        <PoweredBy />
       </aside>
       <main className="content">{children}</main>
     </div>
