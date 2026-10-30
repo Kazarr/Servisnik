@@ -11,10 +11,11 @@ try {
   if (refusal) throw new Error(refusal);
   const { DATABASE_URL } = readEnv(process.env, ['DATABASE_URL']);
   const db = createDb(DATABASE_URL);
-  const { created, existing, phoneMissing, logoSaved, registrationsCreated, registrationsExisting } = await seedDemo(db, { logo: await downloadLogo() });
+  const { created, existing, phoneMissing, logoSaved, editionCreated, registrationsCreated, registrationsExisting } = await seedDemo(db, { logo: await downloadLogo() });
   await db.$client.end();
   console.log(`Demo hotové: údaje autoservisu sú vyplnené, nových zákaziek ${created}, už tam boli ${existing}.`);
-  console.log(`Jazda radosti: ročník 2026 je zadaný, nových registrácií ${registrationsCreated}, už tam boli ${registrationsExisting}.`);
+  const edition = editionCreated ? 'ročník 2026 je zadaný' : 'ročník už bol zadaný a ostáva, ako ho admin nechal';
+  console.log(`Jazda radosti: ${edition}, nových registrácií ${registrationsCreated}, už tam boli ${registrationsExisting}.`);
   if (!logoSaved) console.log('Logo sa nepodarilo stiahnuť. Nahrajte ho v Nastaveniach → Logo.');
   if (phoneMissing) console.log('Telefón autoservisu skript nevypĺňa: repozitár je verejný. Doplňte ho v Nastaveniach, Údaje autoservisu.');
 } catch (error) {
