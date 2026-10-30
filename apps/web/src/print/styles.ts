@@ -1,14 +1,16 @@
 // The look of a printed form. Chromium prints a form from a string of HTML, outside the page of the app, so it
-// cannot read globals.css: the tokens are repeated here, and test/design-tokens.test.ts holds them to the app's.
+// cannot read globals.css: the tokens are repeated here, and test/design-tokens.test.ts holds them to the app's, except
+// six that the demo theme (ticket #150) sets apart: the app is black and set in Outfit, the paper white and set in Arial.
 
 /** The margins of every printed page. The footer lives in the bottom one. */
 export const pageMargins = { top: '15mm', right: '15mm', bottom: '20mm', left: '15mm' } as const;
 
 /**
- * The `:root` of a printed page: the app's tokens that it uses, with their values, and the ones only print
- * needs. The root size is 10 pt, so every length in rem is a length on the paper. The font is not the app's
- * `system-ui`, which is whatever the machine has (in the image it was a Chinese font): a form names Arial, and
- * a machine without it, like the image, answers with Liberation Sans, which has the same metrics and the Slovak letters.
+ * The `:root` of a printed page: the app's tokens that it uses, with their values (the six of the demo theme with
+ * the values of white paper), and the ones only print needs. The root size is 10 pt, so every length in rem is a
+ * length on the paper. The font is not the app's (Outfit, then `system-ui`, which is whatever the machine has: in
+ * the image it was a Chinese font): a form names Arial, and a machine without it, like the image, answers with
+ * Liberation Sans, which has the same metrics and the Slovak letters.
  */
 export const printTokens = `:root {
   --color-text: #1c2430;

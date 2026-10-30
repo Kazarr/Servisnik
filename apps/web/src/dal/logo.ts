@@ -13,8 +13,9 @@ export type LogoInfo = { contentType: LogoContentType; sizeBytes: number; update
 export type SaveLogoResult = { ok: true } | { ok: false; error: LogoError };
 
 /**
- * The logo for print and for the image route, or null when there is none. Every signed-in Používateľ
- * may read it, the mechanik too: the forms he prints carry it.
+ * The logo for print, or null when there is none. Every signed-in Používateľ may read it, the mechanik
+ * too: the forms he prints carry it. The image route and the login page read it without a user, through
+ * `readLogo` of branding.ts.
  */
 export async function getLogo(user: User | null, db: Database = getDb()): Promise<Logo | null> {
   assertCan(user, 'workshop.read');

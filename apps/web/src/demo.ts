@@ -34,7 +34,7 @@ export async function downloadLogo(fetchLogo: Fetch = fetch, timeoutMs = 10_000)
   }
 }
 
-/** Údaje autoservisu as the obchodný register has them (Finstat, ticket #150). The phone, the IBAN and the entry of the register are not in it. */
+/** Údaje autoservisu as the obchodný register has them (Finstat, ticket #150). The IBAN and the entry of the register are not in it. The phone is left out on purpose: the repository is public, so the admin types it in Nastavenia. */
 const registry = {
   name: 'Autocentrum Slovensko s. r. o.',
   street: 'Rozkvet 2055/118',
@@ -204,9 +204,11 @@ async function makeOrder(db: Database, order: DemoOrder, now: Date) {
 }
 
 /**
- * Fills Údaje autoservisu with the register's and puts the logo in when it has one, then makes the Zákazky that are not there yet. It can run
- * any number of times: a Zákazka is told by the VIN of its vehicle, so one that is there is left as it is, and the values that
- * the register does not have (the phone, the IBAN, the entry of the register) are kept as the admin typed them in Nastavenia.
+ * Fills Údaje autoservisu with the register's and puts the logo in when it has one, then makes the Zákazky that are not there yet.
+ * It can run any number of times, and every run sets the name, the address, the IČO, the DIČ, the IČ DPH and the e-mail back to the
+ * register's and replaces the logo, so what the admin typed in those fields is lost. What the register does not have (the phone, the
+ * IBAN, the entry of the register) is kept as the admin typed it in Nastavenia. A Zákazka is told by the VIN of its vehicle, so one
+ * that is there is left as it is.
  *
  * ponytail: each Zákazka is made in several steps, not one transaction, so a run that dies in the middle of one leaves it
  * without some items; delete the demo data and run again. The demo is never anyone's real data.
