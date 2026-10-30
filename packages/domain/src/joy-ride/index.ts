@@ -13,11 +13,13 @@ const time = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
  * The uzávierka registrácií is a wall-clock time at the place of the Ročník (Europe/Bratislava), so it is kept as typed and
- * no instant is made of it. It is a real day of the calendar and a real time of the day, or null.
+ * no instant is made of it. It is a real day of the calendar and a real time of the day, built as `YYYY-MM-DDTHH:mm` from the
+ * parsed day and hour (so a space the day was typed with is gone), or null.
  */
 function parseDeadline(typed: string): string | null {
-  const [day, hour, ...rest] = typed.split('T');
-  return rest.length === 0 && hour !== undefined && parseDay(day!) !== null && time.test(hour) ? typed : null;
+  const [typedDay, hour, ...rest] = typed.split('T');
+  const day = parseDay(typedDay!);
+  return rest.length === 0 && hour !== undefined && day !== null && time.test(hour) ? `${day}T${hour}` : null;
 }
 
 /** A Ročník ready to store, or every reason it is not one. Its name and place are trimmed; all four values are required. */
@@ -28,14 +30,20 @@ export function parseEdition(input: EditionInput): { ok: true; edition: Edition 
   if (!edition.date) errors.date = 'required';
   else if (parseDay(edition.date) === null) errors.date = 'invalid';
   if (!edition.place) errors.place = 'required';
+  const deadline = parseDeadline(edition.registrationDeadline);
   if (!edition.registrationDeadline) errors.registrationDeadline = 'required';
-  else if (parseDeadline(edition.registrationDeadline) === null) errors.registrationDeadline = 'invalid';
+  else if (deadline === null) errors.registrationDeadline = 'invalid';
+  else edition.registrationDeadline = deadline;
   return Object.keys(errors).length > 0 ? { ok: false, errors } : { ok: true, edition };
 }
 
 /** The Stav registrácie: Nová, Schválená or Zamietnutá. A Registrácia starts as Nová. */
 export const registrationStatuses = ['new', 'approved', 'rejected'] as const;
 export type RegistrationStatus = (typeof registrationStatuses)[number];
+
+/** The Stavy the admin decides: Schválená or Zamietnutá. A decision never sets a Registrácia back to Nová, which is only where it starts. */
+export const registrationDecisions = ['approved', 'rejected'] as const satisfies readonly RegistrationStatus[];
+export type RegistrationDecision = (typeof registrationDecisions)[number];
 
 /** The Kategórie of the invitation to the Ročník 2026: superšporty, zaujímavé autá, ťažká technika, veterány, motorky and iné. */
 export const registrationCategories = ['supersport', 'interesting', 'heavy', 'veteran', 'motorcycle', 'other'] as const;
