@@ -227,6 +227,18 @@ table,
   color: inherit;
 }
 
+/* The product under the logo of the autoservis: a quiet line at the bottom of the menu and under the login form. */
+.powered-by {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  text-align: center;
+}
+
+.login .powered-by {
+  margin-top: var(--space-4);
+}
+
 .content {
   padding: var(--space-4);
 }
