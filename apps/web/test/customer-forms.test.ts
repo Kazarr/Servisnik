@@ -6,9 +6,10 @@ import { addCustomer, editCustomer, type CustomerFormState } from '../src/app/(a
 import { CustomerForm } from '../src/app/(app)/zakaznici/customer-form.tsx';
 import { createCustomer, getCustomer, listCustomers } from '../src/dal/customers.ts';
 import type { Database } from '../src/db/index.ts';
+import { answered } from './support/action-state.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
-import { digestOf } from './support/digest-of.ts';
+import { ledTo } from './support/digest-of.ts';
 import { form } from './support/form-data.ts';
 import { input, reasonOf, valueOf } from './support/form-markup.ts';
 import { idOf } from './support/id-of.ts';
@@ -18,15 +19,15 @@ import { truncateTables } from './support/reset.ts';
 // Zákazníci a vozidlá (spec #67), the form of a Zákazník: what the Server Actions answer when it is sent, and what the form shows of
 // the answer. The actions are called as the admin's forms call them, over the real DAL and the database of this file, and the form
 // is drawn from the answer they gave. useActionState holds that answer in the browser, and renderToStaticMarkup does not run it, so
-// the hook is handed it (test/delete-form.test.ts does the same). Who may send the form is in forbidden.test.ts and
+// the hook is handed it (support/action-state.ts). Who may send the form is in forbidden.test.ts and
 // forms-without-session.test.ts, the pages that open it in customer-pages.test.ts.
 
-const { handed, answered } = vi.hoisted(() => ({ handed: { db: null as unknown as Database }, answered: { state: null as unknown } }));
+const { handed } = vi.hoisted(() => ({ handed: { db: null as unknown as Database } }));
 vi.mock('../src/dal/current-user.ts', async () => ({ currentUser: async () => (await import('./support/dal-users.ts')).admin }));
 vi.mock('../src/db/index.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../src/db/index.ts')>()), getDb: () => handed.db }));
 vi.mock('react', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react')>()),
-  useActionState: (action: unknown, initial: unknown) => [answered.state ?? initial, action, false],
+  useActionState: (await import('./support/action-state.ts')).useActionState,
 }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
@@ -50,12 +51,8 @@ function drawn(state: CustomerFormState, type: CustomerType = 'company') {
   return renderToStaticMarkup(createElement(CustomerForm, { action: addCustomer, customer: { id: '7d1c0a3e-0000-4000-8000-000000000001', type, ...nothing } }));
 }
 
-/** The id in the address of the detail that a saved form leads to; the test fails right there when it leads anywhere else. */
-async function savedAs(call: Promise<unknown>) {
-  const id = /^NEXT_REDIRECT;[^;]*;\/zakaznici\/([0-9a-f-]{36});/.exec((await digestOf(call)) ?? '')?.[1];
-  if (!id) throw new Error('The form was expected to lead to the detail of the customer it saved.');
-  return id;
-}
+/** The id of the customer a saved form leads to the detail of; the test fails right there when it leads anywhere else. */
+const savedAs = (call: Promise<unknown>) => ledTo(call, 'zakaznici');
 
 test('a firma sent without an IČO is refused at the IČO field, and what was typed stays', async () => {
   const state = await addCustomer(null, form({ type: 'company', name: 'Prvá Firma' }));

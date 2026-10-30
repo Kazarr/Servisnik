@@ -3,13 +3,10 @@ import VehiclePage from '../src/app/(app)/vozidla/[id]/page.tsx';
 import EditVehiclePage from '../src/app/(app)/vozidla/[id]/upravit/page.tsx';
 import NewVehiclePage from '../src/app/(app)/vozidla/novy/page.tsx';
 import VehiclesPage from '../src/app/(app)/vozidla/page.tsx';
-import { createVehicle } from '../src/dal/vehicles.ts';
 import type { Database } from '../src/db/index.ts';
-import { savedIn, vin } from './support/customer-vehicle.ts';
-import { admin } from './support/dal-users.ts';
+import { savedIn } from './support/customer-vehicle.ts';
 import { createTestDb } from './support/db.ts';
 import { input, options, valueOf } from './support/form-markup.ts';
-import { idOf } from './support/id-of.ts';
 import { detailsOf, hrefOf, linksIn, rowsOf } from './support/page-markup.ts';
 import { renderPage } from './support/render-page.ts';
 import { truncateTables } from './support/reset.ts';
@@ -38,8 +35,6 @@ beforeEach(async () => {
 });
 
 const { person, vehicleOf } = savedIn(() => ctx.db);
-const vehicleWith = async (ownerId: string, fields: Partial<Parameters<typeof createVehicle>[1]>) =>
-  idOf(await createVehicle(admin, { ownerId, vin, licensePlate: '', make: 'Škoda', model: 'Fabia', ...fields }, ctx.db));
 
 const listPage = async (searchParams: { q?: string; strana?: string } = {}) => renderPage(await VehiclesPage({ searchParams: Promise.resolve(searchParams) }));
 const detailPage = async (id: string) => renderPage(await VehiclePage({ params: Promise.resolve({ id }) }));
@@ -52,8 +47,8 @@ const spaced = (rows: string[][]) => rows.map((row) => row.map((cell) => cell.re
 test('the list shows each vehicle with its VIN, ŠPZ, značka, model and owner, and the VIN leads to its detail', async () => {
   const novak = await person('Ján Novák');
   const kovac = await person('Peter Kováč');
-  const golf = await vehicleWith(novak, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' });
-  await vehicleWith(kovac, { vin: 'VF1ZZZ5JZ3W000003', make: 'Renault', model: 'Clio' });
+  const golf = await vehicleOf(novak, { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' });
+  await vehicleOf(kovac, { vin: 'VF1ZZZ5JZ3W000003', licensePlate: '', make: 'Renault', model: 'Clio' });
 
   const html = await listPage();
 
@@ -89,8 +84,8 @@ test('the search is a form that sends what is typed as ?q= to the list, in a fie
 async function pagerVehicles() {
   const owner = await person('Pager Majiteľ');
   const vins = Array.from({ length: 26 }, (_, i) => `WVWZZZ1JZ3W3867${String(i + 1).padStart(2, '0')}`);
-  for (const each of vins) await vehicleWith(owner, { vin: each });
-  await vehicleWith(await person('Iný majiteľ'), { vin: 'WVWZZZ1JZ3W386799' });
+  for (const each of vins) await vehicleOf(owner, { vin: each });
+  await vehicleOf(await person('Iný majiteľ'), { vin: 'WVWZZZ1JZ3W386799' });
   return [...vins].reverse();
 }
 const vinsOf = (html: string) => rowsOf(html).map(([each]) => each);
@@ -128,7 +123,7 @@ test('the pages of the list without a search are addressed by ?strana= alone', a
 
 test('the detail shows the vehicle as a heading and every field it has, with its owner, and opens the Prepis, the edit and a new Zákazka', async () => {
   const ownerId = await person('Ján Novák');
-  const id = await vehicleWith(ownerId, {
+  const id = await vehicleOf(ownerId, {
     vin: 'WVWZZZ1JZ3W386752',
     licensePlate: 'ba-123 ab',
     make: 'Volkswagen',
@@ -159,7 +154,7 @@ test('the detail shows the vehicle as a heading and every field it has, with its
 
 test('the detail of a vehicle with only what it must have shows no field that is empty, and 0 km is a stav km', async () => {
   const only = await vehicleOf(await person('Ján Novák'));
-  const driven = await vehicleWith(await person('Peter Kováč'), { vin: 'TMBZZZ5JZ3W000002', mileageKm: '0' });
+  const driven = await vehicleOf(await person('Peter Kováč'), { vin: 'TMBZZZ5JZ3W000002', mileageKm: '0' });
 
   expect(detailsOf(await detailPage(only)).map(([label]) => label)).toEqual(['VIN', 'ŠPZ', 'Majiteľ']);
   expect(detailsOf(await detailPage(driven))).toContainEqual(['Stav km', '0 km']);
@@ -206,7 +201,7 @@ test('the form of a new vehicle for an owner who was picked names him as the Maj
 
 test('the form that edits a vehicle starts from every field it has saved, names its Majiteľ without letting him be changed, and names the vehicle it saves', async () => {
   const ownerId = await person('Ján Novák');
-  const id = await vehicleWith(ownerId, {
+  const id = await vehicleOf(ownerId, {
     vin: 'WVWZZZ1JZ3W386752',
     licensePlate: 'ba-123 ab',
     make: 'Volkswagen',
@@ -237,7 +232,7 @@ test('the form that edits a vehicle starts from every field it has saved, names 
 });
 
 test('the form that edits a vehicle without a ŠPZ, a year or a note starts with those empty, not with "null"', async () => {
-  const html = await editPage(await vehicleWith(await person('Ján Novák'), {}));
+  const html = await editPage(await vehicleOf(await person('Ján Novák'), { licensePlate: '' }));
 
   expect(html).not.toMatch(/value="null"|>null</);
   expect(valueOf(html, 'licensePlate')).toBe('');

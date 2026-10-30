@@ -2,14 +2,10 @@ import { afterAll, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import CustomerPage from '../src/app/(app)/zakaznici/[id]/page.tsx';
 import EditCustomerPage from '../src/app/(app)/zakaznici/[id]/upravit/page.tsx';
 import CustomersPage from '../src/app/(app)/zakaznici/page.tsx';
-import { createCustomer } from '../src/dal/customers.ts';
-import { createWorkOrder } from '../src/dal/work-orders.ts';
 import type { Database } from '../src/db/index.ts';
 import { savedIn, vin } from './support/customer-vehicle.ts';
-import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { input, valueOf } from './support/form-markup.ts';
-import { idOf } from './support/id-of.ts';
 import { detailsOf, hrefOf, linksIn, rowsOf } from './support/page-markup.ts';
 import { renderPage } from './support/render-page.ts';
 import { truncateTables } from './support/reset.ts';
@@ -37,14 +33,7 @@ beforeEach(async () => {
   await truncateTables(ctx.db, 'customer');
 });
 
-const { person, vehicleOf } = savedIn(() => ctx.db);
-const company = async (name: string, ico: string, more: Partial<Parameters<typeof createCustomer>[1]> = {}) =>
-  idOf(await createCustomer(admin, { type: 'company', name, ico, ...more }, ctx.db));
-const orderOn = async (vehicleId: string, customerId?: string) => {
-  const created = await createWorkOrder(admin, { vehicleId, customerId, mileageKm: '1000', customerRequest: 'Výmena oleja' }, ctx.db);
-  if (!created.ok) throw new Error('The record was expected to be saved.');
-  return { id: created.id, number: created.number };
-};
+const { person, company, vehicleOf, orderOn } = savedIn(() => ctx.db);
 
 const listPage = async (searchParams: { q?: string; strana?: string } = {}) => renderPage(await CustomersPage({ searchParams: Promise.resolve(searchParams) }));
 const detailPage = async (id: string) => renderPage(await CustomerPage({ params: Promise.resolve({ id }) }));

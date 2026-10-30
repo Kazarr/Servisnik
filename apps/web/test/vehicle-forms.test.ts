@@ -6,9 +6,10 @@ import { VehicleForm } from '../src/app/(app)/vozidla/vehicle-form.tsx';
 import { createCustomer } from '../src/dal/customers.ts';
 import { createVehicle, getVehicle, searchVehicles } from '../src/dal/vehicles.ts';
 import type { Database } from '../src/db/index.ts';
+import { answered } from './support/action-state.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
-import { digestOf } from './support/digest-of.ts';
+import { ledTo } from './support/digest-of.ts';
 import { form } from './support/form-data.ts';
 import { reasonOf, valueOf } from './support/form-markup.ts';
 import { idOf } from './support/id-of.ts';
@@ -18,15 +19,15 @@ import { truncateTables } from './support/reset.ts';
 // Zákazníci a vozidlá (spec #67), the form of a Vozidlo: what the Server Actions answer when it is sent, and what the form shows of
 // the answer. The actions are called as the admin's forms call them, over the real DAL and the database of this file, and the form
 // is drawn from the answer they gave. useActionState holds that answer in the browser, and renderToStaticMarkup does not run it, so
-// the hook is handed it (test/delete-form.test.ts does the same). Who may send the form is in forbidden.test.ts and
+// the hook is handed it (support/action-state.ts). Who may send the form is in forbidden.test.ts and
 // forms-without-session.test.ts, the pages that open it in vehicle-pages.test.ts.
 
-const { handed, answered } = vi.hoisted(() => ({ handed: { db: null as unknown as Database }, answered: { state: null as unknown } }));
+const { handed } = vi.hoisted(() => ({ handed: { db: null as unknown as Database } }));
 vi.mock('../src/dal/current-user.ts', async () => ({ currentUser: async () => (await import('./support/dal-users.ts')).admin }));
 vi.mock('../src/db/index.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../src/db/index.ts')>()), getDb: () => handed.db }));
 vi.mock('react', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react')>()),
-  useActionState: (action: unknown, initial: unknown) => [answered.state ?? initial, action, false],
+  useActionState: (await import('./support/action-state.ts')).useActionState,
 }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
@@ -60,13 +61,6 @@ function drawnEdit(state: VehicleFormState, id: string) {
 }
 
 const vehicles = async () => (await searchVehicles(admin, {}, ctx.db)).vehicles;
-
-/** The id in the address of the page that a saved form leads to: the detail of the Majiteľ, or of the Vozidlo; fails right there when it leads anywhere else. */
-async function ledTo(call: Promise<unknown>, path: 'zakaznici' | 'vozidla') {
-  const id = new RegExp(`^NEXT_REDIRECT;[^;]*;/${path}/([0-9a-f-]{36});`).exec((await digestOf(call)) ?? '')?.[1];
-  if (!id) throw new Error(`The form was expected to lead to a page of ${path}.`);
-  return id;
-}
 
 const advice = 'VIN nemá písmená I, O ani Q: namiesto I patrí 1, namiesto O a Q patrí 0';
 
