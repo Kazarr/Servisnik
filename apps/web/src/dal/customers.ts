@@ -72,10 +72,10 @@ export async function updateCustomer(
   }
 }
 
-/** Every Zákazník, newest first. */
+/** Every Zákazník, newest first; the id breaks the tie of two saved in the same instant. */
 export async function listCustomers(user: User | null, db: Database = getDb()) {
   assertCan(user, 'customers.read');
-  return db.select().from(customer).orderBy(desc(customer.createdAt));
+  return db.select().from(customer).orderBy(desc(customer.createdAt), customer.id);
 }
 
 /**
@@ -120,13 +120,13 @@ export async function searchCustomers(
   return { customers, page: current, pageCount, total };
 }
 
-/** One Zákazník with the Vozidlá they own (newest first), or null when there is none with this id. */
+/** One Zákazník with the Vozidlá they own (newest first, the id breaking a tie), or null when there is none with this id. */
 export async function getCustomer(user: User | null, id: string, db: Database = getDb()) {
   assertCan(user, 'customers.read');
   if (!isUuid(id)) return null;
   const [found] = await db.select().from(customer).where(eq(customer.id, id));
   if (!found) return null;
-  const vehicles = await db.select().from(vehicle).where(eq(vehicle.ownerId, id)).orderBy(desc(vehicle.createdAt));
+  const vehicles = await db.select().from(vehicle).where(eq(vehicle.ownerId, id)).orderBy(desc(vehicle.createdAt), vehicle.id);
   return { ...found, vehicles };
 }
 
