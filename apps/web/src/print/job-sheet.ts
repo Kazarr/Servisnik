@@ -1,8 +1,6 @@
-import type { Letterhead } from '@servisnik/domain/print';
-import type { WorkshopDetails } from '@servisnik/domain/workshop';
-import type { Logo } from '../dal/logo.ts';
 import type { JobSheet } from '../dal/job-sheet.ts';
 import { formatDate, formatWhole } from '../format.ts';
+import type { PrintedInput } from '../print-response.ts';
 import { printedDocument } from './document.ts';
 import { html } from './html.ts';
 
@@ -17,13 +15,7 @@ export const jobSheetDocument = ({
   logo,
   letterhead,
   printedOn,
-}: {
-  sheet: JobSheet;
-  workshop: WorkshopDetails;
-  logo: Logo | null;
-  letterhead: Letterhead;
-  printedOn: string;
-}) =>
+}: Omit<PrintedInput<JobSheet>, 'data'> & { sheet: JobSheet }) =>
   printedDocument(
     { title: 'Zákazkový list', number: sheet.number, printedOn, workshop, logo, letterhead, customer: sheet.customer, vehicle: sheet.vehicle },
     html`

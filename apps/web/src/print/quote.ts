@@ -1,8 +1,6 @@
-import type { Letterhead } from '@servisnik/domain/print';
-import type { WorkshopDetails } from '@servisnik/domain/workshop';
-import type { Logo } from '../dal/logo.ts';
 import type { Quote } from '../dal/print-forms.ts';
 import { formatEuro, formatQuantity } from '../format.ts';
+import type { PrintedInput } from '../print-response.ts';
 import { printedDocument } from './document.ts';
 import { html } from './html.ts';
 
@@ -45,13 +43,7 @@ export const quoteDocument = ({
   logo,
   letterhead,
   printedOn,
-}: {
-  quote: Quote;
-  workshop: WorkshopDetails;
-  logo: Logo | null;
-  letterhead: Letterhead;
-  printedOn: string;
-}) =>
+}: Omit<PrintedInput<Quote>, 'data'> & { quote: Quote }) =>
   printedDocument(
     { title: 'Cenová ponuka', number: quote.number, printedOn, workshop, logo, letterhead, customer: quote.customer, vehicle: quote.vehicle },
     html`

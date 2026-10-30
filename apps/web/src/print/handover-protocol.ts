@@ -1,9 +1,7 @@
-import type { Letterhead } from '@servisnik/domain/print';
-import type { WorkshopDetails } from '@servisnik/domain/workshop';
-import type { Logo } from '../dal/logo.ts';
 import type { HandoverProtocol } from '../dal/print-forms.ts';
 import { formatDate, formatQuantity, formatWhole } from '../format.ts';
 import { itemKindLabels } from '../item-kind-labels.ts';
+import type { PrintedInput } from '../print-response.ts';
 import { printedDocument } from './document.ts';
 import { html } from './html.ts';
 
@@ -39,13 +37,7 @@ export const handoverProtocolDocument = ({
   logo,
   letterhead,
   printedOn,
-}: {
-  protocol: HandoverProtocol;
-  workshop: WorkshopDetails;
-  logo: Logo | null;
-  letterhead: Letterhead;
-  printedOn: string;
-}) =>
+}: Omit<PrintedInput<HandoverProtocol>, 'data'> & { protocol: HandoverProtocol }) =>
   printedDocument(
     { title: 'Odovzdávací protokol', number: protocol.number, printedOn, workshop, logo, letterhead, customer: protocol.customer, vehicle: protocol.vehicle },
     html`
