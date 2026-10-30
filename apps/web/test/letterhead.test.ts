@@ -3,8 +3,9 @@ import { createCustomer } from '../src/dal/customers.ts';
 import { removeLogo, saveLogo } from '../src/dal/logo.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
 import { getLetterhead, saveLetterhead } from '../src/dal/workshop.ts';
-import { createWorkOrder } from '../src/dal/work-orders.ts';
+import { changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.ts';
 import { workshop } from '../src/db/schema.ts';
+import { handoverProtocolResponse } from '../src/handover-protocol-response.ts';
 import { jobSheetResponse } from '../src/job-sheet-response.ts';
 import { quoteResponse } from '../src/quote-response.ts';
 import { admin, mechanic } from './support/dal-users.ts';
@@ -42,6 +43,11 @@ beforeEach(async () => {
 });
 
 const newWorkOrder = async () => idOf(await createWorkOrder(admin, { vehicleId, mileageKm: '12 345', customerRequest: 'Výmena oleja' }, ctx.db));
+/** The odovzdávací protokol is printed for a Zákazka that is Hotová. */
+const handedOver = async (id: string) => {
+  await changeWorkOrderStatus(admin, id, { to: 'done' }, ctx.db);
+  return id;
+};
 const firstPage = async (response: Response) => readPdf(new Uint8Array(await response.arrayBuffer()))[0]!;
 
 test('a new database prints with the white Hlavička', async () => {
@@ -70,6 +76,7 @@ test('the white Hlavička prints no bar and no gold line', async () => {
 test.each([
   ['the zákazkový list, which the mechanik prints too', (id: string) => jobSheetResponse(mechanic, id, ctx.db)],
   ['the cenová ponuka', (id: string) => quoteResponse(admin, id, ctx.db)],
+  ['the odovzdávací protokol', async (id: string) => handoverProtocolResponse(admin, await handedOver(id), ctx.db)],
 ])('with the black bar picked, %s prints the bar in the colour of the theme with white text and a gold line, and the details are still there', async (_form, print) => {
   await saveLetterhead(admin, 'blackBar', ctx.db);
   await saveLogo(admin, png, ctx.db);
