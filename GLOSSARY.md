@@ -251,7 +251,7 @@ Prihlásenie vystavovateľa s jedným vozidlom na Ročník: meno, telefón, e-ma
 _Avoid_: prihláška, vystavovateľ (to je osoba), vozidlo (to je Vozidlo)
 
 **Stav registrácie** (`RegistrationStatus`):
-Čo admin s Registráciou rozhodol: Nová (`new`, ešte nerozhodnutá), Schválená (`approved`) alebo Zamietnutá (`rejected`). Rozhodnutie sa dá zmeniť na opačné a počet Schválených nie je obmedzený.
+Čo admin s Registráciou rozhodol: Nová (`new`, ešte nerozhodnutá), Schválená (`approved`) alebo Zamietnutá (`rejected`). Rozhodnutie sa dá zmeniť na opačné. Počet Schválených Servisník zatiaľ neobmedzuje: je to predvolená voľba, kým zákazník neodpovie na otázku 24 z [#43](https://github.com/Kazarr/Servisnik/issues/43) (je počet vystavovateľov obmedzený?), a jeho odpoveď ju môže zmeniť.
 _Avoid_: status, potvrdená
 
 **Kategória** (`category`):
