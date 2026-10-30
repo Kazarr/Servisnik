@@ -6,7 +6,7 @@ import type { User } from './dal/user.ts';
 import { getWorkshopDetails, saveWorkshopDetails } from './dal/workshop.ts';
 import { addItem, changeWorkOrderStatus, createIntake } from './dal/work-orders.ts';
 import type { Database } from './db/index.ts';
-import { vehicle } from './db/schema.ts';
+import { vehicle, workOrder } from './db/schema.ts';
 
 // The demo environment (ticket #150): the autoservis of the customer the app is shown to, with Zákazky on premium and sports
 // cars to look at. `pnpm db:demo` runs it by hand against the database of the demo; no deploy and no `db:seed` does.
@@ -186,9 +186,13 @@ const demoOrders: DemoOrder[] = [
   },
 ];
 
+/** The Termín of a demo Zákazka for a run on the day of `now`: its days from that day, or none. */
+const deadlineOf = (order: DemoOrder, now: Date): string | null =>
+  order.deadlineInDays === undefined ? null : localDate(new Date(now.getTime() + order.deadlineInDays * 86_400_000));
+
 /** Saves one Zákazka of the demo, with its customer, vehicle and items, and takes it to its status. */
 async function makeOrder(db: Database, order: DemoOrder, now: Date) {
-  const deadline = order.deadlineInDays === undefined ? undefined : localDate(new Date(now.getTime() + order.deadlineInDays * 86_400_000));
+  const deadline = deadlineOf(order, now) ?? undefined;
   const intake = await createIntake(
     demo,
     {
@@ -216,8 +220,9 @@ async function makeOrder(db: Database, order: DemoOrder, now: Date) {
  * Fills Údaje autoservisu with the register's and puts the logo in when it has one, then makes the Zákazky that are not there yet.
  * It can run any number of times, and every run sets the name, the address, the IČO, the DIČ, the IČ DPH and the e-mail back to the
  * register's and replaces the logo, so what the admin typed in those fields is lost. What the register does not have (the phone, the
- * IBAN, the entry of the register) is kept as the admin typed it in Nastavenia. A Zákazka is told by the VIN of its vehicle, so one
- * that is there is left as it is.
+ * IBAN, the entry of the register) is kept as the admin typed it in Nastavenia. A Zákazka is told by the VIN of its vehicle: one that
+ * is not there is made, and one that is there is left as it is, except for its Termín, which every run sets from its own day, so the
+ * run belongs on the morning of the demo.
  *
  * ponytail: each Zákazka is made in several steps, not one transaction, so a run that dies in the middle of one leaves it
  * without some items; delete the demo data and run again. The demo is never anyone's real data.
@@ -233,9 +238,15 @@ export async function seedDemo(db: Database, { logo, now = new Date() }: { logo:
 
   let created = 0;
   for (const order of demoOrders) {
-    if ((await db.$count(vehicle, eq(vehicle.vin, order.vehicle.vin))) > 0) continue;
-    await makeOrder(db, order, now);
-    created += 1;
+    const [known] = await db.select({ id: vehicle.id }).from(vehicle).where(eq(vehicle.vin, order.vehicle.vin));
+    if (!known) {
+      await makeOrder(db, order, now);
+      created += 1;
+      continue;
+    }
+    // The Termín is days from the day of the run, so a Zákazka that an earlier run made is moved with it: written straight, as the
+    // header of a Zákazka that is Hotová cannot be edited (`updateWorkOrderHeader`).
+    await db.update(workOrder).set({ deadline: deadlineOf(order, now) }).where(eq(workOrder.vehicleId, known.id));
   }
   return { created, existing: demoOrders.length - created, phoneMissing: saved.details.phone === null, logoSaved };
 }
