@@ -12,8 +12,9 @@ test('the product is called Garage24Hub', () => {
   expect(productName).toBe('Garage24Hub');
 });
 
-test('the line "powered by" names the product, for the login page and the bottom of the menu', () => {
-  expect(renderToStaticMarkup(PoweredBy())).toBe('<p class="powered-by">powered by Garage24Hub</p>');
+// The line is English inside a page that says lang="sk", so a screen reader needs its language (WCAG 3.1.2).
+test('the line "powered by" names the product in English, for the login page and the bottom of the menu', () => {
+  expect(renderToStaticMarkup(PoweredBy())).toBe('<p class="powered-by" lang="en">powered by Garage24Hub</p>');
 });
 
 test('the icon of the app says G24 until there is a logo of the product', () => {
