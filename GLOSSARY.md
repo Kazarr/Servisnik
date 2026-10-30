@@ -235,3 +235,25 @@ _Avoid_: údaje firmy, firma (to je typ zákazníka)
 **Platiteľ DPH** (`vatPayerType`):
 Postavenie autoservisu voči DPH: platiteľ, neplatiteľ alebo registrovaný podľa §7. Hodnoty zodpovedajú KROS.
 _Avoid_: platca DPH
+
+### Jazda radosti
+
+**Jazda radosti** (`JoyRide`):
+Podujatie, ktoré autoservis organizuje na konci automobilovej sezóny: ľudia vystavia svoje autá a potom spolu absolvujú jazdu po okolí. Servisník v nej eviduje Ročník a jeho Registrácie, nie Zákazky ani Zákazníkov.
+_Avoid_: akcia, event
+
+**Ročník** (`edition`):
+Jedno konanie Jazdy radosti s názvom, dátumom, miestom a uzávierkou registrácií (deň a hodina, miestny čas). Servisník zatiaľ vedie jeden, ten s najneskorším dátumom, a admin ho upravuje. Uzávierku len eviduje, po nej Registráciu nezamieta.
+_Avoid_: akcia, podujatie (to je celá Jazda radosti), rok
+
+**Registrácia** (`registration`):
+Prihlásenie vystavovateľa s jedným vozidlom na Ročník: meno, telefón, e-mail, Značka vozidla, Model, ŠPZ (nepovinná), Kategória a poznámka. Vozidlo v nej nie je Vozidlo autoservisu (nemá VIN) a vystavovateľ nie je Zákazník.
+_Avoid_: prihláška, vystavovateľ (to je osoba), vozidlo (to je Vozidlo)
+
+**Stav registrácie** (`RegistrationStatus`):
+Čo admin s Registráciou rozhodol: Nová (`new`, ešte nerozhodnutá), Schválená (`approved`) alebo Zamietnutá (`rejected`). Rozhodnutie sa dá zmeniť na opačné. Počet Schválených Servisník zatiaľ neobmedzuje: je to predvolená voľba, kým zákazník neodpovie na otázku 24 z [#43](https://github.com/Kazarr/Servisnik/issues/43) (je počet vystavovateľov obmedzený?), a jeho odpoveď ju môže zmeniť.
+_Avoid_: status, potvrdená
+
+**Kategória** (`category`):
+Druh vozidla na Registrácii: superšport (`supersport`), zaujímavé auto (`interesting`), ťažká technika (`heavy`), veterán (`veteran`), motorka (`motorcycle`) alebo iné (`other`).
+_Avoid_: typ (to je osoba alebo firma)

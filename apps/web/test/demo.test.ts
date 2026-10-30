@@ -1,10 +1,11 @@
 import { rowMark } from '@servisnik/domain/work-order';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { getEdition, listRegistrations, saveEdition, setRegistrationStatus } from '../src/dal/joy-ride.ts';
 import { getLogo, saveLogo } from '../src/dal/logo.ts';
 import { getWorkshopDetails, saveWorkshopDetails } from '../src/dal/workshop.ts';
 import { listWorkOrders } from '../src/dal/work-orders.ts';
-import { customer, vehicle, workOrder, workOrderItem } from '../src/db/schema.ts';
+import { customer, joyRideEdition, vehicle, workOrder, workOrderItem } from '../src/db/schema.ts';
 import { demoLogoUrl, downloadLogo, seedDemo } from '../src/demo.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
@@ -235,4 +236,64 @@ test('after the demo data was deleted the next run makes it again', async () => 
 
   expect(await counts()).toEqual(before);
   expect(again.created).toBe(before.workOrders);
+});
+
+// The Jazda radosti of the demo (ticket #153): the Ročník 2026 and about 8 Registrácie. The repository is public, so every person, e-mail and phone is made up.
+
+const registrations = async () => (await listRegistrations(admin, {}, ctx.db)).registrations;
+
+test('the demo has the Ročník 2026: 10. 10. 2026 in Považská Bystrica, centrum, with the uzávierka the day before at 15:00', async () => {
+  await seedDemo(ctx.db, { logo: png, now });
+
+  expect(await getEdition(admin, ctx.db)).toMatchObject({ name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' });
+});
+
+test('the demo has 8 Registrácie in every Kategória and in every Stav, before the day of the Ročník', async () => {
+  const result = await seedDemo(ctx.db, { logo: png, now });
+
+  const { counts: byStatus, registrations: all } = await listRegistrations(admin, {}, ctx.db);
+  expect(all).toHaveLength(8);
+  expect(result).toMatchObject({ editionCreated: true, registrationsCreated: 8, registrationsExisting: 0 });
+  expect(byStatus).toEqual({ new: 3, approved: 4, rejected: 1 });
+  expect(new Set(all.map(({ category }) => category))).toEqual(new Set(['supersport', 'interesting', 'heavy', 'veteran', 'motorcycle', 'other']));
+  expect(new Set(all.map(({ createdOn }) => createdOn)).size).toBeGreaterThan(1); // not all on the day of the run
+  expect(all.every(({ createdOn }) => createdOn <= '2026-10-09')).toBe(true);
+});
+
+test('every exhibitor, e-mail, phone and ŠPZ is made up: an e-mail at example.com, a phone that cannot be real and a ŠPZ in the 9xx series of the demo', async () => {
+  await seedDemo(ctx.db, { logo: png, now });
+
+  const exhibitors = await registrations();
+  expect(exhibitors).toHaveLength(8); // not a loop over nothing
+  for (const { email, phone } of exhibitors) {
+    expect(email, email).toMatch(/^[a-z0-9.-]+@example\.com$/);
+    expect(phone, phone).toMatch(/^\+421 000 000 \d{3}$/); // after +421 no Slovak number begins with 0
+  }
+  const plates = exhibitors.flatMap(({ licensePlate }) => (licensePlate ? [licensePlate] : []));
+  expect(plates.length).toBeGreaterThan(0); // not a loop over nothing
+  for (const plate of plates) expect(plate, plate).toMatch(/^[A-Z]{2}9\d{2}[A-Z]{2}$/); // like the ŠPZ of the demo Zákazky: PB901AA
+});
+
+test('a second run makes no Registrácia and no Ročník again, and says what was there', async () => {
+  await seedDemo(ctx.db, { logo: png, now });
+
+  const second = await seedDemo(ctx.db, { logo: png, now });
+
+  expect(await registrations()).toHaveLength(8);
+  expect(await ctx.db.$count(joyRideEdition)).toBe(1);
+  expect(second).toMatchObject({ editionCreated: false, registrationsCreated: 0, registrationsExisting: 8 });
+});
+
+test('what the admin did in the Jazda radosti is left by the next run: a Registrácia he decided and the Ročník he edited', async () => {
+  await seedDemo(ctx.db, { logo: png, now });
+  const [aNew] = (await listRegistrations(admin, { status: 'new' }, ctx.db)).registrations;
+  await setRegistrationStatus(admin, aNew!.id, 'rejected', ctx.db);
+  await saveEdition(admin, { name: 'Jazda radosti 2026 (3. ročník)', date: '2026-10-17', place: 'Pri radnici', registrationDeadline: '2026-10-16T12:00' }, ctx.db);
+
+  const again = await seedDemo(ctx.db, { logo: png, now });
+
+  expect(again.editionCreated).toBe(false); // so the script can say it kept the Ročník, not that it set it
+  expect((await listRegistrations(admin, {}, ctx.db)).counts).toEqual({ new: 2, approved: 4, rejected: 2 });
+  expect(await ctx.db.$count(joyRideEdition)).toBe(1);
+  expect(await getEdition(admin, ctx.db)).toMatchObject({ name: 'Jazda radosti 2026 (3. ročník)', place: 'Pri radnici' });
 });

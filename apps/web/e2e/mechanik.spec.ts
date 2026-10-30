@@ -52,6 +52,10 @@ test('the mechanik signs in to Zákazky only, sees no amount in the list, and ev
     '/cennik',
     '/cennik/nova/diel',
     `/cennik/${randomUUID()}/upravit`,
+    '/jazda-radosti',
+    '/jazda-radosti/rocnik',
+    '/jazda-radosti/registracia/nova',
+    `/jazda-radosti/registracia/${randomUUID()}/upravit`,
     '/nastavenia',
   ];
   for (const path of elsewhere) {
