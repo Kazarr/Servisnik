@@ -40,7 +40,7 @@ test.each([
   expect(unstable_doesMiddlewareMatch({ config, url: `http://localhost:3000${path}` })).toBe(runs);
 });
 
-test('the proxy leaves /api/logo alone whatever the request carries, because the route answers 401 itself', () => {
+test('the proxy leaves /api/logo alone whatever the request carries, because the route says itself who may do what', () => {
   const headers = { cookie: 'better-auth.session_token=fake' };
 
   expect(unstable_doesMiddlewareMatch({ config, url: 'http://localhost:3000/api/logo?v=1', headers })).toBe(false);

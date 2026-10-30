@@ -27,7 +27,7 @@ const counts = async () => ({
   items: await ctx.db.$count(workOrderItem),
 });
 
-test('the details of the autoservis are the ones of the register, and the phone, which is not in it, is left out and said so', async () => {
+test('the details of the autoservis are the ones of the register, and the phone, which the public repository does not hold, is left to the admin and said so', async () => {
   const result = await seedDemo(ctx.db, { logo: png, now });
 
   expect(await getWorkshopDetails(admin, ctx.db)).toEqual({
