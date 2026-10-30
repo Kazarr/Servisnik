@@ -4,7 +4,8 @@ import { printError } from '../src/print-error.ts';
 import { seedAdmin } from '../src/seed.ts';
 
 // `pnpm db:seed`: when there is no admin, creates him from ADMIN_EMAIL and ADMIN_PASSWORD, or makes the user
-// with that e-mail an admin with that password; an existing admin is left as he is.
+// with that e-mail an active admin with that password and none of his old sessions; an existing admin is left as he
+// is, and when every admin is deactivated it fails (README.md, "Známe obmedzenia").
 try {
   const { DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD } = readEnv(process.env, ['DATABASE_URL', 'ADMIN_EMAIL', 'ADMIN_PASSWORD']);
   const db = createDb(DATABASE_URL);
