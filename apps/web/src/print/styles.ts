@@ -15,6 +15,9 @@ export const printTokens = `:root {
   --color-text-muted: #5a6677;
   --color-border: #d3d9e2;
   --color-surface: #f3f5f8;
+  --color-letterhead-bar: #050505;
+  --color-letterhead-text: #ffffff;
+  --color-letterhead-line: #e0a446;
   --font-family-print: Arial, 'Liberation Sans', Helvetica, sans-serif;
   --font-size-base: 1rem;
   --font-size-title: 1.5rem;
@@ -35,8 +38,8 @@ export const printTokens = `:root {
   --font-size-print: 10pt;
   --font-size-footer: 8pt;
   --page-margin-x: ${pageMargins.left};
-  --logo-print-width: 10rem;
-  --logo-print-height: 3.5rem;
+  --logo-print-width: 6rem;
+  --logo-print-height: 2.75rem;
   --write-line-width: 10rem;
   --signature-width: 16rem;
   --signature-space: 3rem;
@@ -77,16 +80,43 @@ dd {
   border-bottom: var(--border-width-strong) solid var(--color-text);
 }
 
+/*
+ * The two Hlavičky tlačív. The paper is white, and the logo of the autoservis is white on a black square, so on the
+ * white header it is inverted (black on white), and on the black bar the square takes the colour of the bar (screen
+ * leaves the lighter of the two, which is the white letters). The bar spans the text of the page: Chromium clips a
+ * page to its margins, so it cannot run to the edge of the paper. The thin line under it is gold.
+ */
+.letterhead-white .logo {
+  filter: invert(1);
+}
+
+.letterhead-black-bar {
+  padding: var(--space-3);
+  border-bottom-color: var(--color-letterhead-line);
+  background: var(--color-letterhead-bar);
+  color: var(--color-letterhead-text);
+}
+
+.letterhead-black-bar .logo {
+  mix-blend-mode: screen;
+}
+
+.letterhead-black-bar .facts dt {
+  color: var(--color-letterhead-text);
+}
+
 .workshop {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
 }
 
+/* A box of one size, filled by the logo and cut to it: the logo of the demo is a square with an empty margin, which "cover" takes off. */
 .logo {
   display: block;
-  max-width: var(--logo-print-width);
-  max-height: var(--logo-print-height);
+  width: var(--logo-print-width);
+  height: var(--logo-print-height);
+  object-fit: cover;
 }
 
 .workshop-details p {

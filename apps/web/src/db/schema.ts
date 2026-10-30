@@ -1,5 +1,6 @@
 import { roles } from '@servisnik/domain/access';
 import { customerTypes } from '@servisnik/domain/customer';
+import { defaultLetterhead, letterheads } from '@servisnik/domain/print';
 import type { LogoContentType } from '@servisnik/domain/settings';
 import { fuels } from '@servisnik/domain/vehicle';
 import { itemKinds, workOrderStatuses } from '@servisnik/domain/work-order';
@@ -205,12 +206,16 @@ export const workOrder = pgTable(
 /** Platiteľ DPH: a platiteľ, a neplatiteľ or a registrovaný podľa §7 (packages/domain/src/workshop). */
 export const vatPayerType = pgEnum('vat_payer_type', vatPayerTypes);
 
+/** Hlavička tlačív: white or a black bar (packages/domain/src/print). */
+export const letterhead = pgEnum('letterhead', letterheads);
+
 /**
  * Autoservis: the one row of values for the whole workshop (GLOSSARY: Nastavenia). The migration
  * creates it and nothing inserts another: the primary key is always 1. Other parts of Nastavenia add
  * their columns here. Here are the rates (packages/domain/src/settings): the VAT rates with the default
  * one, the hourly rate in cents without VAT (null when none) and the markup on parts in whole percent;
- * and Údaje autoservisu (packages/domain/src/workshop). Of these only the name is required, and it is
+ * and Údaje autoservisu (packages/domain/src/workshop), and the Hlavička tlačív, which starts white.
+ * Of the details only the name is required, and it is
  * empty until the admin first saves them, as the migration cannot know it; the platiteľ DPH starts as
  * a platiteľ, which the domain lets be saved only with an IČ DPH, so no check of the database says so.
  */
@@ -234,6 +239,7 @@ export const workshop = pgTable(
     phone: text('phone'),
     email: text('email'),
     commercialRegister: text('commercial_register'),
+    letterhead: letterhead('letterhead').notNull().default(defaultLetterhead),
     ...timestamps,
   },
   (table) => [

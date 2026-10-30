@@ -1,3 +1,4 @@
+import type { Letterhead } from '@servisnik/domain/print';
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import type { Logo } from '../dal/logo.ts';
 import type { HandoverProtocol } from '../dal/print-forms.ts';
@@ -36,15 +37,17 @@ export const handoverProtocolDocument = ({
   protocol,
   workshop,
   logo,
+  letterhead,
   printedOn,
 }: {
   protocol: HandoverProtocol;
   workshop: WorkshopDetails;
   logo: Logo | null;
+  letterhead: Letterhead;
   printedOn: string;
 }) =>
   printedDocument(
-    { title: 'Odovzdávací protokol', number: protocol.number, printedOn, workshop, logo, customer: protocol.customer, vehicle: protocol.vehicle },
+    { title: 'Odovzdávací protokol', number: protocol.number, printedOn, workshop, logo, letterhead, customer: protocol.customer, vehicle: protocol.vehicle },
     html`
 <section>
   <dl class="facts">

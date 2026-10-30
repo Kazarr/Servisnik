@@ -1,3 +1,4 @@
+import type { Letterhead } from '@servisnik/domain/print';
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import type { Logo } from '../dal/logo.ts';
 import type { JobSheet } from '../dal/job-sheet.ts';
@@ -10,9 +11,21 @@ import { html } from './html.ts';
  * kilometres, the Termín, the request of the customer and the line for his signature. It has no price.
  * A Zákazka without a Termín gets a line to write it on.
  */
-export const jobSheetDocument = ({ sheet, workshop, logo, printedOn }: { sheet: JobSheet; workshop: WorkshopDetails; logo: Logo | null; printedOn: string }) =>
+export const jobSheetDocument = ({
+  sheet,
+  workshop,
+  logo,
+  letterhead,
+  printedOn,
+}: {
+  sheet: JobSheet;
+  workshop: WorkshopDetails;
+  logo: Logo | null;
+  letterhead: Letterhead;
+  printedOn: string;
+}) =>
   printedDocument(
-    { title: 'Zákazkový list', number: sheet.number, printedOn, workshop, logo, customer: sheet.customer, vehicle: sheet.vehicle },
+    { title: 'Zákazkový list', number: sheet.number, printedOn, workshop, logo, letterhead, customer: sheet.customer, vehicle: sheet.vehicle },
     html`
 <section>
   <dl class="facts">

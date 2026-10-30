@@ -1,3 +1,4 @@
+import { parseLetterhead, type Letterhead } from '@servisnik/domain/print';
 import { parseWorkshopDetails, type VatPayerType, type WorkshopDetails, type WorkshopDetailsErrors, type WorkshopDetailsInput } from '@servisnik/domain/workshop';
 import { eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
@@ -39,6 +40,25 @@ export async function getVatPayerType(user: User | null, db: Database = getDb())
   assertCan(user, 'workshop.read');
   const [row] = await db.select({ vatPayerType: workshop.vatPayerType }).from(workshop).where(theWorkshop);
   return row!.vatPayerType;
+}
+
+/**
+ * The Hlavička tlačív the forms are printed with, for every signed-in user: the zákazkový list a mechanik prints has it
+ * too, and it holds no amount.
+ */
+export async function getLetterhead(user: User | null, db: Database = getDb()): Promise<Letterhead> {
+  assertCan(user, 'workshop.read');
+  const [row] = await db.select({ letterhead: workshop.letterhead }).from(workshop).where(theWorkshop);
+  return row!.letterhead;
+}
+
+/** Picks the Hlavička tlačív when `typed` is one of the two (packages/domain/src/print), and otherwise changes nothing. Only the admin may. */
+export async function saveLetterhead(user: User | null, typed: string, db: Database = getDb()): Promise<{ ok: true; letterhead: Letterhead } | { ok: false }> {
+  assertCan(user, 'settings.write');
+  const picked = parseLetterhead(typed);
+  if (!picked) return { ok: false };
+  await db.update(workshop).set({ letterhead: picked }).where(theWorkshop);
+  return { ok: true, letterhead: picked };
 }
 
 export type SaveWorkshopDetailsResult = { ok: true; details: WorkshopDetails } | { ok: false; errors: WorkshopDetailsErrors };

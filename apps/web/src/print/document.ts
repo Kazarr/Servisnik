@@ -1,3 +1,4 @@
+import type { Letterhead } from '@servisnik/domain/print';
 import type { WorkshopDetails } from '@servisnik/domain/workshop';
 import type { Logo } from '../dal/logo.ts';
 import type { FormHeader } from '../dal/form-header.ts';
@@ -16,7 +17,12 @@ export type DocumentFrame = FormHeader & {
   printedOn: string;
   workshop: WorkshopDetails;
   logo: Logo | null;
+  /** The Hlavička tlačív the admin picked: the header is white, or a black bar. */
+  letterhead: Letterhead;
 };
+
+/** The class that says which Hlavička a header is; documentCss (styles.ts) draws it. */
+const letterheadClasses: Record<Letterhead, string> = { white: 'letterhead letterhead-white', blackBar: 'letterhead letterhead-black-bar' };
 
 const joined = (parts: (string | null)[], separator: string) => parts.filter(Boolean).join(separator);
 
@@ -35,8 +41,8 @@ function workshopLines({ street, city, postalCode, ico, dic, icDph, phone, email
 /** The logo as part of the page, so that printing loads nothing from anywhere. */
 const logoImage = (logo: Logo) => html`<img class="logo" src="data:${logo.contentType};base64,${Buffer.from(logo.bytes).toString('base64')}" alt="">`;
 
-const letterhead = ({ title, number, printedOn, workshop, logo }: DocumentFrame) => html`
-<header class="letterhead">
+const letterheadOf = ({ title, number, printedOn, workshop, logo, letterhead }: DocumentFrame) => html`
+<header class="${letterheadClasses[letterhead]}">
   <div class="workshop">
     ${logo && logoImage(logo)}
     <div class="workshop-details">
@@ -80,7 +86,7 @@ export function printedDocument(frame: DocumentFrame, content: Html): string {
 <title>${frame.title} ${frame.number}</title>
 <style>${new Html(documentCss)}</style>
 </head><body>
-${letterhead(frame)}
+${letterheadOf(frame)}
 ${parties(frame)}
 <main>${content}</main>
 </body></html>`.text;
