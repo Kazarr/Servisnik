@@ -6,15 +6,16 @@ import { withDatabase } from './postgres.ts';
 
 /**
  * A fresh database with every migration applied, cloned from the template the global setup
- * prepared. Each test file takes its own, so files do not see each other's rows.
+ * prepared. Each test file takes its own, so files do not see each other's rows. A test of a migration asks for
+ * `{ migrated: false }`: an empty database, to which it applies the migrations itself.
  */
-export async function createTestDb(): Promise<{ db: Database; close: () => Promise<void> }> {
+export async function createTestDb({ migrated = true } = {}): Promise<{ db: Database; close: () => Promise<void> }> {
   const uri = inject('pgUri');
   const name = `t_${randomUUID().replaceAll('-', '')}`;
 
   const maintenance = new pg.Client({ connectionString: uri });
   await maintenance.connect();
-  await maintenance.query(`CREATE DATABASE ${name} TEMPLATE migrated`);
+  await maintenance.query(`CREATE DATABASE ${name}${migrated ? ' TEMPLATE migrated' : ''}`);
   await maintenance.end();
 
   const db = createDb(withDatabase(uri, name));
