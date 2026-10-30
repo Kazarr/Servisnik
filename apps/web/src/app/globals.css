@@ -168,7 +168,10 @@ table,
   height: var(--brand-logo-height);
 }
 
-.brand-name {
+/* The quiet lines: the name of the autoservis in the menu, the slogan under its logo on the login page, and the product under both. */
+.brand-name,
+.login-slogan,
+.powered-by {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-small);
@@ -229,14 +232,7 @@ table,
 
 /* The product under the logo of the autoservis: a quiet line at the bottom of the menu and under the login form. */
 .powered-by {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-small);
   text-align: center;
-}
-
-.login .powered-by {
-  margin-top: var(--space-4);
 }
 
 .content {
@@ -283,10 +279,11 @@ table,
 }
 
 .login-slogan {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-small);
   text-align: center;
+}
+
+.login .powered-by {
+  margin-top: var(--space-4);
 }
 
 .error {
