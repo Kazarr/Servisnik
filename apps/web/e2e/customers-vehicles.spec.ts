@@ -1,136 +1,90 @@
-import { addCustomer, endSessionBehindThePage, expect, fillVehicleForm, newIco, runTag, searchCustomers, signIn, test, vinOf } from './fixtures.ts';
+import {
+  addCustomer,
+  addVehicleAndOpen,
+  expect,
+  fillIntake,
+  newIco,
+  numberOnTheDetail,
+  runTag,
+  searchOwners,
+  searchVehicles,
+  signIn,
+  startWorkOrder,
+  test,
+  vinOf,
+} from './fixtures.ts';
 
-test('the admin adds a company and its vehicle, and a second vehicle with the same VIN is refused', async ({ page }) => {
-  test.slow(); // one long walk through the forms; under --repeat-each the workers share one server
-  // All specs share one database, and this one also runs repeated: the company and the VIN carry a tag.
+test('the admin finds a vehicle by the last 6 characters of its VIN and transfers it, and its Zákazka stays with the vehicle and with the customer it was made for', async ({
+  page,
+}) => {
+  test.slow(); // forms for two customers, a vehicle and a Zákazka, then the search and the Prepis; under --repeat-each the workers share one server
+  // All specs share one database, and this one also runs repeated: the customers and the VIN carry a tag.
   const tag = runTag();
-  const company = `Autodoprava Kováč ${tag} s.r.o.`;
-  const vin = vinOf(tag, 'WVWZZZ1JZ3W');
-  const ico = newIco();
-  await signIn(page);
-  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
-  await page.getByRole('link', { name: 'Pridať zákazníka' }).click();
-  await expect(page.locator('main h1')).toHaveText('Nový zákazník');
-
-  // The company fields belong to a company only.
-  for (const label of ['IČO', 'DIČ', 'IČ DPH']) await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
-  await page.getByLabel('Firma', { exact: true }).check();
-  for (const label of ['IČO', 'DIČ', 'IČ DPH']) await expect(page.getByLabel(label, { exact: true })).toBeVisible();
-
-  await page.getByLabel('Názov').fill(company);
-  await page.getByLabel('IČO', { exact: true }).fill(ico);
-  await page.getByLabel('DIČ', { exact: true }).fill('2020123456');
-  await page.getByLabel('IČ DPH', { exact: true }).fill('SK2020123456');
-  await page.getByLabel('Ulica').fill('Hlavná 1');
-  await page.getByLabel('Mesto').fill('Bratislava');
-  await page.getByLabel('PSČ').fill('81101');
-  await page.getByLabel('E-mail').fill('info@kovac.sk');
-  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
-
+  const [seller, buyer, vin] = [`Predávajúci ${tag}`, `Kupujúci ${tag}`, vinOf(tag, 'WVWZZZ1JZ3W')];
   const main = page.locator('main');
-  await expect(page).toHaveURL(/\/zakaznici\/[0-9a-f-]{36}$/);
-  await expect(main.locator('h1')).toHaveText(company);
-  for (const shown of [ico, '2020123456', 'SK2020123456', 'Hlavná 1', 'Bratislava', '81101', 'info@kovac.sk']) {
-    await expect(main).toContainText(shown);
-  }
-  const customerUrl = page.url();
-
-  // A VIN that is not one stays on the form, with the reason at the field and what was typed.
-  await main.getByRole('link', { name: 'Pridať vozidlo' }).click();
-  await expect(main.locator('h1')).toHaveText('Nové vozidlo');
-  await expect(main).toContainText(company);
-  const vinField = page.getByLabel('VIN');
-  await vinField.fill(vin.slice(0, 16));
-  await page.getByLabel('Značka').fill('Volkswagen');
-  await page.getByLabel('Model').fill('Golf');
-  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await expect(vinField).toHaveAccessibleDescription('VIN musí mať presne 17 znakov');
-  await expect(vinField).toHaveValue(vin.slice(0, 16));
-  await vinField.fill(`${vin.slice(0, 16)}O`);
-  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await expect(vinField).toHaveAccessibleDescription('VIN nemá písmená I, O ani Q: namiesto I patrí 1, namiesto O a Q patrí 0');
-
-  // Typed the way it is read off a document, it is saved in capitals without spaces and hyphens.
-  await vinField.fill(`${vin.slice(0, 3)} ${vin.slice(3, 9)}-${vin.slice(9)}`.toLowerCase());
-  await page.getByLabel('ŠPZ').fill('BA123AB');
-  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await expect(page).toHaveURL(customerUrl);
-  await expect(main.getByRole('row', { name: new RegExp(vin) })).toContainText('BA123AB');
-
-  // The same vehicle shows in Vozidlá with its owner and opens its detail.
-  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Vozidlá' }).click();
-  const row = main.getByRole('row', { name: new RegExp(vin) });
-  await expect(row).toContainText('BA123AB');
-  await expect(row).toContainText(company);
-  await row.getByRole('link', { name: vin }).click();
-  await expect(main.locator('h1')).toHaveText('Volkswagen Golf');
-  await expect(main).toContainText(vin);
-  await main.getByRole('link', { name: company }).click();
-  await expect(page).toHaveURL(customerUrl);
-
-  // A second vehicle with the same VIN is refused, however it is typed.
-  await fillVehicleForm(page, vin.toLowerCase());
-  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await expect(vinField).toHaveAccessibleDescription(`Vozidlo s týmto VIN už existuje: Volkswagen Golf, majiteľ ${company}`);
-  await expect(main.getByRole('alert').getByRole('link', { name: company })).toHaveAttribute('href', new URL(customerUrl).pathname);
-  await main.getByRole('alert').getByRole('link', { name: 'Volkswagen Golf' }).click();
-  await expect(main.locator('h1')).toHaveText('Volkswagen Golf');
-  await expect(main).toContainText(vin);
-  await page.goto(customerUrl);
-  await expect(main.getByRole('row', { name: new RegExp(vin) })).toHaveCount(1);
-  await expect(main).not.toContainText('Octavia');
-});
-
-test('the admin adds a person without company fields, and the list is alphabetical, not newest first', async ({ page }) => {
-  // All specs share one database, and this one also runs repeated: its customers carry a tag, and the list is searched for it.
-  // They are added in neither the order of the alphabet nor its reverse, so neither oldest first nor newest first passes.
-  const tag = runTag();
-  const [middle, last, first] = [`Bravo Osobová ${tag}`, `Zeta Osobová ${tag}`, `Alfa Osobová ${tag}`];
+  const heading = main.locator('h1');
   await signIn(page);
-  await addCustomer(page, middle);
-  await expect(page.locator('main')).not.toContainText('IČO');
-  await addCustomer(page, last);
-  await addCustomer(page, first);
+  await addCustomer(page, buyer);
+  const buyerUrl = page.url();
 
-  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Zákazníci' }).click();
-  await searchCustomers(page, tag);
-  await expect(page.locator('main').getByRole('link', { name: tag })).toHaveText([first, middle, last]);
-
-  await page.locator('main').getByRole('link', { name: first }).click();
-  await expect(page.locator('main h1')).toHaveText(first);
-});
-
-test('a customer form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
-  test.slow(); // two sign-ins and an ended session; under --repeat-each the workers share one server
-  const name = `Nemal by sa uložiť ${runTag()}`;
-  await signIn(page);
+  // The firma is added through the form, and what only a browser does with it is checked here: the fields of a firma are on the form
+  // while Firma is chosen and off it while Osoba is, and a save that is refused keeps the choice of Firma. What the form tells and saves
+  // is in test/customer-forms.test.ts.
   await page.goto('/zakaznici/novy');
-  await page.getByLabel('Názov').fill(name);
-  await endSessionBehindThePage(page, browser, baseURL);
-
-  // The proxy only sees a cookie, so only the Server Action itself can refuse.
+  const field = (label: string) => page.getByLabel(label, { exact: true });
+  await expect(field('IČO')).toHaveCount(0);
+  await field('Firma').check();
+  await page.getByLabel('Názov').fill(seller);
   await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(field('IČO')).toHaveAccessibleDescription('Vyplňte IČO firmy');
+  await expect(field('Firma')).toBeChecked();
+  await field('Osoba').check();
+  await expect(field('IČO')).toHaveCount(0);
+  await field('Firma').check();
+  await field('IČO').fill(newIco());
+  await page.getByRole('button', { name: 'Uložiť zákazníka' }).click();
+  await expect(heading).toHaveText(seller);
+  const sellerUrl = page.url();
+  await addVehicleAndOpen(page, vin, 'Volkswagen', 'Golf');
+  await startWorkOrder(page);
+  await fillIntake(page, '123 456', `Výmena oleja ${tag}`);
+  const number = await numberOnTheDetail(page);
 
-  await signIn(page);
-  await page.goto('/zakaznici');
-  await searchCustomers(page, name); // the list is paged, so the customer is looked for, not looked at
-  await expect(page.locator('main')).toContainText(`Nič sa nenašlo pre „${name}“.`);
-});
+  // The vehicle is found by the last 6 characters of its VIN, in small letters, as they are dictated.
+  await page.getByRole('navigation', { name: 'Hlavné menu' }).getByRole('link', { name: 'Vozidlá' }).click();
+  await expect(heading).toHaveText('Vozidlá');
+  await searchVehicles(page, vin.slice(-6).toLowerCase());
+  const found = main.locator('tbody tr');
+  await expect(found).toHaveCount(1);
+  await expect(found).toContainText(seller);
+  await found.getByRole('link', { name: vin }).click();
+  await expect(heading).toHaveText('Volkswagen Golf');
+  const vehicleUrl = page.url();
+  await expect(main.getByRole('link', { name: seller })).toBeVisible();
 
-test('a vehicle form submitted after the session ended is refused and saves nothing', async ({ page, browser, baseURL }) => {
-  test.slow(); // two sign-ins and an ended session; under --repeat-each the workers share one server
-  const tag = runTag();
-  const vin = vinOf(tag);
-  await signIn(page);
-  await addCustomer(page, `Majiteľ bez auta ${tag}`);
-  await fillVehicleForm(page, vin, 'Škoda', 'Fabia');
-  await endSessionBehindThePage(page, browser, baseURL);
+  // The new owner is searched for; the search finds both customers of this test by the tag and offers only the other one.
+  await main.getByRole('link', { name: 'Prepísať na iného zákazníka' }).click();
+  await expect(heading).toHaveText('Prepísať vozidlo');
+  await searchOwners(page, tag);
+  await expect(main.getByRole('link', { name: tag })).toHaveText([buyer]);
+  await main.getByRole('link', { name: buyer }).click();
+  await expect(main).toContainText(`z ${seller} na ${buyer}`);
+  await main.getByRole('button', { name: 'Potvrdiť prepis' }).click();
 
-  await page.getByRole('button', { name: 'Uložiť vozidlo' }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  // The vehicle has its new owner, and the Zákazka is still in its history, for the customer it was made for.
+  await expect(page).toHaveURL(vehicleUrl);
+  await expect(heading).toHaveText('Volkswagen Golf');
+  await expect(main.getByRole('link', { name: buyer })).toBeVisible();
+  await expect(main.getByRole('link', { name: seller })).toHaveCount(0);
+  await expect(main.getByRole('row', { name: new RegExp(number) }).getByRole('cell')).toHaveText([number, seller, 'Prijatá', '']); // the last cell is the Termín, which this Zákazka has none
 
-  await signIn(page);
-  await page.goto('/vozidla');
-  await expect(page.locator('main')).not.toContainText(vin);
+  // The old owner has no vehicle any more and keeps the Zákazka; the new one has the vehicle and not the Zákazka.
+  await page.goto(sellerUrl);
+  await expect(heading).toHaveText(seller);
+  await expect(main).toContainText('Zatiaľ žiadne vozidlo.');
+  await expect(main.getByRole('row', { name: new RegExp(number) })).toBeVisible();
+  await page.goto(buyerUrl);
+  await expect(heading).toHaveText(buyer);
+  await expect(main.getByRole('link', { name: vin })).toBeVisible();
+  await expect(main).not.toContainText(number);
 });

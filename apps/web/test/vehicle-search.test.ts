@@ -7,6 +7,7 @@ import { admin, mechanic } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { truncateTables } from './support/reset.ts';
+import { savedInOrder } from './support/saved-in-order.ts';
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 beforeAll(async () => {
@@ -156,7 +157,9 @@ test('a search that finds nobody gives an empty page', async () => {
 
 test('a blank search lists every vehicle, the newest first', async () => {
   const owner = await customer('Ján Novák');
-  for (const n of [1, 2, 3]) await add(owner, { vin: vinOf(n) });
+  const ids: string[] = [];
+  for (const n of [1, 2, 3]) ids.push(await add(owner, { vin: vinOf(n) }));
+  await savedInOrder(ctx.db, 'vehicle', ids);
 
   expect(await found('')).toEqual([vinOf(3), vinOf(2), vinOf(1)]);
   expect(await found('   ')).toEqual([vinOf(3), vinOf(2), vinOf(1)]);
@@ -166,7 +169,9 @@ test('a blank search lists every vehicle, the newest first', async () => {
 test('vehicles come 25 to a page, and no vehicle is on two pages or on none', async () => {
   const owner = await customer('Ján Novák');
   const vins = Array.from({ length: 60 }, (_, i) => vinOf(i + 1));
-  for (const vin of vins) await add(owner, { vin });
+  const ids: string[] = [];
+  for (const vin of vins) ids.push(await add(owner, { vin }));
+  await savedInOrder(ctx.db, 'vehicle', ids);
   const newestFirst = [...vins].reverse();
 
   const [one, two, three] = await Promise.all([1, 2, 3].map((page) => searchVehicles(admin, { page }, ctx.db)));
@@ -207,8 +212,10 @@ test('the pages of a search hold only what it finds', async () => {
   const novak = await customer('Ján Novák');
   const kovac = await customer('Peter Kováč');
   const novakVins = Array.from({ length: 30 }, (_, i) => vinOf(i + 1));
-  for (const vin of novakVins) await add(novak, { vin });
-  for (let i = 101; i <= 140; i++) await add(kovac, { vin: vinOf(i) });
+  const ids: string[] = [];
+  for (const vin of novakVins) ids.push(await add(novak, { vin }));
+  for (let i = 101; i <= 140; i++) ids.push(await add(kovac, { vin: vinOf(i) }));
+  await savedInOrder(ctx.db, 'vehicle', ids);
   const newestFirst = [...novakVins].reverse();
 
   const one = await searchVehicles(admin, { query: 'novak', page: 1 }, ctx.db);
