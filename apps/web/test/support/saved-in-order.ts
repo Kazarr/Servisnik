@@ -4,10 +4,10 @@ import type { Database } from '../../src/db/index.ts';
 /**
  * Gives the rows of `table` with these `ids` a `created_at` each, a second apart and the first id the oldest, whenever
  * they were saved. Rows saved one after another can get the same `created_at` (or a clock that stepped back under load
- * the wrong order), and then the order of a tie is not the order saved: `searchVehicles` breaks it by `id`, which is
- * random, `listWorkOrders` by `number`, and `listCustomers`, `listWorkOrdersOfVehicle` and `listWorkOrdersOfCustomer`
- * by nothing, so PostgreSQL returns a tie in no defined order. A test that expects "the newest first" or "in the order
- * saved" therefore says that order itself instead of trusting the clock (#159). Call it right after the saves, and
+ * the wrong order), and then the order of a tie is not the order saved: `searchVehicles`, `listCustomers` and the Vozidlá
+ * of a Zákazník break it by `id`, which is random, and `listWorkOrders`, `listWorkOrdersOfVehicle` and
+ * `listWorkOrdersOfCustomer` by `number` (#160). A test that expects "the newest first" or "in the order saved"
+ * therefore says that order itself instead of trusting the clock (#159). Call it right after the saves, and
  * expect the list in the order of `ids`, reversed for "the newest first".
  *
  * `ids` must be every row the list shows: the stamps start on 2026-01-01, before `now()`, so a listed row left out
