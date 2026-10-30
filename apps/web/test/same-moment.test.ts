@@ -82,8 +82,8 @@ test('the Zákazky of a Vozidlo and of a Zákazník saved at the same moment are
   const vehicleId = await vehicle(ownerId, 1);
   for (const _ of TWELVE) await workOrder(vehicleId);
   await savedAtTheSameMoment('work_order');
-  // The numbers are now a hash of the id: neither the order the rows were saved in nor its reverse (a plan may read the rows
-  // either way) is the order of the numbers, so a list that has no second key cannot match it by chance.
+  // The numbers are now a hash of the id: the order the rows were saved in or its reverse (a plan may read the rows either
+  // way) is the order of the numbers 2 times in 479 001 600, so a list that has no second key matches it by that chance only.
   await ctx.db.execute(sql`update work_order set number = 'Z2026-' || md5(id::text)`);
 
   const ofVehicle = (await listWorkOrdersOfVehicle(admin, vehicleId, ctx.db)).map((order) => order.number);
