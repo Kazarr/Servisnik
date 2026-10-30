@@ -13,6 +13,7 @@ import { and, count, desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from '../db/index.ts';
 import { joyRideEdition, joyRideRegistration } from '../db/schema.ts';
 import { assertCan, type User } from './user.ts';
+import { isUuid } from './uuid.ts';
 
 // The Jazda radosti is the admin's alone: every function here asks for `joy-ride.read` or `joy-ride.write`, which the mechanik does not have.
 // The section works with one Ročník, the current one: the latest by its day.
@@ -82,6 +83,9 @@ const registrationFields = {
   createdAt: joyRideRegistration.createdAt,
 };
 
+/** A row of `registrationFields` as the section has it: the day it was made instead of the instant. */
+const shown = <Row extends { createdAt: Date }>({ createdAt, ...registration }: Row) => ({ ...registration, createdOn: localDate(createdAt) });
+
 /**
  * Saves a Registrácia on the current Ročník as Nová, as typed in from an e-mail. The domain decides what is stored
  * (packages/domain/src/joy-ride); with no Ročník there is nothing to register on. `now` is the day it was made.
@@ -116,5 +120,35 @@ export async function listRegistrations(user: User | null, typedFilter: { catego
     .from(joyRideRegistration)
     .where(and(ofEdition, filter.category ? eq(joyRideRegistration.category, filter.category) : undefined, filter.status ? eq(joyRideRegistration.status, filter.status) : undefined))
     .orderBy(desc(joyRideRegistration.createdAt), desc(joyRideRegistration.id));
-  return { filter, counts, registrations: rows.map(({ createdAt, ...registration }) => ({ ...registration, createdOn: localDate(createdAt) })) };
+  return { filter, counts, registrations: rows.map(shown) };
+}
+
+/** One Registrácia, or null when there is none with this id. */
+export async function getRegistration(user: User | null, id: string, db: Database = getDb()) {
+  assertCan(user, 'joy-ride.read');
+  if (!isUuid(id)) return null;
+  const [found] = await db.select(registrationFields).from(joyRideRegistration).where(eq(joyRideRegistration.id, id));
+  return found ? shown(found) : null;
+}
+
+export type UpdateRegistrationResult = { ok: true } | { ok: false; errors: RegistrationErrors & { registration?: 'unknown' } };
+
+/** Replaces what the form of a Registrácia sends. Its Stav, its Ročník and its day stay as they are, so an edit after the approval is still approved. */
+export async function updateRegistration(user: User | null, id: string, input: RegistrationInput, db: Database = getDb()): Promise<UpdateRegistrationResult> {
+  assertCan(user, 'joy-ride.write');
+  if (!isUuid(id)) return { ok: false, errors: { registration: 'unknown' } };
+  const parsed = parseRegistration(input);
+  if (!parsed.ok) return parsed;
+  const saved = await db.update(joyRideRegistration).set(parsed.registration).where(eq(joyRideRegistration.id, id)).returning({ id: joyRideRegistration.id });
+  return saved.length > 0 ? { ok: true } : { ok: false, errors: { registration: 'unknown' } };
+}
+
+export type SetRegistrationStatusResult = { ok: true } | { ok: false; error: 'unknown' };
+
+/** Approves or rejects a Registrácia (or takes either back): the admin's decision, with one click, whatever the Stav was. */
+export async function setRegistrationStatus(user: User | null, id: string, status: RegistrationStatus, db: Database = getDb()): Promise<SetRegistrationStatusResult> {
+  assertCan(user, 'joy-ride.write');
+  if (!isUuid(id)) return { ok: false, error: 'unknown' };
+  const saved = await db.update(joyRideRegistration).set({ status }).where(eq(joyRideRegistration.id, id)).returning({ id: joyRideRegistration.id });
+  return saved.length > 0 ? { ok: true } : { ok: false, error: 'unknown' };
 }
