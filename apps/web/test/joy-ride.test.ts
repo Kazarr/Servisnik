@@ -1,8 +1,8 @@
-import type { EditionInput } from '@servisnik/domain/joy-ride';
+import type { EditionInput, RegistrationInput } from '@servisnik/domain/joy-ride';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
-import { getEdition, saveEdition } from '../src/dal/joy-ride.ts';
-import { joyRideEdition } from '../src/db/schema.ts';
+import { createRegistration, getEdition, listRegistrations, saveEdition } from '../src/dal/joy-ride.ts';
+import { joyRideEdition, joyRideRegistration } from '../src/db/schema.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
@@ -81,4 +81,115 @@ test('with two Ročníky in the database the current one is the one with the lat
     { name: 'Jazda radosti 2025', place: 'Považská Bystrica' },
     { name: 'Jazda radosti 2026', place: 'Pri radnici' },
   ]);
+});
+
+// Every person, e-mail and phone here is made up: the repository is public.
+const eva: RegistrationInput = {
+  name: 'Eva Vzorová',
+  phone: '+421 000 000 101',
+  email: 'eva.vzorova@example.com',
+  make: 'Škoda',
+  model: '110 R',
+  licensePlate: 'pb 123 ab',
+  category: 'veteran',
+  note: 'Príde s prívesom.',
+};
+const boris: RegistrationInput = { name: 'Boris Ukážkový', phone: '+421 000 000 102', email: 'boris.ukazkovy@example.com', make: 'Nissan', model: 'GT-R', category: 'supersport' };
+const cyril: RegistrationInput = { name: 'Cyril Skúšobný', phone: '+421 000 000 103', email: 'cyril.skusobny@example.com', make: 'Jawa', model: '350', category: 'motorcycle' };
+
+const register = async (input: RegistrationInput, now?: Date) => idOf(await createRegistration(admin, input, ctx.db, now));
+const namesOf = async (filter: { category?: string; status?: string } = {}) => (await listRegistrations(admin, filter, ctx.db)).registrations.map(({ name }) => name);
+
+test('a Registrácia needs a Ročník: with none the admin is told so, and nothing is saved', async () => {
+  expect(await createRegistration(admin, eva, ctx.db)).toEqual({ ok: false, errors: { edition: 'missing' } });
+
+  expect(await ctx.db.$count(joyRideRegistration)).toBe(0);
+});
+
+test('a Registrácia is saved on the current Ročník as Nová, with the day it was made in Bratislava, and listed with all it holds', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+
+  // Half past midnight in Bratislava on 31. 10. is still the 30th in UTC.
+  const id = await register(eva, new Date('2026-10-30T23:30:00Z'));
+
+  expect(await listRegistrations(admin, {}, ctx.db)).toEqual({
+    filter: { category: null, status: null },
+    counts: { new: 1, approved: 0, rejected: 0 },
+    registrations: [
+      {
+        id,
+        name: 'Eva Vzorová',
+        phone: '+421 000 000 101',
+        email: 'eva.vzorova@example.com',
+        make: 'Škoda',
+        model: '110 R',
+        licensePlate: 'PB123AB',
+        category: 'veteran',
+        note: 'Príde s prívesom.',
+        status: 'new',
+        createdOn: '2026-10-31',
+      },
+    ],
+  });
+});
+
+test('a Registrácia the domain refuses is not saved, and each reason comes back', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+
+  const refused = await createRegistration(admin, { ...eva, name: ' ', email: 'eva', category: 'sedan' }, ctx.db);
+
+  expect(refused).toEqual({ ok: false, errors: { name: 'required', email: 'format', category: 'required' } });
+  expect(await ctx.db.$count(joyRideRegistration)).toBe(0);
+});
+
+test('the list is the newest Registrácia first', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  await register(eva, new Date('2026-10-01T08:00:00Z'));
+  await register(cyril, new Date('2026-10-03T08:00:00Z'));
+  await register(boris, new Date('2026-10-02T08:00:00Z'));
+
+  expect(await namesOf()).toEqual(['Cyril Skúšobný', 'Boris Ukážkový', 'Eva Vzorová']);
+});
+
+test('the list has only the Registrácie of the current Ročník, and so do the counts', async () => {
+  await ctx.db.insert(joyRideEdition).values({ name: 'Jazda radosti 2025', date: '2025-10-18', place: 'Považská Bystrica', registrationDeadline: '2025-10-17 15:00' });
+  await register(eva); // the only Ročník there is, 2025, is the current one
+  await ctx.db.insert(joyRideEdition).values({ name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica', registrationDeadline: '2026-10-09 15:00' });
+
+  expect(await namesOf()).toEqual([]);
+  expect((await listRegistrations(admin, {}, ctx.db)).counts).toEqual({ new: 0, approved: 0, rejected: 0 });
+  await register(boris);
+  expect(await namesOf()).toEqual(['Boris Ukážkový']);
+});
+
+test('the list is empty and the counts are zero while there is no Ročník', async () => {
+  expect(await listRegistrations(admin, {}, ctx.db)).toEqual({
+    filter: { category: null, status: null },
+    counts: { new: 0, approved: 0, rejected: 0 },
+    registrations: [],
+  });
+});
+
+test('the list is filtered by Kategória and by Stav, and by both; the counts stay those of the whole Ročník', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  const evaId = await register(eva, new Date('2026-10-01T08:00:00Z'));
+  await register(boris, new Date('2026-10-02T08:00:00Z'));
+  await register({ ...cyril, category: 'veteran' }, new Date('2026-10-03T08:00:00Z'));
+  await ctx.db.execute(sql`update joy_ride_registration set status = 'approved' where id = ${evaId}`);
+
+  expect(await namesOf({ category: 'veteran' })).toEqual(['Cyril Skúšobný', 'Eva Vzorová']);
+  expect(await namesOf({ status: 'new' })).toEqual(['Cyril Skúšobný', 'Boris Ukážkový']);
+  expect(await namesOf({ category: 'veteran', status: 'approved' })).toEqual(['Eva Vzorová']);
+  expect(await namesOf({ category: 'motorcycle' })).toEqual([]);
+  const filtered = await listRegistrations(admin, { category: 'veteran', status: 'approved' }, ctx.db);
+  expect(filtered.filter).toEqual({ category: 'veteran', status: 'approved' });
+  expect(filtered.counts).toEqual({ new: 2, approved: 1, rejected: 0 });
+});
+
+test('a filter that names no Kategória or Stav shows the whole list', async () => {
+  await saveEdition(admin, edition2026, ctx.db);
+  await register(eva, new Date('2026-10-01T08:00:00Z'));
+  await register(boris, new Date('2026-10-02T08:00:00Z'));
+
+  expect(await namesOf({ category: 'sedan', status: 'maybe' })).toEqual(['Boris Ukážkový', 'Eva Vzorová']);
 });

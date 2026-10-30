@@ -29,6 +29,7 @@ import {
   account,
   customer,
   joyRideEdition,
+  joyRideRegistration,
   priceListItem,
   user as userTable,
   vehicle,
@@ -116,6 +117,9 @@ const calls: Record<string, Call> = {
   getEdition: (user, db) => joyRide.getEdition(user, db),
   saveEdition: (user, db) =>
     joyRide.saveEdition(user, { name: 'Jazda radosti 2026', date: '2026-10-10', place: 'Považská Bystrica, centrum', registrationDeadline: '2026-10-09T15:00' }, db),
+  createRegistration: (user, db) =>
+    joyRide.createRegistration(user, { name: 'Eva Vzorová', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, db),
+  listRegistrations: (user, db) => joyRide.listRegistrations(user, { category: 'veteran', status: 'new' }, db),
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
@@ -228,6 +232,7 @@ const everything = async () => ({
   items: await ctx.db.select().from(workOrderItem),
   priceListItems: await ctx.db.select().from(priceListItem),
   joyRideEditions: await ctx.db.select().from(joyRideEdition),
+  joyRideRegistrations: await ctx.db.select().from(joyRideRegistration),
   counters: await ctx.db.select().from(workOrderCounter),
   workshop: await ctx.db.select().from(workshop),
   workshopLogo: await ctx.db.select().from(workshopLogo),
