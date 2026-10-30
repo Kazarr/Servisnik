@@ -37,6 +37,7 @@ description: Lessons for environments, CI, deploys and unattended agent runs. Us
 - Registry retention protects the live tag by name (read from the platform, not "newest N") and also runs after a failed deploy once the push succeeded. Why: retention that ran only after a successful deploy let a streak of failed first-setup deploys fill the 500 MiB registry, so the push that would trigger cleanup failed. Source: Servisnik#89.
 - Verify a managed database's TLS chain with the CA the provider binds (DigitalOcean `${db.CA_CERT}`) instead of turning verification off. Why: the first deploy spec used `uselibpqcompat=true`, which keeps TLS but trusts any certificate. Source: Servisnik#83.
 - In an image that runs TypeScript with Node's type stripping, install the filtered workspace (`pnpm install --prod --filter "<app>..."`) instead of `pnpm deploy`, and re-run the image's scripts after every new workspace dependency. Why: `pnpm deploy` copied `@servisnik/domain` into `node_modules`, where Node refuses to strip types, so migrate and seed in the image failed while the app itself still started. Source: Servisnik#83.
+- When a change stops a seed, deploy step or env variable from resetting a credential, document the replacement break-glass in the same PR. Why: the deploy seed stopped resetting the admin password, and that reset was the only way back in for a sole admin who forgot it. Source: Servisnik#140.
 
 ## Agent guardrails
 

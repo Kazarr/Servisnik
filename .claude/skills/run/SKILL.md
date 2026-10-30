@@ -19,7 +19,7 @@ Read `.claude/skills/implement-spec/SKILL.md` and follow it over the ready ticke
 
 - Implementer subagents are the `implementer` agent. Each reports in ten lines or fewer.
 - Start an implementer only while the host carries it: CPU under about 80 % (a project hook may enforce it). Max concurrency is what the machine runs without timeouts, not the size of the frontier.
-- **Per-ticket review**: before merging a ticket, run `code-review` on its branch against the integration branch. Blockers get one fix round. Every other finding becomes a ticket or a lesson. This replaces implement-spec's single final review.
+- **Per-ticket review**: before merging a ticket, run `code-review` on its branch against the integration branch. Blockers get one fix round. Every other finding becomes a ticket or a lesson; file the ticket after the fix round merges, against the merged code, since a blocker fix can rewrite the code a finding names (Servisnik#136). This replaces implement-spec's single final review.
 - After each review, call the `lesson` skill once for the findings worth keeping.
 - **Park, don't guess**: a ticket that hits a business question, or overruns its budget (two fix rounds, or about 90 minutes), is parked. Comment the question or reason on the ticket, label it `needs-info`, write a ledger line, take the next ticket.
 - When the frontier is empty, run the **batch tier** of verify once on the integration branch. When it is red, one `implementer` fixes it and the batch tier runs once more. Still red: park the cause and report it.
