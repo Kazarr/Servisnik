@@ -6,6 +6,7 @@ import { blockedByLink, violates } from './constraint.ts';
 import { contains, pageWindow } from './paging.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
+import { newestVehiclesFirst } from './vehicle-order.ts';
 
 /** What the domain finds wrong, or an IČO that another Firma already has. */
 export type CustomerSaveErrors = Omit<CustomerErrors, 'ico'> & { ico?: NonNullable<CustomerErrors['ico']> | 'taken' };
@@ -126,7 +127,7 @@ export async function getCustomer(user: User | null, id: string, db: Database = 
   if (!isUuid(id)) return null;
   const [found] = await db.select().from(customer).where(eq(customer.id, id));
   if (!found) return null;
-  const vehicles = await db.select().from(vehicle).where(eq(vehicle.ownerId, id)).orderBy(desc(vehicle.createdAt), vehicle.id);
+  const vehicles = await db.select().from(vehicle).where(eq(vehicle.ownerId, id)).orderBy(...newestVehiclesFirst);
   return { ...found, vehicles };
 }
 

@@ -1,12 +1,13 @@
 import { parseVehicle, parseVehicleSearch, type VehicleErrors, type VehicleInput, type VinError } from '@servisnik/domain/vehicle';
 import { localYear } from '@servisnik/domain/work-order';
-import { and, count, desc, eq, or } from 'drizzle-orm';
+import { and, count, eq, or } from 'drizzle-orm';
 import { getDb, type Database, type Executor } from '../db/index.ts';
 import { customer, vehicle } from '../db/schema.ts';
 import { blockedByLink, violates } from './constraint.ts';
 import { contains, pageWindow } from './paging.ts';
 import { assertCan, type User } from './user.ts';
 import { isUuid } from './uuid.ts';
+import { newestVehiclesFirst } from './vehicle-order.ts';
 
 /** What the domain finds wrong, or a VIN that another Vozidlo already has. */
 export type VehicleSaveErrors = Omit<VehicleErrors, 'vin'> & { vin?: VinError | 'taken' };
@@ -154,8 +155,7 @@ export async function searchVehicles(user: User | null, { query = '', page = 1 }
   const [counted] = await db.select({ total: count() }).from(vehicle).innerJoin(customer, eq(vehicle.ownerId, customer.id)).where(matching);
   const total = counted!.total;
   const { page: current, pageCount, limit, offset } = pageWindow(total, page);
-  // The id settles the order of Vozidlá saved at the same moment, so no Vozidlo is on two pages or on none.
-  const vehicles = await vehiclesWithOwner(db).where(matching).orderBy(desc(vehicle.createdAt), vehicle.id).limit(limit).offset(offset);
+  const vehicles = await vehiclesWithOwner(db).where(matching).orderBy(...newestVehiclesFirst).limit(limit).offset(offset);
   return { vehicles, page: current, pageCount, total };
 }
 
