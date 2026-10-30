@@ -23,9 +23,9 @@ export function LetterheadForm({ initial }: { initial: Letterhead }) {
           </option>
         ))}
       </SelectField>
-      {state?.saved && <p role="status">Tlačivá sú uložené.</p>}
+      {state?.saved && <p role="status">Hlavička tlačív je uložená.</p>}
       <button type="submit" disabled={pending}>
-        Uložiť tlačivá
+        Uložiť hlavičku tlačív
       </button>
     </form>
   );
