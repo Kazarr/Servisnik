@@ -206,6 +206,10 @@ _Avoid_: kalkulácia, rozpočet
 Tlačivo pri odovzdaní vozidla so zoznamom vykonaných prác a dielov, ktoré podpíše zákazník aj autoservis. Tlačí sa len v stave Hotová alebo Vyfakturovaná.
 _Avoid_: preberací protokol, dodací list
 
+**Hlavička tlačív** (`Letterhead`):
+Vrch každého tlačiva: logo a Údaje autoservisu, číslo zákazky a deň tlače. Je Biela (`white`), alebo Čierny pruh (`blackBar`), a admin ju v Nastaveniach volí naraz pre všetky tlačivá.
+_Avoid_: záhlavie, hlavička zákazky (to je iný pojem)
+
 **Import šablóna** (`ImportTemplate`):
 Uložené priradenie stĺpcov súboru k údajom dielu, napríklad pre export z Partslinku.
 _Avoid_: mapovanie, profil importu
@@ -221,7 +225,7 @@ Jedna vec, ktorú rola smie robiť, napríklad zobraziť zoznam zákaziek. `admi
 _Avoid_: oprávnenie, právo, permission
 
 **Nastavenia** (`Settings`):
-Hodnoty pre celý autoservis, ktoré mení len admin: údaje autoservisu, logo, sadzby DPH, hodinová sadzba, prirážka na diely, používatelia a prepojenie s KROS.
+Hodnoty pre celý autoservis, ktoré mení len admin: údaje autoservisu, logo, hlavička tlačív, sadzby DPH, hodinová sadzba, prirážka na diely, používatelia a prepojenie s KROS.
 _Avoid_: konfigurácia, predvoľby
 
 **Údaje autoservisu** (`WorkshopDetails`):
