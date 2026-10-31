@@ -31,13 +31,14 @@ test('Zákazky that exist before the migration keep all they had and have no kil
     insert into work_order (number, customer_id, vehicle_id, mileage_km, customer_request, status, completed_on, deadline, note)
     values ('Z2026-0001', ${customer!.id}, ${vehicle!.id}, 123456, 'Výmena oleja', 'done', '2026-10-20', '2026-10-21', 'Interná poznámka')`);
 
+  const row = async () => (await ctx.db.execute<{ row: Record<string, unknown> }>(sql`select to_jsonb(work_order) as row from work_order`)).rows.map(({ row }) => row);
+  const existing = await row(); // every column the Zákazka has before: its id, customer, vehicle and both timestamps too
+  expect(existing).toHaveLength(1);
+
   await migrateDatabase(ctx.db);
 
-  const { rows } = await ctx.db.execute(sql`select number, mileage_km, customer_request, status, completed_on::text, deadline::text, note, handover_mileage_km from work_order`);
-  expect(rows).toEqual([
-    { number: 'Z2026-0001', mileage_km: 123456, customer_request: 'Výmena oleja', status: 'done', completed_on: '2026-10-20', deadline: '2026-10-21', note: 'Interná poznámka', handover_mileage_km: null },
-  ]);
+  expect(await row()).toEqual([{ ...existing[0], handover_mileage_km: null }]);
   await ctx.db.execute(sql`update work_order set handover_mileage_km = 123600`);
   expect((await ctx.db.execute(sql`select handover_mileage_km from work_order`)).rows).toEqual([{ handover_mileage_km: 123600 }]);
-  await expect(ctx.db.execute(sql`update work_order set handover_mileage_km = -1`)).rejects.toThrow(); // below 0 is refused, as it is for the kilometres at intake
+  await expect(ctx.db.execute(sql`update work_order set handover_mileage_km = -1`)).rejects.toMatchObject({ cause: { constraint: 'work_order_handover_mileage_km_check' } }); // below 0 is refused, as it is for the kilometres at intake
 });
