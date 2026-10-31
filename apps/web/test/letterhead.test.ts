@@ -90,18 +90,18 @@ test.each([
   expect(page.text).toContain('Číslo zákazky');
 });
 
-// The right column of the header and the identifiers of the autoservis (ticket #148): a number, a day and a labelled identifier
+// The right column of the header and the identifiers of the autoservis (tickets #148, #164): the title of the form, a number, a day and a labelled identifier
 // are each printed on one line, however long the details of the autoservis are. The name, the address and the identifiers are the
 // demo's; the e-mail, the phone, the IBAN and the entry of the register are made long so that the details column is wide. The
 // counter is set so that the number is the long one, `Z2026-123456`.
 const printedOn = new Date('2026-10-29T09:00:00Z');
 test.each(
   (['white', 'blackBar'] as const).flatMap((letterhead) => [
-    [letterhead, 'zákazkový list', (id: string) => jobSheetResponse(admin, id, ctx.db, printedOn)] as const,
-    [letterhead, 'cenová ponuka', (id: string) => quoteResponse(admin, id, ctx.db, printedOn)] as const,
-    [letterhead, 'odovzdávací protokol', async (id: string) => handoverProtocolResponse(admin, await handedOver(id), ctx.db, printedOn)] as const,
+    [letterhead, 'zákazkový list', 'Zákazkový list', (id: string) => jobSheetResponse(admin, id, ctx.db, printedOn)] as const,
+    [letterhead, 'cenová ponuka', 'Cenová ponuka', (id: string) => quoteResponse(admin, id, ctx.db, printedOn)] as const,
+    [letterhead, 'odovzdávací protokol', 'Odovzdávací protokol', async (id: string) => handoverProtocolResponse(admin, await handedOver(id), ctx.db, printedOn)] as const,
   ]),
-)('on the %s Hlavička the %s keeps the number of the Zákazka, the day of the print and the IČ DPH each on one line', async (letterhead, _form, print) => {
+)('on the %s Hlavička the %s keeps its title, the number of the Zákazka, the day of the print and the IČ DPH each on one line', async (letterhead, _form, title, print) => {
   await saveWorkshopDetails(
     admin,
     {
@@ -127,6 +127,6 @@ test.each(
 
   const lines = (await firstPage(await print(id))).text.split('\n');
 
-  const broken = ['Z2026-123456', '29. 10. 2026', 'IČ DPH: SK2121662114'].filter((whole) => !lines.some((line) => line.includes(whole)));
+  const broken = [title, 'Z2026-123456', '29. 10. 2026', 'IČ DPH: SK2121662114'].filter((whole) => !lines.some((line) => line.includes(whole)));
   expect(broken, `broken across lines in ${JSON.stringify(lines.slice(0, 14))}`).toEqual([]);
 });
