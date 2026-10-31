@@ -15,6 +15,7 @@ import {
   deleteItem,
   getWorkOrder,
   listWorkOrders,
+  setHandoverMileage,
   updateWorkOrderHeader,
   updateItem,
   listWorkOrdersOfCustomer,
@@ -1218,4 +1219,156 @@ test('an item of the Cenník added while another request is marking the Zákazka
 
   expect(adding).toEqual({ ok: false, errors: { workOrder: 'not-editable' } });
   expect((await getWorkOrder(admin, id, ctx.db))?.items).toEqual([]);
+});
+
+// Kilometre pri odovzdaní (GLOSSARY, #164): the admin enters them on a Zákazka that is Hotová or Vyfakturovaná. The rules (what is read,
+// what warns, what the Stav km does) are in packages/domain; here is what the database does with them. Every Zákazka here is made at 100 000 km, so the Stav km of the vehicle is 100 000 too.
+const atHandover = (id: string, km: string) => setHandoverMileage(admin, id, km, ctx.db);
+const handoverKm = async (id: string) => (await getWorkOrder(admin, id, ctx.db))?.handoverMileageKm;
+
+async function handedOverAt(intakeKm: string) {
+  const id = await newWorkOrderId({ mileageKm: intakeKm });
+  await move(id, 'done');
+  return id;
+}
+
+/** A Zákazka at 100 000 km in `status` straight away, as a later ticket or the invoice would leave it. */
+async function atHundredThousandIn(status: WorkOrderStatus) {
+  const id = await newWorkOrderId({ mileageKm: '100 000' });
+  await ctx.db.execute(sql`update work_order set status = ${status}::work_order_status where id = ${id}`);
+  return id;
+}
+
+test('a Zákazka starts without kilometres at handover', async () => {
+  expect(await handoverKm(await handedOverAt('100 000'))).toBeNull();
+});
+
+test('higher kilometres at handover are saved on a Zákazka that is Hotová and raise the Stav km of the vehicle', async () => {
+  const id = await handedOverAt('100 000');
+
+  expect(await atHandover(id, '100 450')).toEqual({ ok: true });
+
+  expect(await handoverKm(id)).toBe(100450);
+  expect((await vehicleRow()).mileageKm).toBe(100450);
+  expect(await getWorkOrder(admin, id, ctx.db)).toMatchObject({ mileageKm: 100000 }); // the kilometres at intake stay as they were
+});
+
+test('they are saved on a Zákazka that is Vyfakturovaná too', async () => {
+  const id = await atHundredThousandIn('invoiced');
+
+  expect(await atHandover(id, '100 450')).toEqual({ ok: true });
+
+  expect(await handoverKm(id)).toBe(100450);
+});
+
+test('kilometres that are lower than at intake are saved with a warning that names both, and the Stav km of the vehicle stays', async () => {
+  const id = await handedOverAt('100 000');
+
+  expect(await atHandover(id, '99 000')).toEqual({ ok: true, lowerThanIntake: { intakeKm: 100000, vehicleMileageKm: 100000 } });
+
+  expect(await handoverKm(id)).toBe(99000);
+  expect((await vehicleRow()).mileageKm).toBe(100000);
+});
+
+test('kilometres that are not lower than at intake, but lower than the Stav km of the vehicle, are saved without a warning and leave the Stav km alone', async () => {
+  const id = await handedOverAt('100 000');
+  await setVehicleKm(100800); // another Zákazka of the vehicle went further
+
+  expect(await atHandover(id, '100 450')).toEqual({ ok: true });
+
+  expect(await handoverKm(id)).toBe(100450);
+  expect((await vehicleRow()).mileageKm).toBe(100800);
+});
+
+test('kilometres for a vehicle that has no Stav km give it one', async () => {
+  const id = await handedOverAt('100 000');
+  await ctx.db.execute(sql`update vehicle set mileage_km = null where id = ${vehicleId}`);
+
+  expect(await atHandover(id, '100 450')).toEqual({ ok: true });
+
+  expect((await vehicleRow()).mileageKm).toBe(100450);
+});
+
+test('a second entry replaces the first, and the Stav km of the vehicle never falls with it', async () => {
+  const id = await handedOverAt('100 000');
+  await atHandover(id, '100 450');
+
+  expect(await atHandover(id, '100 440')).toEqual({ ok: true });
+
+  expect(await handoverKm(id)).toBe(100440);
+  expect((await vehicleRow()).mileageKm).toBe(100450);
+});
+
+test('a blank entry clears the kilometres at handover, and leaves the Stav km of the vehicle where it is', async () => {
+  const id = await handedOverAt('100 000');
+  await atHandover(id, '100 450');
+
+  expect(await atHandover(id, '  ')).toEqual({ ok: true });
+
+  expect(await handoverKm(id)).toBeNull();
+  expect((await vehicleRow()).mileageKm).toBe(100450);
+});
+
+test('kilometres that are not a whole number are refused, and nothing changes', async () => {
+  const id = await handedOverAt('100 000');
+  await atHandover(id, '100 450');
+
+  expect(await atHandover(id, '12,5')).toEqual({ ok: false, errors: { handoverMileageKm: 'invalid' } });
+
+  expect(await handoverKm(id)).toBe(100450);
+  expect((await vehicleRow()).mileageKm).toBe(100450);
+});
+
+test.each(['received', 'inProgress', 'waitingForParts', 'cancelled'] as const)(
+  'a Zákazka that is %s takes no kilometres at handover: the vehicle is not handed over yet, or never will be',
+  async (status) => {
+    const id = await atHundredThousandIn(status);
+
+    expect(await atHandover(id, '100 450')).toEqual({ ok: false, errors: { workOrder: 'wrong-status' } });
+
+    expect(await handoverKm(id)).toBeNull();
+    expect((await vehicleRow()).mileageKm).toBe(100000);
+  },
+);
+
+test('there is no Zákazka to take kilometres for an id that is none, a malformed one included', async () => {
+  const unknown = { ok: false, errors: { workOrder: 'unknown' } };
+
+  expect(await atHandover(randomUUID(), '100 450')).toEqual(unknown);
+  expect(await atHandover('not-an-id', '100 450')).toEqual(unknown);
+});
+
+test('kilometres read the Stav km of the vehicle after another save of it has committed, so lower ones cannot overwrite higher ones', async () => {
+  const id = await handedOverAt('100 000');
+
+  // The other save: an intake raised the Stav km to 200 000 and holds the row until this one has met the lock.
+  const saved = await whileHeld(
+    (tx) => tx.execute(sql`update vehicle set mileage_km = 200000 where id = ${vehicleId}`),
+    () => atHandover(id, '150 000'),
+  );
+
+  expect(saved).toEqual({ ok: true });
+  expect((await vehicleRow()).mileageKm).toBe(200000);
+});
+
+test('kilometres of Zákazky of one vehicle entered at once leave its Stav km at the highest', async () => {
+  const ids = [await handedOverAt('100 000'), await handedOverAt('100 000'), await handedOverAt('100 000'), await handedOverAt('100 000')];
+  const kilometres = ['150 000', '110 000', '200 000', '120 000'];
+
+  const saved = await Promise.all(ids.map((id, index) => atHandover(id, kilometres[index]!)));
+
+  expect(saved.every(({ ok }) => ok)).toBe(true);
+  expect((await vehicleRow()).mileageKm).toBe(200000);
+});
+
+test('kilometres entered while the Zákazka is being marked as done wait for it and are saved, not refused for the status they saw first', async () => {
+  const id = await newWorkOrderId({ mileageKm: '100 000' });
+
+  const saved = await whileHeld(
+    (tx) => tx.execute(sql`update work_order set status = 'done', completed_on = '2026-07-15' where id = ${id}`),
+    () => atHandover(id, '100 450'),
+  );
+
+  expect(saved).toEqual({ ok: true });
+  expect(await handoverKm(id)).toBe(100450);
 });

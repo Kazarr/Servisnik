@@ -121,6 +121,7 @@ const actions = {
   },
   decideRegistration: { call: () => joyRideActions.decideRegistration(null, form({ registrationId: id, status: 'approved' })), answer: { error: forbiddenMessage } },
   changeStatus: { call: () => workOrderActions.changeStatus(null, form({ workOrderId: id, to: 'done' })), answer: { error: forbiddenMessage } },
+  saveHandoverMileage: { call: () => workOrderActions.saveHandoverMileage(null, form({ workOrderId: id, handoverMileageKm: '100450' })), answer: formRefused },
   saveRatesAction: {
     call: () => settingsActions.saveRatesAction(null, form({ vatRates: '23\n19', defaultVatRate: '19', hourlyRate: '40', markup: '10' })),
     answer: formRefused,

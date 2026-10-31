@@ -5,15 +5,15 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { getHandoverProtocol } from '../src/dal/print-forms.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
-import { addItem, changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.ts';
+import { addItem, changeWorkOrderStatus, createWorkOrder, setHandoverMileage } from '../src/dal/work-orders.ts';
 import { admin } from './support/dal-users.ts';
 import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { findPriceKeys } from './support/price-keys.ts';
 import { truncateTables } from './support/reset.ts';
 
-// The data of the Odovzdávací protokol (GLOSSARY): the customer, the vehicle, the kilometres at intake and the work and
-// parts of the Zákazka with their quantities and units, and no price.
+// The data of the Odovzdávací protokol (GLOSSARY): the customer, the vehicle, the kilometres at intake and at handover (when the admin
+// entered them) and the work and parts of the Zákazka with their quantities and units, and no price.
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let ownerId: string;
@@ -61,11 +61,21 @@ test('the admin reads the number, the customer, the vehicle, the kilometres and 
     customer: { name: 'Firma s.r.o.' },
     vehicle: { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
     mileageKm: 123456,
+    handoverMileageKm: null,
     items: [
       { kind: 'labour', code: null, name: 'Výmena oleja', quantityHundredths: 150, unit: 'h' },
       { kind: 'part', code: 'OL-5W30', name: 'Olej 5W-30', quantityHundredths: 425, unit: 'l' },
     ],
   });
+});
+
+test('the kilometres at handover the admin entered come with the kilometres at intake, and are none until then', async () => {
+  const id = await handedOver(await newWorkOrder());
+  expect(await getHandoverProtocol(admin, id, ctx.db)).toMatchObject({ mileageKm: 123456, handoverMileageKm: null });
+
+  await setHandoverMileage(admin, id, '123 600', ctx.db);
+
+  expect(await getHandoverProtocol(admin, id, ctx.db)).toMatchObject({ mileageKm: 123456, handoverMileageKm: 123600 });
 });
 
 test('the protocol has no price key anywhere, though the Zákazka has priced work and parts bought for it, and no internal note', async () => {

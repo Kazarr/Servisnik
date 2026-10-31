@@ -1,19 +1,16 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { rmSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { migrateDatabase } from '../src/db/migrate.ts';
 import { createTestDb } from './support/db.ts';
+import { migrationsUpTo } from './support/migrations.ts';
 
 // The migration that gives every Položka zákazky its place in the order they were added (#160) meets items that exist
 // already, and they keep the order the app showed: by `created_at`, and by `id` where two have the same one. The
 // migrated test database is empty, so the migration is run here on a database that has the items first
 // (testing-strategy: a data migration is tested on rows that exist before it).
 
-const migrations = fileURLToPath(new URL('../drizzle/', import.meta.url));
 const before = '0016_joy_ride'; // the last migration before the one this file tests
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
@@ -21,17 +18,6 @@ beforeAll(async () => {
   ctx = await createTestDb({ migrated: false });
 });
 afterAll(() => ctx.close());
-
-/** A copy of the migrations folder whose journal ends with `tag`: the database as it was before the next migration. */
-function migrationsUpTo(tag: string) {
-  const copy = mkdtempSync(join(tmpdir(), 'migrations-'));
-  cpSync(migrations, copy, { recursive: true });
-  const journalFile = join(copy, 'meta', '_journal.json');
-  const journal: { entries: { tag: string }[] } = JSON.parse(readFileSync(journalFile, 'utf8'));
-  journal.entries = journal.entries.slice(0, journal.entries.findIndex((entry) => entry.tag === tag) + 1);
-  writeFileSync(journalFile, JSON.stringify(journal));
-  return copy;
-}
 
 /** The names of the items of a Zákazka in the order of their place. */
 const placed = async (workOrderId: string) =>
