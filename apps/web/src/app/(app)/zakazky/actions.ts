@@ -14,6 +14,7 @@ import {
   createWorkOrder,
   deleteItem,
   setHandoverMileage,
+  type SetHandoverMileageResult,
   updateItem,
   updateWorkOrderHeader,
 } from '../../../dal/work-orders.ts';
@@ -233,7 +234,7 @@ export type HandoverMileageState = {
   values: { handoverMileageKm: string };
   errors: { handoverMileageKm?: string; form?: string };
   /** The kilometres were saved lower than those at intake: the form warns, naming both and the Stav km the vehicle has (the odometer may have been replaced). */
-  lowerThanIntake?: { intakeKm: number; vehicleMileageKm: number };
+  lowerThanIntake?: Extract<SetHandoverMileageResult, { ok: true }>['lowerThanIntake'];
 } | null;
 
 /**
