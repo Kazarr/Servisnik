@@ -117,6 +117,14 @@ button:disabled {
   cursor: progress;
 }
 
+/* A button that is not the main action of its page, like the "Zmazať" of an item (ticket #163): the gold and the gloss are the main button's. */
+.secondary {
+  border-color: var(--color-border);
+  background-color: transparent;
+  background-image: none;
+  color: var(--color-text);
+}
+
 /* The surfaces, as the gloss makes them: the colour of the surface with a gradient over it and a light edge on top. */
 .sidebar,
 .notice,
@@ -472,6 +480,26 @@ th {
 
 .work-order-items td.code {
   white-space: nowrap;
+}
+
+/*
+ * Under 1366 px the items table is set closer, so that it fits from 1024 px, a tablet in landscape (ticket #163): smaller
+ * text, little room between the columns and the "Zmazať" button no wider than its text needs. Under 1024 px the table scrolls
+ * in its frame (.table-wrap), never the page. The widths are in rem because a media query cannot hold a var().
+ */
+@media (max-width: 85.3rem) {
+  .work-order-items {
+    font-size: var(--font-size-small);
+  }
+
+  .work-order-items th,
+  .work-order-items td {
+    padding-inline: var(--space-1);
+  }
+
+  .work-order-items .row-actions button {
+    padding-inline: var(--space-2);
+  }
 }
 
 tfoot th,

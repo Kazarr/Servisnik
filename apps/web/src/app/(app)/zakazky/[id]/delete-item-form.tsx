@@ -13,7 +13,7 @@ export function DeleteItemForm({ itemId, workOrderId, name }: { itemId: string; 
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="workOrderId" value={workOrderId} />
       <FormError message={state?.error} />
-      <button type="submit" disabled={pending} aria-label={`Zmazať ${name}`}>
+      <button type="submit" className="secondary" disabled={pending} aria-label={`Zmazať ${name}`}>
         Zmazať
       </button>
     </form>
