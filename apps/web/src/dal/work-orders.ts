@@ -227,7 +227,10 @@ export async function setHandoverMileage(user: User | null, id: string, typed: s
   if (!parsed.ok) return { ok: false, errors: { handoverMileageKm: 'invalid' } };
 
   return db.transaction(async (tx) => {
-    // "No key update" keeps out a change of the status and another save of these kilometres, and not the key share lock that deleting the Vozidlo takes on the Zákazka, which would wait for the vehicle row below.
+    // "No key update" keeps out a change of the status and another save of these kilometres. It is not "update": deleting the Vozidlo holds
+    // the vehicle row and then takes a key share lock on its Zákazky (the foreign key is `restrict`), which "update" blocks, so the delete
+    // would wait for this Zákazka and this save, below, for the vehicle row. With "no key update" the delete finds the Zákazka, ends
+    // `has-links` and lets go of the vehicle row.
     const [found] = await rowsIfUuid(
       id,
       tx.select({ status: workOrder.status, vehicleId: workOrder.vehicleId, intakeKm: workOrder.mileageKm }).from(workOrder).where(eq(workOrder.id, id)).for('no key update'),
@@ -235,18 +238,15 @@ export async function setHandoverMileage(user: User | null, id: string, typed: s
     if (!found) return { ok: false, errors: { workOrder: 'unknown' } };
     if (!canSetHandoverMileage(found.status)) return { ok: false, errors: { workOrder: 'wrong-status' } };
 
+    await tx.update(workOrder).set({ handoverMileageKm: parsed.mileageKm }).where(eq(workOrder.id, id));
     // Blank: nothing to give the vehicle.
-    if (parsed.mileageKm === null) {
-      await tx.update(workOrder).set({ handoverMileageKm: null }).where(eq(workOrder.id, id));
-      return { ok: true };
-    }
+    if (parsed.mileageKm === null) return { ok: true };
     // "No key update" is enough to serialize the saves on the vehicle, as for an intake.
     const [owned] = await tx.select({ mileageKm: vehicle.mileageKm }).from(vehicle).where(eq(vehicle.id, found.vehicleId)).for('no key update');
     const atHandover = mileageAtHandover(found.intakeKm, owned!.mileageKm, parsed.mileageKm);
     if (atHandover.vehicleMileageKm !== owned!.mileageKm) {
       await tx.update(vehicle).set({ mileageKm: atHandover.vehicleMileageKm }).where(eq(vehicle.id, found.vehicleId));
     }
-    await tx.update(workOrder).set({ handoverMileageKm: parsed.mileageKm }).where(eq(workOrder.id, id));
     return { ok: true, ...(atHandover.lowerThanIntake && { lowerThanIntake: { intakeKm: found.intakeKm, vehicleMileageKm: atHandover.vehicleMileageKm } }) };
   });
 }
