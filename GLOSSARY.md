@@ -58,7 +58,7 @@ Rok, v ktorom sa vozidlo vyrobilo, od 1950 po budúci rok.
 Čím vozidlo jazdí: benzín, nafta, hybrid, elektro, LPG, CNG alebo iné.
 
 **Stav km** (`mileageKm`):
-Posledný známy stav tachometra vozidla v kilometroch. Zákazka si pri príjme nesie vlastné kilometre.
+Posledný známy stav tachometra vozidla v kilometroch. Zákazka si pri príjme a pri odovzdaní nesie vlastné kilometre.
 _Avoid_: najazdené kilometre
 
 **ŠPZ** (`licensePlate`):
@@ -151,6 +151,10 @@ Zákazka v stave Hotová, ktorú treba vyfakturovať; zoznam zákaziek ju označ
 Založenie zákazky, keď zákazník privezie vozidlo, prípadne aj s novým zákazníkom alebo vozidlom.
 _Avoid_: check-in, prevzatie
 
+**Kilometre pri odovzdaní** (`handoverMileageKm`):
+Stav tachometra pri odovzdaní vozidla, ktorý admin zapíše na zákazku v stave Hotová alebo Vyfakturovaná; je voliteľný a nie je súčasťou Hlavičky zákazky. Odovzdávací protokol ho tlačí vedľa kilometrov pri príjme, a keď chýba, nechá miesto na ručné doplnenie. Stav km vozidla sa podľa nich mení ako pri príjme: vyššie kilometre ho zvýšia, nižšie ho nezmenia. Nižšie ako kilometre pri príjme sa uložia s upozornením, lebo tachometer mohol byť vymenený.
+_Avoid_: kilometre pri vydaní, konečný stav
+
 **Hlavička zákazky** (`header`):
 Kilometre pri príjme, požiadavka zákazníka, Termín a interná poznámka zákazky, bez zákazníka a vozidla. Dá sa upraviť, len kým je zákazka Rozpracovaná.
 
@@ -203,7 +207,7 @@ Tlačivo s položkami zákazky a ich cenami, ktoré zákazník dostane pred opra
 _Avoid_: kalkulácia, rozpočet
 
 **Odovzdávací protokol** (`HandoverProtocol`):
-Tlačivo pri odovzdaní vozidla so zoznamom vykonaných prác a dielov, ktoré podpíše zákazník aj autoservis. Tlačí sa len v stave Hotová alebo Vyfakturovaná.
+Tlačivo pri odovzdaní vozidla so zoznamom vykonaných prác a dielov a s kilometrami pri príjme a pri odovzdaní, ktoré podpíše zákazník aj autoservis. Tlačí sa len v stave Hotová alebo Vyfakturovaná.
 _Avoid_: preberací protokol, dodací list
 
 **Hlavička tlačív** (`Letterhead`):
