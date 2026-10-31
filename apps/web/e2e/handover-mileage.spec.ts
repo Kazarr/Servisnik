@@ -9,9 +9,10 @@ test.beforeAll(() => {
 test.afterAll(() => db.$client.end());
 
 // The Kilometre pri odovzdaní (GLOSSARY, #164): the smoke path from the form on the detail of a Hotová Zákazka to the PDF of the odovzdávací
-// protokol. What the rules do, and what the form and the PDF show in every case, is checked where it is cheap (test/work-orders.test.ts,
-// handover-mileage-actions.test.ts, print-forms-response.test.ts). The seeded Zákazka was taken in at 1 000 km.
-test('the admin enters the kilometres at handover on a Hotová Zákazka, is warned of lower ones, and the odovzdávací protokol prints them', async ({ page }) => {
+// protokol. What the rules do (the warning below the kilometres at intake, the Stav km of the vehicle), and what the form and the PDF show
+// in every case, is checked where it is cheap (test/work-orders.test.ts, handover-mileage-actions.test.ts, handover-mileage-form.test.ts,
+// print-forms-response.test.ts). The seeded Zákazka was taken in at 1 000 km.
+test('the admin enters the kilometres at handover on a Hotová Zákazka, and the odovzdávací protokol prints them', async ({ page }) => {
   test.slow(); // the server starts its Chromium with the first print, and on a host that other runs share that takes long
   const order = await seedWorkOrder(db, runTag());
   await signIn(page);
@@ -27,21 +28,7 @@ test('the admin enters the kilometres at handover on a Hotová Zákazka, is warn
 
   await expect(detail(main, 'Kilometre pri odovzdaní')).toHaveText('1 450 km');
   await expect(detail(main, 'Kilometre pri príjme')).toHaveText('1 000 km');
-  await expect(main.getByRole('status')).toHaveCount(0);
-  await page.goto(`/vozidla/${order.vehicleId}`);
-  await expect(detail(main, 'Stav km')).toHaveText('1 450 km'); // the higher kilometres are the Stav km of the vehicle
-
-  // Lower kilometres than at intake are saved with a warning, and the Stav km of the vehicle does not fall.
-  await page.goto(`/zakazky/${order.orderId}`);
-  await main.getByRole('textbox', { name: 'Kilometre pri odovzdaní' }).fill('900');
-  await main.getByRole('button', { name: 'Uložiť kilometre' }).click();
-  await expect(main.getByRole('status')).toContainText('nižšie ako kilometre pri príjme (1 000 km)');
-  await expect(detail(main, 'Kilometre pri odovzdaní')).toHaveText('900 km');
-  await page.goto(`/vozidla/${order.vehicleId}`);
-  await expect(detail(main, 'Stav km')).toHaveText('1 450 km');
-
-  await page.goto(`/zakazky/${order.orderId}`);
   const { text } = await downloadPdf(page, 'Odovzdávací protokol', `/zakazky/${order.orderId}/odovzdavaci-protokol`);
   expect(text).toContain('Kilometre pri príjme1 000 km');
-  expect(text).toContain('Kilometre pri odovzdaní900 km');
+  expect(text).toContain('Kilometre pri odovzdaní1 450 km');
 });
