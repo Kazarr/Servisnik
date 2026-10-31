@@ -108,8 +108,9 @@ test('the admin adds a work order to a vehicle, then adds work, sees the amounts
   await expect(detail(main, 'Stav')).toHaveText('Hotová');
   await expect(detail(main, 'Dátum dokončenia')).toHaveText(today());
   await expect(main.getByRole('button', { name: 'Označiť ako hotovú' })).toHaveCount(0);
-  // A Hotová Zákazka offers no way to add, edit or delete an item, and no search of the Cenník to add one from.
-  await expect(main.getByRole('form')).toHaveCount(0);
+  // A Hotová Zákazka offers no way to add, edit or delete an item, and no search of the Cenník to add one from. The one form it has is the kilometres at handover (#164).
+  await expect(main.getByRole('form')).toHaveCount(1);
+  await expect(main.getByRole('form', { name: 'Kilometre pri odovzdaní' })).toHaveCount(1);
   await expect(main.getByRole('search')).toHaveCount(0);
   await expect(main.getByRole('link', { name: 'Upraviť' })).toHaveCount(0);
   await expect(main.getByRole('button', { name: /^Zmazať/ })).toHaveCount(0);

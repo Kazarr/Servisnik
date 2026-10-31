@@ -129,6 +129,7 @@ const calls: Record<string, Call> = {
     joyRide.updateRegistration(user, registrationId, { name: 'Eva Premenovaná', phone: '+421 000 000 101', email: 'eva.vzorova@example.com', make: 'Škoda', model: '110 R', category: 'veteran' }, db),
   setRegistrationStatus: (user, db) => joyRide.setRegistrationStatus(user, registrationId, 'approved', db),
   changeWorkOrderStatus: (user, db) => workOrders.changeWorkOrderStatus(user, orderId, { to: 'inProgress' }, db),
+  setHandoverMileage: (user, db) => workOrders.setHandoverMileage(user, orderId, '123 999', db),
   getWorkOrder: (user, db) => workOrders.getWorkOrder(user, orderId, db),
   getJobSheet: (user, db) => jobSheet.getJobSheet(user, orderId, db),
   getUnpricedWorkOrder: (user, db) => unpricedWorkOrder.getUnpricedWorkOrder(user, orderId, db),

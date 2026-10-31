@@ -130,7 +130,7 @@ dd {
   font-weight: var(--font-weight-bold);
 }
 
-/* The column keeps the width of its content and the details of the autoservis give way: the number and the day are never broken. */
+/* The column keeps the width of its content and the details of the autoservis give way: the title, the number and the day are never broken. */
 .identity {
   flex: none;
   text-align: right;
@@ -138,6 +138,7 @@ dd {
 
 .identity h1 {
   font-size: var(--font-size-title);
+  white-space: nowrap;
 }
 
 .identity .facts {

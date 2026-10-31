@@ -3,9 +3,12 @@ import { workOrderItemFromPriceListItem } from '@servisnik/domain/price-list';
 import { parseVehicle, type VehicleInput } from '@servisnik/domain/vehicle';
 import {
   canEdit,
+  canSetHandoverMileage,
   formatWorkOrderNumber,
   localYear,
+  mileageAtHandover,
   mileageAtIntake,
+  parseHandoverMileage,
   parseListFilter,
   marginOf,
   parseItem,
@@ -203,6 +206,48 @@ export async function updateWorkOrderHeader(user: User | null, id: string, input
     if (locked !== 'ok') return { ok: false, errors: { workOrder: locked } };
     await tx.update(workOrder).set(parsed.workOrder).where(eq(workOrder.id, id));
     return { ok: true };
+  });
+}
+
+export type SetHandoverMileageResult =
+  /** `lowerThanIntake` is there when the kilometres are lower than those at intake: both are named, with the Stav km the vehicle has now, which the warning must say. */
+  | { ok: true; lowerThanIntake?: { intakeKm: number; vehicleMileageKm: number } }
+  | { ok: false; errors: { handoverMileageKm?: 'invalid'; workOrder?: 'unknown' | 'wrong-status' } };
+
+/**
+ * Saves the Kilometre pri odovzdaní (GLOSSARY) of a Zákazka that is Hotová or Vyfakturovaná (`canSetHandoverMileage`), as the admin
+ * typed them: they are optional, so a blank clears them. They replace any entered before. The Stav km of the vehicle follows
+ * `mileageAtHandover` (it rises to higher kilometres and never falls) in the same transaction. The Zákazka is locked, and read, under
+ * the lock, and the vehicle row from reading its Stav km to the commit, as an intake does it, so two saves at once cannot lose the
+ * higher Stav km and a status change cannot slip in between. A Zákazka with another status is `wrong-status`, and nothing changes.
+ */
+export async function setHandoverMileage(user: User | null, id: string, typed: string, db: Database = getDb()): Promise<SetHandoverMileageResult> {
+  assertCan(user, 'work-orders.write');
+  const parsed = parseHandoverMileage(typed);
+  if (!parsed.ok) return { ok: false, errors: { handoverMileageKm: 'invalid' } };
+
+  return db.transaction(async (tx) => {
+    // "No key update" keeps out a change of the status and another save of these kilometres. It is not "update": deleting the Vozidlo holds
+    // the vehicle row and then takes a key share lock on its Zákazky (the foreign key is `restrict`), which "update" blocks, so the delete
+    // would wait for this Zákazka and this save, below, for the vehicle row. With "no key update" the delete finds the Zákazka, ends
+    // `has-links` and lets go of the vehicle row.
+    const [found] = await rowsIfUuid(
+      id,
+      tx.select({ status: workOrder.status, vehicleId: workOrder.vehicleId, intakeKm: workOrder.mileageKm }).from(workOrder).where(eq(workOrder.id, id)).for('no key update'),
+    );
+    if (!found) return { ok: false, errors: { workOrder: 'unknown' } };
+    if (!canSetHandoverMileage(found.status)) return { ok: false, errors: { workOrder: 'wrong-status' } };
+
+    await tx.update(workOrder).set({ handoverMileageKm: parsed.mileageKm }).where(eq(workOrder.id, id));
+    // Blank: nothing to give the vehicle.
+    if (parsed.mileageKm === null) return { ok: true };
+    // "No key update" is enough to serialize the saves on the vehicle, as for an intake.
+    const [owned] = await tx.select({ mileageKm: vehicle.mileageKm }).from(vehicle).where(eq(vehicle.id, found.vehicleId)).for('no key update');
+    const atHandover = mileageAtHandover(found.intakeKm, owned!.mileageKm, parsed.mileageKm);
+    if (atHandover.vehicleMileageKm !== owned!.mileageKm) {
+      await tx.update(vehicle).set({ mileageKm: atHandover.vehicleMileageKm }).where(eq(vehicle.id, found.vehicleId));
+    }
+    return { ok: true, ...(atHandover.lowerThanIntake && { lowerThanIntake: { intakeKm: found.intakeKm, vehicleMileageKm: atHandover.vehicleMileageKm } }) };
   });
 }
 
@@ -424,6 +469,7 @@ export async function getWorkOrder(user: User | null, id: string, db: Database =
   const [found] = await selectListed(db, {
     completedOn: workOrder.completedOn,
     mileageKm: workOrder.mileageKm,
+    handoverMileageKm: workOrder.handoverMileageKm,
     customerRequest: workOrder.customerRequest,
     note: workOrder.note,
   }).where(eq(workOrder.id, id));

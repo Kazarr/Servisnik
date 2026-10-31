@@ -12,6 +12,7 @@ const protocol: HandoverProtocol = {
   customer: { name: 'Ján Novák' },
   vehicle: { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Volkswagen', model: 'Golf' },
   mileageKm: 123456,
+  handoverMileageKm: null,
   items: [
     { kind: 'labour', code: null, name: 'Výmena oleja', quantityHundredths: 150, unit: 'h' },
     { kind: 'part', code: 'OL-5W30', name: 'Olej 5W-30', quantityHundredths: 425, unit: 'l' },
@@ -55,6 +56,26 @@ describe('the content', () => {
 
     expect(fact(document, 'Kilometre pri príjme')).toBe('123 456 km');
     expect(fact(document, 'Dátum odovzdania')).toBe('3. 11. 2026');
+  });
+
+  test('prints the kilometres at handover next to those at intake, grouped by thousands', () => {
+    const document = print({ handoverMileageKm: 123600 });
+
+    expect(fact(document, 'Kilometre pri príjme')).toBe('123 456 km');
+    expect(fact(document, 'Kilometre pri odovzdaní')).toBe('123 600 km');
+    expect(document.indexOf('Kilometre pri príjme')).toBeLessThan(document.indexOf('Kilometre pri odovzdaní'));
+    expect(document.indexOf('Kilometre pri odovzdaní')).toBeLessThan(document.indexOf('Dátum odovzdania'));
+  });
+
+  test('prints 0 km as the kilometres at handover of a vehicle that was handed over at 0, not as a blank to fill in', () => {
+    expect(fact(print({ handoverMileageKm: 0 }), 'Kilometre pri odovzdaní')).toBe('0 km');
+  });
+
+  test('leaves a blank to write the kilometres at handover on, when the admin entered none', () => {
+    const document = print();
+
+    expect(fact(document, 'Kilometre pri odovzdaní')).toBe('________ km');
+    expect(fact(document, 'Kilometre pri príjme')).toBe('123 456 km');
   });
 
   test('lists the work and the parts, one row each in the order given: the kind, the code, the name and the quantity with its unit', () => {

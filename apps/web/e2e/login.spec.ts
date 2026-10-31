@@ -1,4 +1,4 @@
-import { endSessionBehindThePage, expect, signIn, submitLogin, test } from './fixtures.ts';
+import { endSessionBehindThePage, expect, scrollsSideways, signIn, submitLogin, test } from './fixtures.ts';
 
 const menuLabels = ['Zákazníci', 'Vozidlá', 'Zákazky', 'Cenník', 'Jazda radosti', 'Nastavenia'];
 
@@ -106,8 +106,7 @@ test('the layout stays usable at 768 px', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Hlavné menu' })).toBeInViewport({ ratio: 1 });
   // The heading: the Zákazky list below it grows with every spec's data.
   await expect(page.locator('main h1')).toBeInViewport({ ratio: 1 });
-  const overflows = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
-  expect(overflows).toBe(false);
+  expect(await scrollsSideways(page.locator('html')), 'the page scrolls sideways').toBe(false);
 });
 
 test('/api/health answers 200 while the database is up', async ({ request }) => {

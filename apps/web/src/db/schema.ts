@@ -186,6 +186,8 @@ export const workOrder = pgTable(
       .notNull()
       .references(() => vehicle.id, { onDelete: 'restrict' }),
     mileageKm: integer('mileage_km').notNull(),
+    /** The Kilometre pri odovzdaní, which the admin enters once the Zákazka is Hotová or Vyfakturovaná; none until then. */
+    handoverMileageKm: integer('handover_mileage_km'),
     customerRequest: text('customer_request').notNull(),
     status: workOrderStatus('status').notNull().default('received'),
     /** The Dátum dokončenia, a calendar day in Europe/Bratislava, set when the Zákazka becomes Hotová. */
@@ -201,6 +203,7 @@ export const workOrder = pgTable(
     index('work_order_customer_id_idx').on(table.customerId),
     index('work_order_vehicle_id_idx').on(table.vehicleId),
     check('work_order_mileage_km_check', sql`${table.mileageKm} >= 0`),
+    check('work_order_handover_mileage_km_check', sql`${table.handoverMileageKm} >= 0`),
   ],
 );
 

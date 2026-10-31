@@ -1,0 +1,2 @@
+ALTER TABLE "work_order" ADD COLUMN "handover_mileage_km" integer;--> statement-breakpoint
+ALTER TABLE "work_order" ADD CONSTRAINT "work_order_handover_mileage_km_check" CHECK ("work_order"."handover_mileage_km" >= 0);

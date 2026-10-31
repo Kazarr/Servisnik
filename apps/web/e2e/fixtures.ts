@@ -208,6 +208,9 @@ export async function downloadPdf(page: Page, linkName: string, path: string) {
   return { filename: download.suggestedFilename(), text: readPdf(readFileSync((await download.path())!))[0]!.text };
 }
 
+/** Whether a box has more to show than it has room for, sideways: `html` for a page that scrolls sideways, the frame of a table for a table that does. */
+export const scrollsSideways = (box: Locator) => box.evaluate((element) => element.scrollWidth > element.clientWidth);
+
 /** The value next to a label in the detail list of a page. */
 export const detail = (main: Locator, label: string) => main.locator('.details > div').filter({ hasText: new RegExp(`^${label}`) }).locator('dd');
 
