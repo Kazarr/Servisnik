@@ -100,6 +100,37 @@ export function mileageAtIntake(vehicleMileageKm: number | null, intakeKm: numbe
   return { vehicleMileageKm, lowerThanVehicle: intakeKm < vehicleMileageKm };
 }
 
+/**
+ * Whether the Kilometre pri odovzdaní (GLOSSARY) of a Zákazka may be entered in this status: in the two in which the
+ * Odovzdávací protokol is printed, since that is where they are read (`canPrintHandover`). They are not part of the header, so
+ * `canEdit` does not decide this. The write checks it under the row lock, like every other.
+ */
+export const canSetHandoverMileage = canPrintHandover;
+
+/**
+ * The Kilometre pri odovzdaní as typed: read as the kilometres at intake are (`parseMileageKm`), and none when blank,
+ * since they are optional and a blank clears them.
+ */
+export function parseHandoverMileage(typed: string): { ok: true; mileageKm: number | null } | { ok: false } {
+  if (typed.trim() === '') return { ok: true, mileageKm: null };
+  const mileageKm = parseMileageKm(typed);
+  return mileageKm === null ? { ok: false } : { ok: true, mileageKm };
+}
+
+/**
+ * What the Kilometre pri odovzdaní of a Zákazka do: the Stav km of its Vozidlo follows the rule of an intake
+ * (`mileageAtIntake`: it rises to higher kilometres and never falls), and `lowerThanIntake` asks for a warning
+ * when they are lower than the kilometres at intake of this Zákazka, because the odometer may have been replaced.
+ * The Zákazka keeps them either way.
+ */
+export function mileageAtHandover(
+  intakeKm: number,
+  vehicleMileageKm: number | null,
+  handoverKm: number,
+): { vehicleMileageKm: number; lowerThanIntake: boolean } {
+  return { vehicleMileageKm: mileageAtIntake(vehicleMileageKm, handoverKm).vehicleMileageKm, lowerThanIntake: handoverKm < intakeKm };
+}
+
 /** Money is whole cents and a quantity is in hundredths, so no amount here is ever a float. */
 export type Amounts = { net: number; vat: number; gross: number };
 export type Priced = { quantityHundredths: number; salePriceCents: number; vatRate: number };

@@ -1,3 +1,24 @@
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const migrations = fileURLToPath(new URL('../../drizzle/', import.meta.url));
+
+/**
+ * A copy of the migrations folder whose journal ends with `tag`: the database as it was before the next migration. The caller
+ * migrates with it and removes the folder (`rmSync(folder, { recursive: true })`).
+ */
+export function migrationsUpTo(tag: string) {
+  const copy = mkdtempSync(join(tmpdir(), 'migrations-'));
+  cpSync(migrations, copy, { recursive: true });
+  const journalFile = join(copy, 'meta', '_journal.json');
+  const journal: { entries: { tag: string }[] } = JSON.parse(readFileSync(journalFile, 'utf8'));
+  journal.entries = journal.entries.slice(0, journal.entries.findIndex((entry) => entry.tag === tag) + 1);
+  writeFileSync(journalFile, JSON.stringify(journal));
+  return copy;
+}
+
 /**
  * What is wrong with the migrations in apps/web/drizzle: `sqlFiles` are the names of its `*.sql` files
  * and `journalTags` the `tag` of each entry of meta/_journal.json. Two tickets that each generate a

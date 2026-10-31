@@ -42,12 +42,13 @@ export async function getQuote(user: User | null, workOrderId: string, db: Datab
 
 /**
  * What the Odovzdávací protokol (GLOSSARY) prints about a Zákazka: the customer it was made for, the vehicle, the
- * kilometres at intake and the work and parts with their quantities and units. It holds no price, sum, VAT or
- * discount, and no internal note: the test of this read fails on any price key in the whole answer, so a price
- * field cannot be added here by mistake.
+ * kilometres at intake and at handover (none until the admin entered them) and the work and parts with their
+ * quantities and units. It holds no price, sum, VAT or discount, and no internal note: the test of this read fails
+ * on any price key in the whole answer, so a price field cannot be added here by mistake.
  */
 export type HandoverProtocol = FormHeader & {
   mileageKm: number;
+  handoverMileageKm: number | null;
   items: { kind: ItemKind; code: string | null; name: string; quantityHundredths: number; unit: string }[];
 };
 
@@ -59,7 +60,7 @@ export type HandoverProtocol = FormHeader & {
  */
 export async function getHandoverProtocol(user: User | null, workOrderId: string, db: Database = getDb()): Promise<HandoverProtocol | 'wrong-status' | null> {
   assertCan(user, 'work-orders.handover');
-  const found = await readFormHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, status: workOrder.status });
+  const found = await readFormHeader(workOrderId, db, { mileageKm: workOrder.mileageKm, handoverMileageKm: workOrder.handoverMileageKm, status: workOrder.status });
   if (!found) return null;
   const { status, ...formHeader } = found;
   if (!canPrintHandover(status)) return 'wrong-status';

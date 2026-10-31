@@ -5,7 +5,7 @@ import { createCustomer } from '../src/dal/customers.ts';
 import type { User } from '../src/dal/user.ts';
 import { createVehicle } from '../src/dal/vehicles.ts';
 import { saveWorkshopDetails } from '../src/dal/workshop.ts';
-import { addItem, changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.ts';
+import { addItem, changeWorkOrderStatus, createWorkOrder, setHandoverMileage } from '../src/dal/work-orders.ts';
 import { handoverProtocolResponse } from '../src/handover-protocol-response.ts';
 import { quoteResponse } from '../src/quote-response.ts';
 import { watchChromium } from './support/chromium.ts';
@@ -248,6 +248,25 @@ describe('the odovzdávací protokol', () => {
       ]),
     );
     expect(page!.text).not.toMatch(/€|DPH|cena|suma|Spolu|nákup|marž|poznámk/i);
+  });
+
+  // Kilometre pri odovzdaní (GLOSSARY, #164): the admin enters them on the Zákazka; the protocol prints them next to the kilometres at intake.
+  test('prints the kilometres at handover next to the kilometres at intake when the admin entered them', async () => {
+    const id = await handedOver(await orderWithItems());
+    await setHandoverMileage(admin, id, '123 600', ctx.db);
+
+    const [page] = await pagesOf(handoverProtocolResponse, id);
+
+    const lines = linesOf(page!);
+    expect(lines).toEqual(expect.arrayContaining(['Kilometre pri príjme123 456 km', 'Kilometre pri odovzdaní123 600 km', 'Dátum odovzdania28. 10. 2026']));
+    expect(lines.indexOf('Kilometre pri príjme123 456 km')).toBeLessThan(lines.indexOf('Kilometre pri odovzdaní123 600 km'));
+    expect(page!.text).not.toContain('_');
+  });
+
+  test('prints a blank to write the kilometres at handover on, ________ km, when the admin entered none', async () => {
+    const [page] = await pagesOf(handoverProtocolResponse, await handedOver(await orderWithItems()));
+
+    expect(linesOf(page!)).toEqual(expect.arrayContaining(['Kilometre pri príjme123 456 km', 'Kilometre pri odovzdaní________ km']));
   });
 
   test('has the day of the handover that is the day of the print, also when it is not the day of the intake', async () => {

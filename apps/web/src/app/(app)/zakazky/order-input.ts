@@ -15,9 +15,12 @@ export const readOrder = (formData: FormData): OrderFormValues => ({
   note: String(formData.get('note') ?? ''),
 });
 
+/** The message of kilometres the domain refused, for the kilometres at intake and at handover alike. */
+export const mileageMessage = 'Zadajte kilometre ako celé číslo, 0 alebo viac';
+
 /** The message of each field the domain refused. */
 export const orderMessages = ({ mileageKm, customerRequest, deadline }: WorkOrderErrors): OrderFormErrors => ({
-  mileageKm: mileageKm && 'Zadajte kilometre ako celé číslo, 0 alebo viac',
+  mileageKm: mileageKm && mileageMessage,
   customerRequest: customerRequest && 'Vyplňte požiadavku zákazníka',
   deadline: deadline && 'Zadajte termín ako platný dátum',
 });

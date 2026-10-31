@@ -13,6 +13,8 @@ import {
   createIntake,
   createWorkOrder,
   deleteItem,
+  setHandoverMileage,
+  type SetHandoverMileageResult,
   updateItem,
   updateWorkOrderHeader,
 } from '../../../dal/work-orders.ts';
@@ -20,7 +22,7 @@ import { forbiddenMessage, orForbidden } from '../forbidden.ts';
 import { itemMessages, type ItemMessages } from '../item-messages.ts';
 import { customerMessages, intakeCustomerPrefix, readCustomer, type CustomerFormErrors, type CustomerFormValues } from '../zakaznici/customer-input.ts';
 import { intakeVehiclePrefix, readVehicle, vehicleMessages, type VehicleFormErrors, type VehicleFormValues } from '../vozidla/vehicle-input.ts';
-import { orderMessages, readOrder, type OrderFormErrors, type OrderFormValues } from './order-input.ts';
+import { mileageMessage, orderMessages, readOrder, type OrderFormErrors, type OrderFormValues } from './order-input.ts';
 
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? '');
 
@@ -226,4 +228,37 @@ export async function changeStatus(_state: ChangeStatusState, formData: FormData
   if (!result.ok && result.error === 'confirmation-required') return { error: 'Zrušenie zákazky treba potvrdiť' };
   revalidatePath(`/zakazky/${id}`);
   return null;
+}
+
+export type HandoverMileageState = {
+  values: { handoverMileageKm: string };
+  errors: { handoverMileageKm?: string; form?: string };
+  /** The kilometres were saved lower than those at intake: the form warns, naming both and the Stav km the vehicle has (the odometer may have been replaced). */
+  lowerThanIntake?: Extract<SetHandoverMileageResult, { ok: true }>['lowerThanIntake'];
+} | null;
+
+/**
+ * Server Action of the form that enters the Kilometre pri odovzdaní of the Zákazka whose id the form carries (`workOrderId`); it checks
+ * the session itself, like every action. A Zákazka that is not Hotová or Vyfakturovaná (a click that came late, or a status changed
+ * in another tab) is refused with a message on the form and changes nothing.
+ */
+export async function saveHandoverMileage(_state: HandoverMileageState, formData: FormData): Promise<HandoverMileageState> {
+  const user = await currentUser();
+  const workOrderId = field(formData, 'workOrderId');
+  const values = { handoverMileageKm: field(formData, 'handoverMileageKm') };
+
+  const result = await orForbidden(setHandoverMileage(user, workOrderId, values.handoverMileageKm));
+  if (result === 'forbidden') return { values, errors: { form: forbiddenMessage } };
+  if (!result.ok) {
+    if (result.errors.workOrder === 'unknown') notFound();
+    return {
+      values,
+      errors: {
+        handoverMileageKm: result.errors.handoverMileageKm && mileageMessage,
+        form: result.errors.workOrder && 'Kilometre pri odovzdaní sa dajú zadať len na zákazke v stave Hotová alebo Vyfakturovaná',
+      },
+    };
+  }
+  revalidatePath(`/zakazky/${workOrderId}`);
+  return { values, errors: {}, lowerThanIntake: result.lowerThanIntake };
 }

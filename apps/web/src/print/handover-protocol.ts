@@ -5,6 +5,9 @@ import type { PrintedInput } from '../print-response.ts';
 import { printedDocument } from './document.ts';
 import { html } from './html.ts';
 
+/** What stands where the kilometres at handover go when the admin entered none: a line of underscores to write on. */
+const blankKm = '________';
+
 const itemRow = ({ kind, code, name, quantityHundredths, unit }: HandoverProtocol['items'][number]) => html`
 <tr>
   <td>${itemKindLabels[kind]}</td>
@@ -28,8 +31,9 @@ const itemsTable = (items: HandoverProtocol['items']) => html`
 
 /**
  * The HTML of the Odovzdávací protokol (GLOSSARY) that the customer and the autoservis sign when the vehicle is handed
- * over: the frame of every form, then the kilometres at intake, the day of the handover (the day of the print), the
- * work and parts done with their quantities and units, and a line for each signature. It has no price.
+ * over: the frame of every form, then the kilometres at intake and at handover (a blank to fill in by hand when the admin entered none),
+ * the day of the handover (the day of the print), the work and parts done with their quantities and units, and a line for each
+ * signature. It has no price.
  */
 export const handoverProtocolDocument = ({
   protocol,
@@ -44,6 +48,7 @@ export const handoverProtocolDocument = ({
 <section>
   <dl class="facts">
     <div><dt>Kilometre pri príjme</dt><dd>${formatWhole(protocol.mileageKm)} km</dd></div>
+    <div><dt>Kilometre pri odovzdaní</dt><dd>${protocol.handoverMileageKm === null ? blankKm : formatWhole(protocol.handoverMileageKm)} km</dd></div>
     <div><dt>Dátum odovzdania</dt><dd>${formatDate(printedOn)}</dd></div>
   </dl>
 </section>

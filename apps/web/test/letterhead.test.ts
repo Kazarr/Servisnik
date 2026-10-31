@@ -7,6 +7,9 @@ import { changeWorkOrderStatus, createWorkOrder } from '../src/dal/work-orders.t
 import { workOrderCounter, workshop } from '../src/db/schema.ts';
 import { handoverProtocolResponse } from '../src/handover-protocol-response.ts';
 import { jobSheetResponse } from '../src/job-sheet-response.ts';
+import { printedDocument } from '../src/print/document.ts';
+import { html } from '../src/print/html.ts';
+import { printPdf } from '../src/print/pdf.ts';
 import { quoteResponse } from '../src/quote-response.ts';
 import { admin, mechanic } from './support/dal-users.ts';
 import { watchChromium } from './support/chromium.ts';
@@ -15,6 +18,7 @@ import { createTestDb } from './support/db.ts';
 import { idOf } from './support/id-of.ts';
 import { png } from './support/logo-files.ts';
 import { paintsWith, readPdf } from './support/pdf.ts';
+import { workshop as exampleWorkshop } from './support/print-fixtures.ts';
 import { truncateTables } from './support/reset.ts';
 
 // The Hlavička tlačív (GLOSSARY, ticket #150): the top of every printed form is white, or a black bar with a thin gold line under
@@ -90,18 +94,18 @@ test.each([
   expect(page.text).toContain('Číslo zákazky');
 });
 
-// The right column of the header and the identifiers of the autoservis (ticket #148): a number, a day and a labelled identifier
+// The right column of the header and the identifiers of the autoservis (tickets #148, #164): the title of the form, a number, a day and a labelled identifier
 // are each printed on one line, however long the details of the autoservis are. The name, the address and the identifiers are the
 // demo's; the e-mail, the phone, the IBAN and the entry of the register are made long so that the details column is wide. The
 // counter is set so that the number is the long one, `Z2026-123456`.
 const printedOn = new Date('2026-10-29T09:00:00Z');
 test.each(
   (['white', 'blackBar'] as const).flatMap((letterhead) => [
-    [letterhead, 'zákazkový list', (id: string) => jobSheetResponse(admin, id, ctx.db, printedOn)] as const,
-    [letterhead, 'cenová ponuka', (id: string) => quoteResponse(admin, id, ctx.db, printedOn)] as const,
-    [letterhead, 'odovzdávací protokol', async (id: string) => handoverProtocolResponse(admin, await handedOver(id), ctx.db, printedOn)] as const,
+    [letterhead, 'zákazkový list', 'Zákazkový list', (id: string) => jobSheetResponse(admin, id, ctx.db, printedOn)] as const,
+    [letterhead, 'cenová ponuka', 'Cenová ponuka', (id: string) => quoteResponse(admin, id, ctx.db, printedOn)] as const,
+    [letterhead, 'odovzdávací protokol', 'Odovzdávací protokol', async (id: string) => handoverProtocolResponse(admin, await handedOver(id), ctx.db, printedOn)] as const,
   ]),
-)('on the %s Hlavička the %s keeps the number of the Zákazka, the day of the print and the IČ DPH each on one line', async (letterhead, _form, print) => {
+)('on the %s Hlavička the %s keeps its title, the number of the Zákazka, the day of the print and the IČ DPH each on one line', async (letterhead, _form, title, print) => {
   await saveWorkshopDetails(
     admin,
     {
@@ -127,6 +131,21 @@ test.each(
 
   const lines = (await firstPage(await print(id))).text.split('\n');
 
-  const broken = ['Z2026-123456', '29. 10. 2026', 'IČ DPH: SK2121662114'].filter((whole) => !lines.some((line) => line.includes(whole)));
+  const broken = [title, 'Z2026-123456', '29. 10. 2026', 'IČ DPH: SK2121662114'].filter((whole) => !lines.some((line) => line.includes(whole)));
   expect(broken, `broken across lines in ${JSON.stringify(lines.slice(0, 14))}`).toEqual([]);
+});
+
+// The title of a form is never broken (ticket #164). The column of the title has the width of the title (`.identity { flex: none }`, ticket #148), and the
+// title does not rely on that: here the column may shrink, as the long details of the autoservis ask it to, and the title is still one line. The longest title is
+// the one that breaks here; the other two are shorter and stay whole in this column even without the rule, so they could not fail.
+test('the title of the odovzdávací protokol stays on one line in a column that may shrink', async () => {
+  const header = { number: 'Z2026-0001', customer: { name: 'Ján Novák' }, vehicle: { vin: 'WVWZZZ1JZ3W386752', licensePlate: 'BA123AB', make: 'Porsche', model: '911 GT3' } };
+  const longDetails = { ...exampleWorkshop, email: 'autocentrum.slovensko.servis@jmautocentrum.sk', commercialRegister: 'Obchodný register Okresného súdu Trenčín, oddiel: Sro, vložka č.: 12345/R' };
+  const document = printedDocument({ ...header, title: 'Odovzdávací protokol', printedOn: '2026-10-29', workshop: longDetails, logo: null, letterhead: 'white' }, html``);
+  const shrinking = document.replace('</style>', '.identity { flex: 0 1 auto; }</style>');
+  expect(shrinking).not.toBe(document);
+
+  const lines = readPdf(await printPdf(shrinking))[0]!.text.split('\n');
+
+  expect(lines.filter((line) => line.includes('Odovzdávací protokol')), `broken across lines in ${JSON.stringify(lines.slice(0, 14))}`).toEqual(['Odovzdávací protokol']);
 });
