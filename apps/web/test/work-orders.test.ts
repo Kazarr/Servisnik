@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';
 import { createCustomer } from '../src/dal/customers.ts';
 import { createPriceListItem, deletePriceListItem, updatePriceListItem } from '../src/dal/price-list.ts';
 import { UnauthenticatedError } from '../src/dal/user.ts';
-import { createVehicle, transferOwnership } from '../src/dal/vehicles.ts';
+import { createVehicle, deleteVehicle, transferOwnership } from '../src/dal/vehicles.ts';
 import {
   addItem,
   addItemFromPriceList,
@@ -1371,4 +1371,43 @@ test('kilometres entered while the Zákazka is being marked as done wait for it 
 
   expect(saved).toEqual({ ok: true });
   expect(await handoverKm(id)).toBe(100450);
+});
+
+// The save locks the Zákazka and then waits for the row of the vehicle, and deleting the Vozidlo holds that row and then looks for a
+// Zákazka of it (the foreign key is `restrict`, which takes a key share lock on the Zákazky). The save must not lock the Zákazka so that
+// the key share waits for it: the delete would wait for the save, and the save for the delete.
+test('kilometres saved while the Vozidlo is being deleted do not deadlock with the delete: it is stopped by the Zákazka, and the kilometres are saved', async () => {
+  const id = await handedOverAt('100 000');
+
+  // A transaction holds the row of the vehicle. The delete queues for it first and the save after it, so that when it lets go the
+  // delete has the row of the vehicle and asks for the Zákazka, which the save holds while it waits for the row of the vehicle.
+  const holding = Promise.withResolvers<void>();
+  const letGo = Promise.withResolvers<void>();
+  const holder = ctx.db.transaction(async (tx) => {
+    await tx.execute(sql`select 1 from vehicle where id = ${vehicleId} for update`);
+    holding.resolve();
+    await letGo.promise;
+  });
+  holder.catch(holding.reject);
+  await holding.promise;
+
+  let outcome: PromiseSettledResult<unknown>[] = [];
+  try {
+    const deleting = deleteVehicle(admin, vehicleId, ctx.db);
+    await untilLockWaits(ctx.db, 1);
+    const saving = atHandover(id, '100 450');
+    await untilLockWaits(ctx.db, 2);
+    letGo.resolve();
+    outcome = await Promise.allSettled([deleting, saving]); // a deadlock ends one of them, after PostgreSQL's deadlock_timeout (1 s), with 40P01
+  } finally {
+    letGo.resolve();
+    await holder;
+  }
+
+  expect(outcome).toEqual([
+    { status: 'fulfilled', value: { ok: false, error: 'has-links' } },
+    { status: 'fulfilled', value: { ok: true } },
+  ]);
+  expect(await handoverKm(id)).toBe(100450);
+  expect((await vehicleRow()).mileageKm).toBe(100450);
 });
