@@ -484,10 +484,13 @@ th {
 
 /*
  * Under 1366 px the items table is set closer, so that it fits from 1024 px, a tablet in landscape (ticket #163): smaller
- * text, little room between the columns and the "Zmazať" button no wider than its text needs. Under 1024 px the table scrolls
- * in its frame (.table-wrap), never the page. The widths are in rem because a media query cannot hold a var().
+ * text, little room between the columns and less room at the sides of the buttons in the last column (Akcie). Under 1024 px
+ * the table scrolls in its frame (.table-wrap), never the page. 1366 px is 85.375rem, the width the table fits from without
+ * this (ticket #148), and the query is "width <", so that every width below it is set closer. The edge is in rem, which a media query
+ * takes from the text size the user set in the browser: the table is as wide as its text is large, so with larger text it
+ * needs this at a wider window. A media query cannot hold a var(), so the number is written here and not taken from a token.
  */
-@media (max-width: 85.3rem) {
+@media (width < 85.375rem) {
   .work-order-items {
     font-size: var(--font-size-small);
   }
