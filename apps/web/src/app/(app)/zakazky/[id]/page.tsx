@@ -1,5 +1,5 @@
 import { can } from '@servisnik/domain/access';
-import { canEdit, userTransitions } from '@servisnik/domain/work-order';
+import { canEdit, canSetHandoverMileage, userTransitions } from '@servisnik/domain/work-order';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -11,6 +11,7 @@ import { formatDate, formatEuro, formatQuantity, formatWhole } from '../../../..
 import { first, pageOf } from '../../search-params.ts';
 import { workOrderStatusLabels } from '../status-labels.ts';
 import { DeleteItemForm } from './delete-item-form.tsx';
+import { HandoverMileageForm } from './handover-mileage-form.tsx';
 import { ItemForm } from './item-form.tsx';
 import { MarginSummary } from './margin-summary.tsx';
 import { PrintLinks } from './print-links.tsx';
@@ -90,6 +91,12 @@ export default async function WorkOrderPage({
           <dt>Kilometre pri príjme</dt>
           <dd>{formatWhole(order.mileageKm)} km</dd>
         </div>
+        {order.handoverMileageKm !== null && (
+          <div>
+            <dt>Kilometre pri odovzdaní</dt>
+            <dd>{formatWhole(order.handoverMileageKm)} km</dd>
+          </div>
+        )}
         <div>
           <dt>Požiadavka zákazníka</dt>
           <dd className="multiline">{order.customerRequest}</dd>
@@ -102,6 +109,7 @@ export default async function WorkOrderPage({
         )}
       </dl>
       <PrintLinks workOrderId={order.id} role={user.role} status={order.status} />
+      {mayWrite && canSetHandoverMileage(order.status) && <HandoverMileageForm workOrderId={order.id} mileageKm={order.handoverMileageKm} />}
 
       <h2>Položky</h2>
       {order.items.length === 0 ? (
