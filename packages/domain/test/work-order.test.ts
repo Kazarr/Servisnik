@@ -3,13 +3,16 @@ import {
   amountsOf,
   canEdit,
   canPrintHandover,
+  canSetHandoverMileage,
   formatWorkOrderNumber,
   isActive,
   isClosed,
   isDefaultListFilter,
   localDate,
   localYear,
+  mileageAtHandover,
   mileageAtIntake,
+  parseHandoverMileage,
   parseListFilter,
   parseVatRate,
   parseWorkOrder,
@@ -409,4 +412,47 @@ describe('kilometres at intake', () => {
   ])('%s: the vehicle had %s, the Zákazka has %s, the vehicle then has %s, warning: %s', (_what, before, atIntake, after, warning) => {
     expect(mileageAtIntake(before, atIntake)).toEqual({ vehicleMileageKm: after, lowerThanVehicle: warning });
   });
+});
+
+// Kilometre pri odovzdaní (GLOSSARY): optional, read as the kilometres at intake are, entered in the statuses the protocol is printed in.
+describe('kilometres at handover', () => {
+  test('are entered in Hotová and Vyfakturovaná, the statuses the odovzdávací protokol is printed in, and in no other', () => {
+    expect(workOrderStatuses.filter(canSetHandoverMileage)).toEqual(['done', 'invoiced']);
+  });
+
+  test.each([
+    ['digits', '123456', 123_456],
+    ['digits grouped by spaces', '123 456', 123_456],
+    ['0', '0', 0],
+    ['the most', '9999999', 9_999_999],
+    ['padded with spaces', '  80 000 ', 80_000],
+  ])('%s: "%s" is %s km', (_what, typed, km) => {
+    expect(parseHandoverMileage(typed)).toEqual({ ok: true, mileageKm: km });
+  });
+
+  test.each([[''], ['   ']])('"%s" is none: they are optional, so a blank clears them', (typed) => {
+    expect(parseHandoverMileage(typed)).toEqual({ ok: true, mileageKm: null });
+  });
+
+  test.each([['abc'], ['-5'], ['1,5'], ['12.5'], ['10000000'], ['12 km']])('"%s" is refused', (typed) => {
+    expect(parseHandoverMileage(typed)).toEqual({ ok: false });
+  });
+
+  // Kilometres at intake of the Zákazka, Stav km of the vehicle before, kilometres at handover, Stav km of the vehicle after, whether to warn.
+  // The Stav km follows mileageAtIntake (it rises, it never falls); the warning is about the kilometres at intake of this Zákazka.
+  test.each([
+    ['higher than at intake and than the vehicle has', 100_000, 100_000, 100_120, 100_120, false],
+    ['the same as at intake, the vehicle at the same', 100_000, 100_000, 100_000, 100_000, false],
+    ['higher than at intake, lower than the vehicle has (another Zákazka went further)', 100_000, 100_500, 100_200, 100_500, false],
+    ['lower than at intake, by one', 100_000, 100_000, 99_999, 100_000, true],
+    ['lower than at intake, far (an odometer that was replaced)', 250_000, 250_000, 10_000, 250_000, true],
+    ['0, with the Zákazka at 5 km', 5, 5, 0, 5, true],
+    ['higher than at intake, the vehicle without a Stav km', 100_000, null, 100_150, 100_150, false],
+    ['lower than at intake, the vehicle without a Stav km', 100_000, null, 90_000, 90_000, true],
+  ])(
+    '%s: at intake %i, the vehicle had %s, at handover %i, the vehicle then has %i, warning: %s',
+    (_what, atIntake, vehicleBefore, atHandover, vehicleAfter, warning) => {
+      expect(mileageAtHandover(atIntake, vehicleBefore, atHandover)).toEqual({ vehicleMileageKm: vehicleAfter, lowerThanIntake: warning });
+    },
+  );
 });
